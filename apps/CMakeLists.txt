@@ -1,4 +1,4 @@
-project(crash2meshCLIs)
+project(crash2meshCLI)
 
 ### Define local paths
 set(RESOURCE_PATH ${CMAKE_SOURCE_DIR}/resource/ CACHE PATH "location of local resources")
@@ -8,3 +8,4 @@ target_compile_definitions(localpaths INTERFACE
 target_include_directories(localpaths INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
 ### Add all applications
+add_subdirectory(pretests)
