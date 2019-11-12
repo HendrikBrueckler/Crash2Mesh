@@ -17,8 +17,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 14 CXX_STANDARD_RE
 target_compile_options(${PROJECT_NAME} PRIVATE ${ERR_WARN_FLAGS})
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
-target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/extern/HighFive/include)
-target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/extern/OpenVolumeMesh/src)
+target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${PROJECT_SOURCE_DIR}/extern/HighFive/include)
+target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${PROJECT_SOURCE_DIR}/extern/OpenVolumeMesh/src)
 
 ### Link with dependencies
 target_link_libraries(${PROJECT_NAME}
