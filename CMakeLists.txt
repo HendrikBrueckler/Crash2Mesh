@@ -14,19 +14,6 @@ endif()
 ### Include external header-only libraries directional and its subdependencies
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "-std=c++11 \
-                     -Wall -Wextra  -Wstrict-aliasing -pedantic -fmax-errors=5 -Werror \
-                     -Wunreachable-code -Wcast-align -Wcast-qual -Wctor-dtor-privacy \
-                     -Wdisabled-optimization -Wformat=2 -Winit-self -Wlogical-op \
-                     -Wmissing-include-dirs -Wnoexcept -Wold-style-cast -Woverloaded-virtual \
-                     -Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel \
-                     -Wstrict-overflow=5 -Wswitch-default -Wundef -Wno-unused \
-                     -Wno-variadic-macros -Wno-parentheses -fdiagnostics-show-option \
-                     ${CMAKE_CXX_FLAGS}")
-
-
 string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
 if(uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
     message("Setting up cmake in debug mode")
@@ -39,10 +26,6 @@ else()
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib/Release)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin/Release)
 endif()
-
-### Include this package's and external library headers
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern)
 
 ### Add subdirectories
 add_subdirectory(extern)

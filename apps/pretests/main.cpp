@@ -1,16 +1,27 @@
-#include "highfive/H5Easy.hpp"
-#include <vector>
+#include <crash2mesh/fileio/erf_hdf5_reader.hpp>
+#include <crash2mesh/util/logger.hpp>
 
 using namespace std;
+using namespace c2m;
+
+void testReader(const ERFHDF5Reader& reader)
+{
+    Logger::lout(Logger::INFO) << "testReader(): starting" << endl;
+    map<entid_t, VolVec3> id2pos;
+    if (!reader.readVertices(id2pos))
+        Logger::lout(Logger::ERROR) << "\t\ttesting readVertices() failed!" << endl;
+
+    Logger::lout(Logger::INFO) << "testReader(): finished" << endl;
+}
 
 int main(int argc, char** argv)
 {
     if (argc != 2)
         return -1;
 
-    HighFive::File file(argv[1]);
-    vector<vector<double>> v = H5Easy::load<vector<vector<double>>>(file, string("/CSMEXPL/constant/entityresults/NODE/COORDINATE/ZONE1_set0/erfblock/res"));
+    ERFHDF5Reader reader(argv[1]);
 
-    cout << "Length " << v.size() << " " << (v.empty() ? 0 : v[0].size()) << endl;
+    testReader(reader);
+
     return 0;
 }

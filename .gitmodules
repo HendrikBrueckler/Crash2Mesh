@@ -1,3 +1,6 @@
 [submodule "extern/HighFive"]
 	path = extern/HighFive
 	url = https://github.com/BlueBrain/HighFive.git
+[submodule "extern/OpenVolumeMesh"]
+	path = extern/OpenVolumeMesh
+	url = https://www.graphics.rwth-aachen.de:9000/OpenVolumeMesh/OpenVolumeMesh.git

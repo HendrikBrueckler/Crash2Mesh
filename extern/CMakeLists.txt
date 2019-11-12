@@ -13,13 +13,15 @@ if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
     endif()
 endif()
 
-if(NOT EXISTS "${PROJECT_SOURCE_DIR}/extern/HighFive/CMakeLists.txt")
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/extern/HighFive/CMakeLists.txt"
+    OR NOT EXISTS "${PROJECT_SOURCE_DIR}/extern/OpenVolumeMesh/CMakeLists.txt")
     message(FATAL_ERROR "The submodules were not downloaded! GIT_SUBMODULE was turned off or failed. Please update submodules and try again.")
 endif()
 
 set(HIGHFIVE_EXAMPLES FALSE)
 set(HIGHFIVE_UNIT_TESTS FALSE)
-set(USE_BOOST TRUE)
+set(USE_BOOST FALSE)
 set(HIGHFIVE_PARALLEL_HDF5 FALSE)
 
 add_subdirectory(HighFive)
+add_subdirectory(OpenVolumeMesh)

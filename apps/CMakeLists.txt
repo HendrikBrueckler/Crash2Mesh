@@ -1,5 +1,3 @@
-project(crash2meshCLI)
-
 ### Define local paths
 set(RESOURCE_PATH ${CMAKE_SOURCE_DIR}/resource/ CACHE PATH "location of local resources")
 add_library(localpaths INTERFACE)
