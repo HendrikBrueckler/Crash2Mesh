@@ -1,4 +1,4 @@
-#include <crash2mesh/fileio/erfh5/reader.hpp>
+#include <crash2mesh/io/erfh5/reader.hpp>
 #include <crash2mesh/algorithm/surface_extractor.hpp>
 
 #include <crash2mesh/util/logger.hpp>

@@ -18,10 +18,10 @@ target_compile_options(${PROJECT_NAME} PRIVATE ${ERR_WARN_FLAGS})
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${PROJECT_SOURCE_DIR}/extern/HighFive/include)
-target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${PROJECT_SOURCE_DIR}/extern/OpenVolumeMesh/src)
+target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${OPENMESH_INCLUDE_DIRS})
 
 ### Link with dependencies
 target_link_libraries(${PROJECT_NAME}
     HighFive
-    OpenVolumeMesh
+    ${OPENMESH_LIBRARIES}
 )

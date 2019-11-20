@@ -1,7 +1,7 @@
 #ifndef C2M_TYPES_HPP
 #define C2M_TYPES_HPP
 
-#include <OpenVolumeMesh/Geometry/VectorT.hh>
+#include <OpenMesh/Core/Geometry/VectorT.hh>
 
 #include <highfive/H5Exception.hpp>
 #include <highfive/H5File.hpp>
@@ -22,7 +22,7 @@ using partid_t = long;
  * @brief 3D double vector for use with OpenVolumeMesh
  *
  */
-using VVec3d = OpenVolumeMesh::Geometry::Vec3d;
+using Vec3d = OpenMesh::Vec3d;
 /**
  * @brief Exception to handle when reading from HDF5
  *

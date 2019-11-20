@@ -3,7 +3,7 @@
 
 #include <crash2mesh/core/structure_elements.hpp>
 #include <crash2mesh/core/types.hpp>
-#include <crash2mesh/fileio/erfh5/file_contents.hpp>
+#include <crash2mesh/io/erfh5/file_contents.hpp>
 #include <crash2mesh/util/logger.hpp>
 #include <highfive/H5Easy.hpp>
 

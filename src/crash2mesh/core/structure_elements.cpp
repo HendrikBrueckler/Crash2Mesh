@@ -26,7 +26,7 @@ bool FiniteElement::operator>(const FiniteElement& other) const
     return other < *this;
 }
 
-Node::Node(nodeid_t _ID, const VVec3d& _coord, const std::vector<VVec3d>& _displacements)
+Node::Node(nodeid_t _ID, const Vec3d& _coord, const std::vector<Vec3d>& _displacements)
     : FiniteElement(erfh5::FEType::NODE, ID_NULL), ID(_ID), coord(_coord), displacements(_displacements)
 {
 }

@@ -1,4 +1,4 @@
-#include <crash2mesh/fileio/erfh5/file_contents.hpp>
+#include <crash2mesh/io/erfh5/file_contents.hpp>
 #include <regex>
 
 namespace c2m

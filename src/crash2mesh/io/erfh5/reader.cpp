@@ -1,9 +1,7 @@
-#include <crash2mesh/fileio/erfh5/reader.hpp>
+#include <crash2mesh/io/erfh5/reader.hpp>
 
 #include <crash2mesh/algorithm/surface_extractor.hpp>
-#include <crash2mesh/fileio/erfh5/file_contents.hpp>
-
-#include <OpenVolumeMesh/Mesh/PolyhedralMesh.hh>
+#include <crash2mesh/io/erfh5/file_contents.hpp>
 
 #include <highfive/H5Easy.hpp>
 
@@ -176,8 +174,8 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
 
     for (uint i = 0; i < nodeIDs.size(); i++)
     {
-        VVec3d coord(nodeCoordinates[i][0], nodeCoordinates[i][1], nodeCoordinates[i][2]);
-        vector<VVec3d> displacements;
+        Vec3d coord(nodeCoordinates[i][0], nodeCoordinates[i][1], nodeCoordinates[i][2]);
+        vector<Vec3d> displacements;
         for (uint j = 0; j < nodeDisplacements[nodeIDs[i]].size(); j++)
         {
             displacements.emplace_back(nodeDisplacements[nodeIDs[i]][j][0],

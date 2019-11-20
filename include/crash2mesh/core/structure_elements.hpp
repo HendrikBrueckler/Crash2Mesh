@@ -2,7 +2,7 @@
 #define C2M_STRUCTURE_ELEMENTS_HPP
 
 #include <crash2mesh/core/types.hpp>
-#include <crash2mesh/fileio/erfh5/file_contents.hpp>
+#include <crash2mesh/io/erfh5/file_contents.hpp>
 
 #include <set>
 #include <vector>
@@ -67,10 +67,10 @@ class Node : public FiniteElement
      * @param coord 3D coordinates
      * @param displacements 3D displacements
      */
-    Node(nodeid_t _ID, const VVec3d& coord, const std::vector<VVec3d>& displacements);
+    Node(nodeid_t _ID, const Vec3d& coord, const std::vector<Vec3d>& displacements);
     const nodeid_t ID;                       ///< A node's ID (not the same as FiniteElement::entityID)
-    const VVec3d coord;                      ///< A node's coordinate
-    const std::vector<VVec3d> displacements; ///< A node's displacements
+    const Vec3d coord;                      ///< A node's coordinate
+    const std::vector<Vec3d> displacements; ///< A node's displacements
 };
 
 /**
