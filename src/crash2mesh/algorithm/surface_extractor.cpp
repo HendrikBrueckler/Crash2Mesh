@@ -52,9 +52,6 @@ bool SurfaceExtractor::extract(const std::map<partid_t, std::vector<Element3D::P
 {
     static elemid_t maxSurfaceID = 0;
 
-    Logger::lout(Logger::DEBUG) << "Starting surface extraction for " << partIDToVolumeElements.size()
-                                << " parts containing 3D elements" << std::endl;
-
     partIDToSurfaceElements.clear();
     int facesExtracted = 0;
     int facesDiscarded = 0;
@@ -107,7 +104,7 @@ bool SurfaceExtractor::extract(const std::map<partid_t, std::vector<Element3D::P
         }
     }
 
-    Logger::lout(Logger::DEBUG) << "Extracted " << facesExtracted << " surface 2D elements and discarded "
+    Logger::lout(Logger::INFO) << "Extracted " << facesExtracted << " surface 2D elements and discarded "
                                 << facesDiscarded << " internal faces from 3D elements" << std::endl;
 
     return true;

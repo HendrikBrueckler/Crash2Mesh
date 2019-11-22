@@ -12,17 +12,12 @@ namespace c2m
  * @brief Types to be used for the identifiers of HDF5 entities
  *
  */
-using entid_t = long; // needs to be >= nodeid_t, elemid_t, partid_t
-using nodeid_t = long;
-using elemid_t = long;
-using partid_t = long;
+using entid_t = int; // needs to be >= nodeid_t, elemid_t, partid_t
+using nodeid_t = int;
+using elemid_t = int;
+using partid_t = int;
 #define ID_NULL 0
 
-/**
- * @brief 3D double vector for use with OpenVolumeMesh
- *
- */
-using Vec3d = OpenMesh::Vec3d;
 /**
  * @brief Exception to handle when reading from HDF5
  *
@@ -33,6 +28,13 @@ using H5Exception = HighFive::Exception;
  *
  */
 using H5File = HighFive::File;
+
+/**
+ * @brief 3D float vector for use with OpenVolumeMesh
+ *
+ */
+using Vec3 = OpenMesh::Vec3f;
+
 } // namespace c2m
 
 #endif

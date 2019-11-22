@@ -4,3 +4,6 @@
 [submodule "extern/OpenMesh"]
 	path = extern/OpenMesh
 	url = https://www.graphics.rwth-aachen.de:9000/OpenMesh/OpenMesh.git
+[submodule "extern/Easy3D"]
+	path = extern/Easy3D
+	url = https://github.com/LiangliangNan/Easy3D.git

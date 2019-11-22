@@ -7,6 +7,7 @@ set(ERR_WARN_FLAGS -Wall -Wextra  -Wstrict-aliasing -pedantic -fmax-errors=5 -We
                     -Wno-variadic-macros -Wno-parentheses -fdiagnostics-show-option)
 
 ### Find dependencies
+find_package(OpenGL REQUIRED)
 
 ### Register all sources
 file(GLOB_RECURSE SOURCE_LIST "*.cpp")
@@ -17,11 +18,14 @@ set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17 CXX_STANDARD_RE
 target_compile_options(${PROJECT_NAME} PRIVATE ${ERR_WARN_FLAGS})
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
-target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${PROJECT_SOURCE_DIR}/extern/HighFive/include)
-target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${PROJECT_SOURCE_DIR}/extern/OpenMesh/src)
+target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/extern/HighFive/include)
+target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/extern/OpenMesh/src)
+target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/extern/Easy3D)
 
 ### Link with dependencies
 target_link_libraries(${PROJECT_NAME}
     HighFive
     OpenMeshCore
+    OpenMeshTools
+    ${OPENGL_LIBRARIES} glew glfw core viewer
 )
