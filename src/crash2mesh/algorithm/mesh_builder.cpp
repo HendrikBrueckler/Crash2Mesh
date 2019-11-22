@@ -112,7 +112,7 @@ bool MeshBuilder::build(std::vector<Part::Ptr>& parts, std::vector<Mesh>& meshes
     int invalidTriangles = 0;
     for (Part::Ptr& partptr : parts)
     {
-        if (partptr->elements2D.empty() && partptr->elements3D.empty())
+        if (partptr->elements2D.empty() && partptr->surfaceElements.empty())
         {
             continue;
         }
