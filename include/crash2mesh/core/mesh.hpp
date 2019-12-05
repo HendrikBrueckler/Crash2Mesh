@@ -8,7 +8,6 @@
 namespace c2m
 {
 
-
 struct MeshTraits : public OpenMesh::DefaultTraits
 {
     VertexAttributes(OpenMesh::Attributes::Status);
@@ -29,5 +28,8 @@ struct MeshTraits : public OpenMesh::DefaultTraits
 };
 
 using Mesh = OpenMesh::TriMesh_ArrayKernelT<MeshTraits>;
+using VHandle = Mesh::VertexHandle;
+using FHandle = Mesh::FaceHandle;
+using HEHandle = Mesh::HalfedgeHandle;
 }
 #endif

@@ -1,6 +1,7 @@
 #ifndef C2M_SURFACE_EXTRACTOR_HPP
 #define C2M_SURFACE_EXTRACTOR_HPP
 
+#include <crash2mesh/core/collectors.hpp>
 #include <crash2mesh/core/structure_elements.hpp>
 #include <map>
 #include <vector>
@@ -16,14 +17,14 @@ class SurfaceExtractor
 {
   public:
     /**
-     * @brief Extract the surface elements this objects referenced volumes.
+     * @brief Extract the surface elements of the given parts
      *
-     * @param partIDToSurfaceElements the extracted surface 2D elements ordered by their containing parts
+     * @param parts the parts to extract surface elements from
+     * @param deleteVolumes whether 3D elements may be removed from the part after surface extraction
      * @return true if any surfaces could be extracted
      * @return false else
      */
-    static bool extract(const std::map<partid_t, std::vector<Element3D::Ptr>>& partIDToVolumeElements,
-                        std::map<partid_t, std::vector<SurfaceElement::Ptr>>& partIDToSurfaceElements);
+    static bool extract(std::vector<Part::Ptr>& parts, bool deleteVolumes = true);
 
   private:
     /**

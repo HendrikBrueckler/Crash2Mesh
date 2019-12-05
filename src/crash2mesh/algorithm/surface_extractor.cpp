@@ -47,18 +47,21 @@ bool SurfaceExtractor::FaceCompare::operator()(const vector<Node::Ptr>& a, const
     return false;
 }
 
-bool SurfaceExtractor::extract(const std::map<partid_t, std::vector<Element3D::Ptr>>& partIDToVolumeElements,
-                               std::map<partid_t, std::vector<SurfaceElement::Ptr>>& partIDToSurfaceElements)
+bool SurfaceExtractor::extract(std::vector<Part::Ptr>& parts, bool deleteVolumes)
 {
     static elemid_t maxSurfaceID = 0;
 
-    partIDToSurfaceElements.clear();
     int facesExtracted = 0;
     int facesDiscarded = 0;
-    for (auto [partID, volumeElements] : partIDToVolumeElements)
+    for (Part::Ptr& partptr : parts)
     {
+        if (partptr->elements3D.empty())
+        {
+            continue;
+        }
+
         map<vector<Node::Ptr>, vector<Element3D::Ptr>, FaceCompare> faceToReferencingVolumes;
-        for (const Element3D::Ptr& volume : volumeElements)
+        for (const Element3D::Ptr& volume : partptr->elements3D)
         {
             for (const vector<int>& faceIndices : volume->type.family.facesCCW)
             {
@@ -88,8 +91,8 @@ bool SurfaceExtractor::extract(const std::map<partid_t, std::vector<Element3D::P
                 {
                     throw std::logic_error("Unexpected size of 3D element face");
                 }
-                partIDToSurfaceElements[partID].emplace_back(std::make_shared<SurfaceElement>(
-                    ++maxSurfaceID, *elemType, partID, faceNodes, volumeElement));
+                partptr->surfaceElements.emplace(std::make_shared<SurfaceElement>(
+                    ++maxSurfaceID, *elemType, partptr->ID, faceNodes, volumeElement));
                 facesExtracted++;
             }
             else
@@ -101,6 +104,10 @@ bool SurfaceExtractor::extract(const std::map<partid_t, std::vector<Element3D::P
                 }
                 facesDiscarded++;
             }
+        }
+        if (deleteVolumes)
+        {
+            partptr->elements3D.clear();
         }
     }
 

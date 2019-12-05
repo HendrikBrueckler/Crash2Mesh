@@ -1,6 +1,7 @@
 #ifndef C2M_ERFH5_READER_HPP
 #define C2M_ERFH5_READER_HPP
 
+#include <crash2mesh/core/collectors.hpp>
 #include <crash2mesh/core/structure_elements.hpp>
 #include <crash2mesh/core/types.hpp>
 #include <crash2mesh/io/erfh5/file_contents.hpp>
@@ -23,6 +24,8 @@ class Reader
      * @param filename name of file to read from
      */
     Reader(const std::string& filename);
+
+    uint getNumStates() const;
 
     bool readParts(std::vector<Part::Ptr>& parts) const;
 
@@ -105,7 +108,7 @@ class Reader
             if (!readData(entityIDPath, entityIDs) || !readData(resultPath, results) || entityIDs.size() == 0
                 || results.size() != entityIDs.size())
             {
-                logPathInfo(Logger::ERROR,
+                logFileInfo(Logger::ERROR,
                             "Could not read per-state results",
                             elemType.pathToPerStateResults(state, resultType));
                 return false;
@@ -140,7 +143,7 @@ class Reader
             }
             catch (H5Exception)
             {
-                logPathInfo(Logger::ERROR, "HDF5 reading error ", path);
+                logFileInfo(Logger::ERROR, "HDF5 reading error ", path);
                 return false;
             }
         }
@@ -172,7 +175,7 @@ class Reader
      * @param msg message
      * @param path path within the file
      */
-    void logPathInfo(Logger::Level severity, const std::string& msg, const std::string& path) const;
+    void logFileInfo(Logger::Level severity, const std::string& msg, const std::string& path) const;
 
     /**
      * @brief Auxiliary function to log info including the filename

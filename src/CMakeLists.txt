@@ -8,6 +8,7 @@ set(ERR_WARN_FLAGS -Wall -Wextra  -Wstrict-aliasing -pedantic -fmax-errors=5 -We
 
 ### Find dependencies
 find_package(OpenGL REQUIRED)
+find_package(Eigen3 3.3 REQUIRED NO_MODULES)
 
 ### Register all sources
 file(GLOB_RECURSE SOURCE_LIST "*.cpp")
@@ -27,5 +28,6 @@ target_link_libraries(${PROJECT_NAME}
     HighFive
     OpenMeshCore
     OpenMeshTools
+    Eigen3::Eigen
     ${OPENGL_LIBRARIES} glew glfw core viewer
 )

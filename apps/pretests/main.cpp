@@ -1,4 +1,5 @@
 #include <crash2mesh/algorithm/mesh_builder.hpp>
+#include <crash2mesh/algorithm/mesh_decimater.hpp>
 #include <crash2mesh/algorithm/surface_extractor.hpp>
 #include <crash2mesh/io/erfh5/reader.hpp>
 
@@ -8,9 +9,7 @@ using namespace std;
 using namespace c2m;
 using namespace erfh5;
 
-void testReader(const Reader& reader,
-                map<partid_t, vector<Element3D::Ptr>>& partIDToElements3D,
-                vector<Part::Ptr>& parts)
+void testReader(const Reader& reader, vector<Part::Ptr>& parts)
 {
     Logger::lout(Logger::INFO) << "testReader(): starting" << endl;
 
@@ -35,12 +34,12 @@ void testReader(const Reader& reader,
     Logger::lout(Logger::INFO) << "testReader(): finished" << endl;
 }
 
-void testSurfaceExtraction(const map<elemid_t, std::vector<Element3D::Ptr>>& volumes)
+void testSurfaceExtraction(vector<Part::Ptr>& parts)
 {
     Logger::lout(Logger::INFO) << "SurfaceExtractor::extract(): starting" << endl;
 
     map<partid_t, std::vector<SurfaceElement::Ptr>> partIDToSurfaceElements;
-    if (!SurfaceExtractor::extract(volumes, partIDToSurfaceElements))
+    if (!SurfaceExtractor::extract(parts))
     {
         Logger::lout(Logger::ERROR) << "\t\ttesting SurfaceExtractor::extract() failed!" << endl;
     }
@@ -53,7 +52,7 @@ void testMeshBuilding(vector<Part::Ptr>& parts)
     Logger::lout(Logger::INFO) << "MeshBuilder::build: starting" << endl;
 
     std::vector<Mesh> meshes;
-    if (!MeshBuilder::build(parts, meshes))
+    if (!MeshBuilder::build(parts))
     {
         Logger::lout(Logger::ERROR) << "\t\ttesting surfaceextraction failed!" << endl;
     }
@@ -61,22 +60,31 @@ void testMeshBuilding(vector<Part::Ptr>& parts)
     Logger::lout(Logger::INFO) << "MeshBuilder::build: finished" << endl;
 }
 
+void testMeshDecimation(vector<Part::Ptr>& parts)
+{
+    Logger::lout(Logger::INFO) << "MeshDecimater::decimate(): starting" << endl;
+
+    std::vector<Mesh> meshes;
+    if (!MeshDecimater::decimateSimple(parts))
+    {
+        Logger::lout(Logger::ERROR) << "\t\ttesting mesh decimation failed!" << endl;
+    }
+
+    Logger::lout(Logger::INFO) << "MeshDecimater::decimate(): finished" << endl;
+}
+
 void tests(std::string filename)
 {
     Reader reader(filename);
 
-    map<partid_t, vector<Element3D::Ptr>> partIDToElements3D;
     vector<Part::Ptr> parts;
-    testReader(reader, partIDToElements3D, parts);
-
-    if (!partIDToElements3D.empty())
-    {
-        testSurfaceExtraction(partIDToElements3D);
-    }
+    testReader(reader, parts);
 
     if (!parts.empty())
     {
+        testSurfaceExtraction(parts);
         testMeshBuilding(parts);
+        testMeshDecimation(parts);
     }
 }
 

@@ -67,11 +67,11 @@ class Node : public FiniteElement
      * @param coord 3D coordinates
      * @param displacements 3D displacements
      */
-    Node(nodeid_t _ID, const Vec3& coord, const std::vector<Vec3>& displacements);
-    const nodeid_t ID;                     ///< A node's ID (not the same as FiniteElement::entityID)
-    const Vec3 coord;                      ///< A node's coordinate
-    const std::vector<Vec3> displacements; ///< A node's displacements
-    uint referencingParts;                 ///< Number of parts referencing this vertex
+    Node(nodeid_t _ID, const Vec3& coord, const MatX3& displacements);
+    const nodeid_t ID;         ///< A node's ID (not the same as FiniteElement::entityID)
+    const Vec3 coord;          ///< A node's coordinate
+    const MatX3 displacements; ///< A node's displacements
+    uint referencingParts;     ///< Number of parts referencing this vertex
 };
 
 /**
@@ -139,7 +139,7 @@ class Element2D : public ConnectedElement
     }
     const static std::vector<const erfh5::FEType*> allTypes; ///< Contains all valid types for Element2D
     const elemid_t elem2dID;                                 ///< Identifier (unique among Element2Ds)
-    const std::vector<float> plasticStrains;                 ///< Plastic strain timeseries
+    const VecX plasticStrains;                 ///< Plastic strain timeseries
 
     /**
      * @brief Construct a new Element2D given its identifier, type, containing part, connected nodes
@@ -155,7 +155,7 @@ class Element2D : public ConnectedElement
               const erfh5::FEType& _type,
               partid_t _partID,
               const std::vector<Node::Ptr>& _nodes,
-              const std::vector<float>& _plasticStrains);
+              const VecX& _plasticStrains);
 };
 
 /**
@@ -173,7 +173,7 @@ class Element3D : public ConnectedElement
     }
     const static std::vector<const erfh5::FEType*> allTypes; ///< Contains all valid types for Element3D
     const elemid_t elem3dID;                                 ///< Identifier (unique among Element3Ds)
-    const std::vector<float> ePlasticStrains;                ///< equivalent plastic strain timeseries
+    const VecX ePlasticStrains;                ///< equivalent plastic strain timeseries
 
     /**
      * @brief Construct a new Element3D given its identifier, type, containing part, connected nodes
@@ -189,7 +189,7 @@ class Element3D : public ConnectedElement
               const erfh5::FEType& _type,
               partid_t _partID,
               const std::vector<Node::Ptr>& _nodes,
-              const std::vector<float>& _ePlasticStrains);
+              const VecX& _ePlasticStrains);
 };
 
 /**
@@ -224,66 +224,6 @@ class SurfaceElement : public ConnectedElement
                    partid_t _partID,
                    const std::vector<Node::Ptr>& _nodes,
                    Element3D::Ptr _volume);
-};
-
-/**
- * @brief Represents collections of atomic entities
- *
- */
-class Collector
-{
-  public:
-    using Ptr = std::shared_ptr<Collector>;
-
-    // For comparison and ordering (compares ID)
-    bool operator==(const Collector& other) const;
-    bool operator!=(const Collector& other) const;
-    bool operator<(const Collector& other) const;
-    bool operator>(const Collector& other) const;
-
-    std::set<Element1D::Ptr> elements1D;           ///< All contained 1D elements
-    std::set<Element2D::Ptr> elements2D;           ///< All contained 2D elements
-    std::set<SurfaceElement::Ptr> surfaceElements; ///< All contained surface elements
-    std::set<Element3D::Ptr> elements3D;           ///< All contained 3D elements
-    const entid_t entityID;    ///< The unique ID identifying this collector
-
-  protected:
-    static entid_t maxID; ///< To track the entityID given to any newly created Collector
-
-    /**
-     * @brief Construct a new Collector given its contained atomic elements
-     *
-     * @param _elements1D contained 1D elements
-     * @param _elements2D contained 2D elements
-     * @param _surfaceElements contained surface elements
-     * @param _elements3D contained 3D elements
-     */
-    Collector(const std::vector<Element1D::Ptr>& _elements1D,
-              const std::vector<Element2D::Ptr>& _elements2D,
-              const std::vector<SurfaceElement::Ptr>& _surfaceElements,
-              const std::vector<Element3D::Ptr>& _elements3D);
-};
-
-class Part : public Collector
-{
-  public:
-    using Ptr = std::shared_ptr<Part>;
-    const partid_t ID; ///< A part's identifier
-
-    /**
-     * @brief Construct a new Collector given its part identifier and contained atomic elements
-     *
-     * @param _ID this parts identifier
-     * @param _elements1D contained 1D elements
-     * @param _elements2D contained 2D elements
-     * @param _surfaceElements contained surface elements
-     * @param _elements3D contained 3D elements
-     */
-    Part(partid_t _ID,
-         const std::vector<Element1D::Ptr>& _elements1D = {},
-         const std::vector<Element2D::Ptr>& _elements2D = {},
-         const std::vector<SurfaceElement::Ptr>& _surfaceElements = {},
-         const std::vector<Element3D::Ptr>& _elements3D = {});
 };
 
 } // namespace c2m

@@ -3,6 +3,8 @@
 
 #include <OpenMesh/Core/Geometry/VectorT.hh>
 
+#include <eigen3/Eigen/Dense>
+
 #include <highfive/H5Exception.hpp>
 #include <highfive/H5File.hpp>
 
@@ -29,11 +31,18 @@ using H5Exception = HighFive::Exception;
  */
 using H5File = HighFive::File;
 
+using OMVec3 = OpenMesh::Vec3f;
+
 /**
  * @brief 3D float vector for use with OpenVolumeMesh
  *
  */
-using Vec3 = OpenMesh::Vec3f;
+using Vec3 = Eigen::Vector3f;
+using VecX = Eigen::VectorXf;
+
+using Mat3X = Eigen::Matrix3Xf;
+using MatX3 = Eigen::MatrixX3f;
+using MatX = Eigen::MatrixXf;
 
 } // namespace c2m
 
