@@ -153,93 +153,124 @@ void MeshAnalyzer::render(const Mesh& mesh)
     easy3d::Viewer viewer("Mesh View");
     std::cout.clear();
 
-    easy3d::SurfaceMesh* drawableMesh = new easy3d::SurfaceMesh;
-    easy3d::SurfaceMesh::VertexProperty colors = drawableMesh->add_vertex_property<easy3d::vec3>("v:color");
-    map<VHandle, easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex;
-    for (VHandle v : mesh.vertices())
+    for (uint i = 0; i < mesh.data(*mesh.vertices_begin()).node->displacements.rows(); i++)
     {
-        OpenMesh::DefaultTraits::Point pos = mesh.point(v);
-        vertexToDrawableVertex[v] = drawableMesh->add_vertex(easy3d::vec3(pos[0], pos[1], pos[2]));
-        if (mesh.status(v).fixed_nonmanifold())
+        easy3d::SurfaceMesh* drawableMesh = new easy3d::SurfaceMesh;
+        easy3d::SurfaceMesh::VertexProperty colors = drawableMesh->add_vertex_property<easy3d::vec3>("v:color");
+        easy3d::SurfaceMesh::VertexProperty strains = drawableMesh->add_vertex_property<float>("v:strain");
+        map<VHandle, easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex;
+        for (VHandle v : mesh.vertices())
         {
-            colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8, 0.0, 0.0);
+            OMVec3 pos = mesh.point(v);
+            Vec3 displacement = mesh.data(v).node->displacements.row(i);
+            pos += OMVec3(displacement(0), displacement(1), displacement(2));
+            vertexToDrawableVertex[v] = drawableMesh->add_vertex(easy3d::vec3(pos[0], pos[1], pos[2]));
+            float strain = 0;
+            for (FHandle f : mesh.vf_range(v))
+            {
+                const ConnectedElement::Ptr& elemptr = mesh.data(f).element;
+                if (std::find(SurfaceElement::allTypes.begin(), SurfaceElement::allTypes.end(), &elemptr->type)
+                    != SurfaceElement::allTypes.end())
+                {
+                    strain = std::max(strain, std::static_pointer_cast<SurfaceElement>(elemptr)->volume->ePlasticStrains(i));
+                } else
+                {
+                    strain = std::max(strain, std::static_pointer_cast<Element2D>(elemptr)->plasticStrains(i));
+                }
+
+            }
+            strains[vertexToDrawableVertex[v]] = strain * 50;
+            if (mesh.status(v).fixed_nonmanifold())
+            {
+                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8, 0.0, 0.0);
+            }
+            else if (mesh.data(v).node->referencingParts > 1)
+            {
+                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.9, 0.6, 0.0);
+            }
+            else if (mesh.is_boundary(v))
+            {
+                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8, 0.8, 0.0);
+            }
+            else
+            {
+                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.0, 0.6, 0.0);
+            }
         }
-        else if (mesh.data(v).node->referencingParts > 1)
+
+        for (FHandle f : mesh.faces())
         {
-            colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.9, 0.6, 0.0);
+            vector<easy3d::SurfaceMesh::Vertex> vs;
+            for (VHandle v : mesh.fv_range(f))
+            {
+                vs.emplace_back(vertexToDrawableVertex[v]);
+            }
+            drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
         }
-        else if (mesh.is_boundary(v))
+
+        easy3d::PointsDrawable* drawablePoints = drawableMesh->add_points_drawable("points");
+        drawablePoints->set_point_size(5);
+        drawablePoints->set_per_vertex_color(true);
+        drawablePoints->update_vertex_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
+        drawablePoints->update_color_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:color").vector());
+
+        // TODO visualize
+        easy3d::TrianglesDrawable* drawableTriangles = drawableMesh->add_triangles_drawable("surface");
+
+        bool faceNormals = true;
+        if (faceNormals)
         {
-            colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8, 0.8, 0.0);
+            vector<easy3d::vec3> points;
+            vector<easy3d::vec3> normals;
+            vector<easy3d::vec3> strainColors;
+            for (easy3d::SurfaceMesh::Face f : drawableMesh->faces())
+            {
+                easy3d::SurfaceMesh::Halfedge he = drawableMesh->halfedge(f);
+                easy3d::vec3 normal = drawableMesh->compute_face_normal(f);
+                for (int j = 0; j < 3; j++)
+                {
+                    points.emplace_back(drawableMesh->position(drawableMesh->to_vertex(he)));
+                    float strain = strains[drawableMesh->to_vertex(he)];
+                    strainColors.emplace_back(easy3d::vec3(1.0, 1.0 - strain, 1.0 - strain));
+                    normals.emplace_back(normal);
+                    he = drawableMesh->next_halfedge(he);
+                }
+            }
+            drawableTriangles->update_vertex_buffer(points);
+            drawableTriangles->update_normal_buffer(normals);
+            drawableTriangles->update_color_buffer(strainColors);
+            drawableTriangles->set_per_vertex_color(true);
+
+            vector<unsigned int> indices(3 * drawableMesh->faces_size());
+            std::iota(indices.begin(), indices.end(), 0);
+            drawableTriangles->update_index_buffer(indices);
         }
         else
         {
-            colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.0, 0.6, 0.0);
-        }
-    }
-
-    for (FHandle f : mesh.faces())
-    {
-        vector<easy3d::SurfaceMesh::Vertex> vs;
-        for (VHandle v : mesh.fv_range(f))
-        {
-            vs.emplace_back(vertexToDrawableVertex[v]);
-        }
-        drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
-    }
-
-    easy3d::PointsDrawable* drawablePoints = drawableMesh->add_points_drawable("points");
-    drawablePoints->set_point_size(10);
-    drawablePoints->set_per_vertex_color(true);
-    drawablePoints->update_vertex_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
-    drawablePoints->update_color_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:color").vector());
-
-    // TODO visualize
-    easy3d::TrianglesDrawable* drawableTriangles = drawableMesh->add_triangles_drawable("surface");
-
-    bool faceNormals = true;
-    if (faceNormals)
-    {
-        std::vector<easy3d::vec3> points;
-        std::vector<easy3d::vec3> normals;
-        for (easy3d::SurfaceMesh::Face f : drawableMesh->faces())
-        {
-            easy3d::SurfaceMesh::Halfedge he = drawableMesh->halfedge(f);
-            easy3d::vec3 normal = drawableMesh->compute_face_normal(f);
-            for (int i = 0; i < 3; i++)
+            drawableTriangles->update_vertex_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
+            drawableMesh->update_vertex_normals();
+            drawableTriangles->update_normal_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:normal").vector());
+            vector<easy3d::vec3> strainColors;
+            for (easy3d::SurfaceMesh::Vertex v : drawableMesh->vertices())
             {
-                points.emplace_back(drawableMesh->position(drawableMesh->to_vertex(he)));
-                he = drawableMesh->next_halfedge(he);
-                normals.emplace_back(normal);
+                strainColors.emplace_back(easy3d::vec3(strains[v], 1.0 - strains[v], 1.0 - strains[v]));
             }
+            drawableTriangles->update_color_buffer(strainColors);
+
+            vector<unsigned int> indices;
+            for (auto f : drawableMesh->faces())
+            {
+                vector<unsigned int> vts;
+                for (auto v : drawableMesh->vertices(f))
+                    vts.push_back(v.idx());
+
+                indices.insert(indices.end(), vts.begin(), vts.end());
+            }
+            drawableTriangles->update_index_buffer(indices);
         }
-        drawableTriangles->update_vertex_buffer(points);
-        drawableTriangles->update_normal_buffer(normals);
 
-        std::vector<unsigned int> indices(3 * drawableMesh->faces_size());
-        std::iota(indices.begin(), indices.end(), 0);
-        drawableTriangles->update_index_buffer(indices);
+        viewer.add_model(drawableMesh);
     }
-    else
-    {
-        drawableTriangles->update_vertex_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
-        drawableMesh->update_vertex_normals();
-        drawableTriangles->update_normal_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:normal").vector());
-
-        std::vector<unsigned int> indices;
-        for (auto f : drawableMesh->faces())
-        {
-            std::vector<unsigned int> vts;
-            for (auto v : drawableMesh->vertices(f))
-                vts.push_back(v.idx());
-
-            indices.insert(indices.end(), vts.begin(), vts.end());
-        }
-        drawableTriangles->update_index_buffer(indices);
-    }
-    drawableTriangles->set_default_color(easy3d::vec3(0.7f, 0.8f, 0.8f)); // give it a color
-
-    viewer.add_model(drawableMesh);
     viewer.run();
 }
 

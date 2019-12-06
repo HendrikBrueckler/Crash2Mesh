@@ -1,5 +1,6 @@
 #include <crash2mesh/algorithm/mesh_analyzer.hpp>
 #include <crash2mesh/algorithm/mesh_decimater.hpp>
+#include <crash2mesh/algorithm/modules/framewise_quadric.hpp>
 #include <crash2mesh/util/logger.hpp>
 
 #include <OpenMesh/Tools/Decimater/DecimaterT.hh>
@@ -17,6 +18,7 @@ using ModAspectRatioH = OpenMesh::Decimater::ModAspectRatioT<Mesh>::Handle;
 using ModHausdorffH = OpenMesh::Decimater::ModHausdorffT<Mesh>::Handle;
 using ModNormalFlippingH = OpenMesh::Decimater::ModNormalFlippingT<Mesh>::Handle;
 using ModNormalDeviationH = OpenMesh::Decimater::ModNormalDeviationT<Mesh>::Handle;
+using ModFramewiseQuadricH = ModFramewiseQuadricT<Mesh>::Handle;
 
 bool MeshDecimater::decimateSimple(std::vector<Part::Ptr> parts)
 {
@@ -52,9 +54,12 @@ bool MeshDecimater::decimateSimple(std::vector<Part::Ptr> parts)
         }
 
         Decimater decimater(mesh);
-        ModQuadricH hModQuadric;
-        decimater.add(hModQuadric);
-        decimater.module(hModQuadric).set_max_err(5000000, false);
+        // ModQuadricH hModQuadric;
+        // decimater.add(hModQuadric);
+        // decimater.module(hModQuadric).set_max_err(5000000, false);
+        ModFramewiseQuadricH hModFramewiseQuadric;
+        decimater.add(hModFramewiseQuadric);
+        decimater.module(hModFramewiseQuadric).set_max_err(500000000000000, false);
         ModAspectRatioH hModAspectRatio;
         decimater.add(hModAspectRatio);
         decimater.module(hModAspectRatio).set_binary(true);
