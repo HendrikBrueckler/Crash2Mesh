@@ -30,7 +30,9 @@ std::string MeshInfo::print() const
 
          << "\tNumber of boundary vertices: " << numBoundaryVertices << "\n"
          << "\tNumber of fixed vertices: " << numFixedVertices << "\n"
-         << "\tNumber of multi-part vertices: " << numMultiPartVertices << "\n\n";
+         << "\tNumber of multi-part vertices: " << numMultiPartVertices << "\n\n"
+
+         << "\tSize (x, y, z): " << bboxSize(0) << ", " << bboxSize(1) << ", " << bboxSize(2) << "\n\n";
 
     if (meanPlasticStrain.size() != 0)
     {
@@ -41,12 +43,12 @@ std::string MeshInfo::print() const
         }
         info << "\n";
     }
-    if (meanEPlasticStrain.size() != 0)
+    if (maxPlasticStrain.size() != 0)
     {
-        info << "\tmeanEPlasticStrains: " << meanEPlasticStrain(0);
-        for (uint i = 1; i < meanEPlasticStrain.size(); i += meanEPlasticStrain.size() / 10)
+        info << "\tmaxPlasticStrains: " << maxPlasticStrain(0);
+        for (uint i = 1; i < maxPlasticStrain.size(); i += maxPlasticStrain.size() / 10)
         {
-            info << ", " << meanEPlasticStrain(i);
+            info << ", " << maxPlasticStrain(i);
         }
         info << "\n";
     }
@@ -55,7 +57,7 @@ std::string MeshInfo::print() const
     return info.str();
 }
 
-MeshInfo MeshAnalyzer::getInfo(const Mesh& mesh)
+MeshInfo MeshAnalyzer::getInfo(const CMesh& mesh)
 {
     MeshInfo info;
 
@@ -86,65 +88,37 @@ MeshInfo MeshAnalyzer::getInfo(const Mesh& mesh)
     }
     info.numNodes = nodes.size();
 
-    info.bboxMin = info.bboxMax = (*nodes.begin())->displacements.rowwise() + (*nodes.begin())->coord.transpose();
-    info.meanDisplacement = MatX3::Zero((*nodes.begin())->displacements.rows(), 3);
-    info.minDisplacement = (*nodes.begin())->displacements;
-    info.maxDisplacement = (*nodes.begin())->displacements;
+    info.bboxMin = info.bboxMax = (*nodes.begin())->positions;
     for (const Node::Ptr& node : nodes)
     {
-        const MatX3& displacements = node->displacements;
-        const MatX3 positions = displacements.rowwise() + node->coord.transpose();
+        const MatX3& positions = node->positions;
         info.bboxMin = info.bboxMin.cwiseMin(positions);
         info.bboxMax = info.bboxMax.cwiseMax(positions);
-        info.minDisplacement = info.minDisplacement.cwiseMin(displacements);
-        info.maxDisplacement = info.maxDisplacement.cwiseMax(displacements);
-        info.meanDisplacement = info.meanDisplacement + displacements;
     }
-    info.meanDisplacement /= info.numNodes;
+    info.bboxSize = (info.bboxMax.row(0) - info.bboxMin.row(0)).transpose();
 
-    info.meanPlasticStrain = VecX::Zero((*nodes.begin())->displacements.rows());
-    info.minPlasticStrain = VecX::Zero((*nodes.begin())->displacements.rows());
-    info.maxPlasticStrain = VecX::Zero((*nodes.begin())->displacements.rows());
-    info.meanEPlasticStrain = VecX::Zero((*nodes.begin())->displacements.rows());
-    info.minEPlasticStrain = VecX::Zero((*nodes.begin())->displacements.rows());
-    info.maxEPlasticStrain = VecX::Zero((*nodes.begin())->displacements.rows());
-    int numelem2d = 0;
-    int numsurface = 0;
-    float sumelem2d = 0;
+    info.meanPlasticStrain = VecX::Zero((*nodes.begin())->positions.rows());
+    info.minPlasticStrain = VecX::Zero((*nodes.begin())->positions.rows());
+    info.maxPlasticStrain = VecX::Zero((*nodes.begin())->positions.rows());
     float sumsurface = 0;
-    std::set<ConnectedElement::Ptr> connectedElements;
+    std::set<Element2D::Ptr> surfaceElements;
     for (FHandle f : mesh.all_faces())
     {
-        const ConnectedElement::Ptr& elem = mesh.data(f).element;
-        connectedElements.emplace(elem);
+        const Element2D::Ptr& elem = mesh.data(f).element;
+        surfaceElements.emplace(elem);
         float faceArea = mesh.calc_face_area(f);
-        if (std::find(SurfaceElement::allTypes.begin(), SurfaceElement::allTypes.end(), &elem->type)
-            != SurfaceElement::allTypes.end())
-        {
-            const SurfaceElement::Ptr& surfaceElem = std::dynamic_pointer_cast<SurfaceElement>(elem);
-            info.minEPlasticStrain = info.minEPlasticStrain.cwiseMin(surfaceElem->volume->ePlasticStrains);
-            info.maxEPlasticStrain = info.maxEPlasticStrain.cwiseMin(surfaceElem->volume->ePlasticStrains);
-            numsurface++;
-            sumsurface += faceArea;
-        }
-        else
-        {
-            const Element2D::Ptr& elem2D = std::dynamic_pointer_cast<Element2D>(elem);
-            info.meanPlasticStrain += faceArea * elem2D->plasticStrains;
-            info.minPlasticStrain = info.minPlasticStrain.cwiseMin(elem2D->plasticStrains);
-            info.maxPlasticStrain = info.maxPlasticStrain.cwiseMax(elem2D->plasticStrains);
-            numelem2d++;
-            sumelem2d += faceArea;
-        }
+        info.meanPlasticStrain += faceArea * elem->plasticStrains;
+        info.minPlasticStrain = info.minPlasticStrain.cwiseMin(elem->plasticStrains);
+        info.maxPlasticStrain = info.maxPlasticStrain.cwiseMax(elem->plasticStrains);
+        sumsurface += faceArea;
     }
-    info.meanPlasticStrain /= sumelem2d;
-    info.meanEPlasticStrain /= sumsurface;
-    info.numConnectedElements = connectedElements.size();
+    info.meanPlasticStrain /= sumsurface;
+    info.numConnectedElements = surfaceElements.size();
 
     return info;
 }
 
-void MeshAnalyzer::render(const Mesh& mesh)
+void MeshAnalyzer::render(const CMesh& mesh)
 {
     if (mesh.n_vertices() == 0)
         return;
@@ -153,7 +127,7 @@ void MeshAnalyzer::render(const Mesh& mesh)
     easy3d::Viewer viewer("Mesh View");
     std::cout.clear();
 
-    for (uint i = 0; i < mesh.data(*mesh.vertices_begin()).node->displacements.rows(); i++)
+    for (uint i = 0; i < mesh.data(*mesh.vertices_begin()).node->positions.rows(); i++)
     {
         easy3d::SurfaceMesh* drawableMesh = new easy3d::SurfaceMesh;
         easy3d::SurfaceMesh::VertexProperty colors = drawableMesh->add_vertex_property<easy3d::vec3>("v:color");
@@ -161,25 +135,14 @@ void MeshAnalyzer::render(const Mesh& mesh)
         map<VHandle, easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex;
         for (VHandle v : mesh.vertices())
         {
-            OMVec3 pos = mesh.point(v);
-            Vec3 displacement = mesh.data(v).node->displacements.row(i);
-            pos += OMVec3(displacement(0), displacement(1), displacement(2));
-            vertexToDrawableVertex[v] = drawableMesh->add_vertex(easy3d::vec3(pos[0], pos[1], pos[2]));
+            Vec3 position = mesh.data(v).node->positions.row(i).transpose();
+            vertexToDrawableVertex[v] = drawableMesh->add_vertex(easy3d::vec3(position(0), position(1), position(2)));
             float strain = 0;
             for (FHandle f : mesh.vf_range(v))
             {
-                const ConnectedElement::Ptr& elemptr = mesh.data(f).element;
-                if (std::find(SurfaceElement::allTypes.begin(), SurfaceElement::allTypes.end(), &elemptr->type)
-                    != SurfaceElement::allTypes.end())
-                {
-                    strain = std::max(strain, std::static_pointer_cast<SurfaceElement>(elemptr)->volume->ePlasticStrains(i));
-                } else
-                {
-                    strain = std::max(strain, std::static_pointer_cast<Element2D>(elemptr)->plasticStrains(i));
-                }
-
+                strain = std::max(strain, mesh.data(f).element->plasticStrains(i));
             }
-            strains[vertexToDrawableVertex[v]] = strain * 50;
+            strains[vertexToDrawableVertex[v]] = strain * 20;
             if (mesh.status(v).fixed_nonmanifold())
             {
                 colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8, 0.0, 0.0);

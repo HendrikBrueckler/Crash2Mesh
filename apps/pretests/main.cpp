@@ -51,7 +51,7 @@ void testMeshBuilding(vector<Part::Ptr>& parts)
 {
     Logger::lout(Logger::INFO) << "MeshBuilder::build: starting" << endl;
 
-    std::vector<Mesh> meshes;
+    std::vector<CMesh> meshes;
     if (!MeshBuilder::build(parts))
     {
         Logger::lout(Logger::ERROR) << "\t\ttesting surfaceextraction failed!" << endl;
@@ -64,7 +64,7 @@ void testMeshDecimation(vector<Part::Ptr>& parts)
 {
     Logger::lout(Logger::INFO) << "MeshDecimater::decimate(): starting" << endl;
 
-    std::vector<Mesh> meshes;
+    std::vector<CMesh> meshes;
     if (!MeshDecimater::decimateSimple(parts))
     {
         Logger::lout(Logger::ERROR) << "\t\ttesting mesh decimation failed!" << endl;
@@ -90,10 +90,43 @@ void tests(std::string filename)
 
 int main(int argc, char** argv)
 {
-    if (argc != 2)
+    if (argc < 2)
         return -1;
 
-    tests(argv[1]);
+    vector<Part::Ptr> parts;
+    Reader reader(argv[1]);
+
+    if (!reader.readParts(parts))
+    {
+        Logger::lout(Logger::ERROR) << "\t\ttesting readParts() failed!" << endl;
+        return -1;
+    }
+    if (argc == 3)
+    {
+        Part::Ptr merged = std::make_shared<Part>(0);
+        merged->mesh = MeshBuilder::buildSingle(parts);
+
+        vector<Part::Ptr> dummyParts({merged});
+        if (!MeshDecimater::decimateSimple(dummyParts))
+        {
+            Logger::lout(Logger::ERROR) << "\t\ttesting mesh decimation failed!" << endl;
+            return -1;
+        }
+    }
+    else
+    {
+        if (!MeshBuilder::build(parts))
+        {
+            Logger::lout(Logger::ERROR) << "\t\ttesting mesh building failed!" << endl;
+            return -1;
+        }
+        if (!MeshDecimater::decimateSimple(parts))
+        {
+            Logger::lout(Logger::ERROR) << "\t\ttesting mesh decimation failed!" << endl;
+            return -1;
+        }
+    }
+
 
     return 0;
 }

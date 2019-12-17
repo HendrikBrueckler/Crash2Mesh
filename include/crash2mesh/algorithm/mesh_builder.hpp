@@ -24,6 +24,9 @@ class MeshBuilder
      * @return false else
      */
     static bool build(std::vector<Part::Ptr>& parts, bool deleteMeshedElements = true);
+
+    // TODO
+    static CMesh buildSingle(std::vector<Part::Ptr>& parts, bool deleteMeshedElements = true);
 };
 
 } // namespace c2m

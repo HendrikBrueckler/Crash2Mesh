@@ -31,9 +31,8 @@ template <class MeshT> class ModFramewiseQuadricT : public OpenMesh::Decimater::
     /** Constructor
      *  \internal
      */
-    explicit ModFramewiseQuadricT(MeshT& _mesh) : Base(_mesh, false)
+    explicit ModFramewiseQuadricT(MeshT& _mesh) : Base(_mesh, false), frame_skip_(0)
     {
-        unset_max_err();
         Base::mesh().add_property(quadrics_);
     }
 
@@ -49,6 +48,11 @@ template <class MeshT> class ModFramewiseQuadricT : public OpenMesh::Decimater::
     {
         using Quadric = OpenMesh::Geometry::Quadricf;
 
+        if (Base::mesh().n_vertices() != 0)
+            num_frames_ = Base::mesh().data(*Base::mesh().vertices_begin()).node->positions.rows();
+        else
+            num_frames_ = 0;
+
         // alloc quadrics
         if (!quadrics_.is_valid())
             Base::mesh().add_property(quadrics_);
@@ -62,47 +66,47 @@ template <class MeshT> class ModFramewiseQuadricT : public OpenMesh::Decimater::
         // calc (normal weighted) quadric
         typename Mesh::FaceIter f_it = Base::mesh().faces_begin(), f_end = Base::mesh().faces_end();
 
-        typename Mesh::FaceVertexIter fv_it;
+        typename Mesh::FaceHalfedgeCCWIter fh_it;
+        typename Mesh::HalfedgeHandle heh[3];
         typename Mesh::VertexHandle vh[3];
 
         for (; f_it != f_end; ++f_it)
         {
-            fv_it = Base::mesh().fv_iter(*f_it);
-            vh[0] = *fv_it;
-            ++fv_it;
-            vh[1] = *fv_it;
-            ++fv_it;
-            vh[2] = *fv_it;
+            fh_it = Base::mesh().fh_ccwiter(*f_it);
+            heh[0] = *fh_it;
+            vh[0] = Base::mesh().from_vertex_handle(*fh_it);
+            ++fh_it;
+            heh[1] = *fh_it;
+            vh[1] = Base::mesh().from_vertex_handle(*fh_it);
+            ++fh_it;
+            heh[2] = *fh_it;
+            vh[2] = Base::mesh().from_vertex_handle(*fh_it);
 
-            Node::Ptr node[3]
-                = {Base::mesh().data(vh[0]).node, Base::mesh().data(vh[1]).node, Base::mesh().data(vh[2]).node};
-            OMVec3 points[3] = {Base::mesh().point(vh[0]), Base::mesh().point(vh[1]), Base::mesh().point(vh[2])};
-            Vec3 displacements[3];
-            OMVec3 displacedPoints[3];
-            for (uint i = 0; i < node[0]->displacements.rows(); i++)
+            OMVec3 points[3];
+            for (uint frame = 0, i = 0; frame < num_frames_; frame += (1 + frame_skip_), i++)
             {
                 for (uint j = 0; j < 3; j++)
                 {
-                    displacements[j] = node[j]->displacements.row(i);
-                    displacedPoints[j]
-                        = points[j] + OMVec3(displacements[j](0), displacements[j](1), displacements[j](2));
+                    points[j] = OMVec3(Base::mesh().data(vh[j]).node->positions.coeff(frame, 0),
+                                       Base::mesh().data(vh[j]).node->positions.coeff(frame, 1),
+                                       Base::mesh().data(vh[j]).node->positions.coeff(frame, 2));
                 }
 
-                OMVec3 n = (displacedPoints[1] - displacedPoints[0]) % (displacedPoints[2] - displacedPoints[0]);
-                double area = n.norm();
+                OMVec3 faceNormal = (points[1] - points[0]) % (points[2] - points[0]);
+                double area = faceNormal.norm();
                 if (area > FLT_MIN)
                 {
-                    n /= area;
+                    faceNormal /= area;
                     area *= 0.5;
                 }
 
-                const double a = n[0];
-                const double b = n[1];
-                const double c = n[2];
-                const double d = -displacedPoints[0] | n;
+                double a = faceNormal[0];
+                double b = faceNormal[1];
+                double c = faceNormal[2];
+                double d = -(points[0] | faceNormal);
 
                 Quadric q(a, b, c, d);
-                q *= area;
+                // TODO area weighting yes or no?
 
                 for (uint j = 0; j < 3; j++)
                 {
@@ -116,6 +120,48 @@ template <class MeshT> class ModFramewiseQuadricT : public OpenMesh::Decimater::
                         quadricPerFrame[i] += q;
                     }
                 }
+
+                float strain = Base::mesh().data(*f_it).element->plasticStrains(frame);
+                // Preserve special edges by assigning to them a plane perpendicular to the face
+                for (uint j = 0; j < 3; j++)
+                {
+                    float weightFactor = 0;
+                    if (Base::mesh().is_boundary(Base::mesh().opposite_halfedge_handle(heh[j])))
+                    {
+                        // preserve boundary edges
+                        weightFactor = 1.0;
+                    }
+                    else
+                    {
+                        // preserve feature edges, across which plastic strains differ
+                        typename Mesh::FaceHandle neighbor_fh
+                            = Base::mesh().face_handle(Base::mesh().opposite_halfedge_handle(heh[j]));
+                        float neighbor_strain = Base::mesh().data(neighbor_fh).element->plasticStrains(frame);
+                        if (abs(neighbor_strain - strain) < 0.005)
+                            continue;
+                        weightFactor = abs(neighbor_strain - strain) * 10000;
+                    }
+
+                    OMVec3 edgeNormal = (points[(j + 1) % 3] - points[j]) % faceNormal;
+                    double edgePlaneArea = edgeNormal.sqrnorm(); // n is length 1 so square the influence of boundary
+                    if (edgePlaneArea > FLT_MIN)
+                    {
+                        edgeNormal /= sqrt(edgePlaneArea);
+                        edgePlaneArea *= 0.5;
+                    }
+
+                    a = edgeNormal[0];
+                    b = edgeNormal[1];
+                    c = edgeNormal[2];
+                    d = -points[j] | edgeNormal;
+
+                    Quadric qBoundary(Quadric(a, b, c, d));
+                    qBoundary *= weightFactor;
+                    // area weighting yes or no?
+
+                    Base::mesh().property(quadrics_, vh[j])[i] += qBoundary;
+                    Base::mesh().property(quadrics_, vh[(j + 1) % 3])[i] += qBoundary;
+                }
             }
         }
     }
@@ -128,31 +174,29 @@ template <class MeshT> class ModFramewiseQuadricT : public OpenMesh::Decimater::
     virtual float collapse_priority(const CollapseInfo& _ci) override
     {
         using Quadric = OpenMesh::Geometry::Quadricf;
-        std::vector<Quadric> quadricsRemoved = Base::mesh().property(quadrics_, _ci.v0);
-        std::vector<Quadric>& quadricsRemaining = Base::mesh().property(quadrics_, _ci.v1);
+        const std::vector<Quadric>& quadricsRemoved = Base::mesh().property(quadrics_, _ci.v0);
+        const std::vector<Quadric>& quadricsRemaining = Base::mesh().property(quadrics_, _ci.v1);
 
-        VecX errors(quadricsRemaining.size());
-        MatX3 displacements = Base::mesh().data(_ci.v1).node->displacements;
-        OMVec3 pointRemaining;
-        for (uint i = 0; i < quadricsRemaining.size(); i++)
+        float error = 0;
+        const MatX3& positions = Base::mesh().data(_ci.v1).node->positions;
+        for (uint frame = 0, i = 0; frame < num_frames_; frame += 1 + frame_skip_, i++)
         {
-            quadricsRemaining[i] += quadricsRemoved[i];
-            pointRemaining
-                = _ci.p1 + OMVec3(displacements.coeff(i, 0), displacements.coeff(i, 1), displacements.coeff(i, 2));
-            errors(i) = quadricsRemaining[i](pointRemaining);
+            Quadric q = quadricsRemaining[i] + quadricsRemoved[i];
+            OMVec3 pointRemaining
+                = OMVec3(positions.coeff(frame, 0), positions.coeff(frame, 1), positions.coeff(frame, 2));
+            error = std::max(error, q(pointRemaining));
+            if (error > max_err_)
+                return Base::ILLEGAL_COLLAPSE;
         }
 
-        float err = errors.maxCoeff();
-        // float err = errors.mean();
-
-        return float((err < max_err_) ? err : float(Base::ILLEGAL_COLLAPSE));
+        return error;
     }
 
     /// Post-process halfedge collapse (accumulate quadrics)
     virtual void postprocess_collapse(const CollapseInfo& _ci) override
     {
         using Quadric = OpenMesh::Geometry::Quadricf;
-        std::vector<Quadric>& quadricsRemoved = Base::mesh().property(quadrics_, _ci.v0);
+        const std::vector<Quadric>& quadricsRemoved = Base::mesh().property(quadrics_, _ci.v0);
         std::vector<Quadric>& quadricsRemaining = Base::mesh().property(quadrics_, _ci.v1);
         for (uint i = 0; i < quadricsRemaining.size(); i++)
         {
@@ -206,9 +250,22 @@ template <class MeshT> class ModFramewiseQuadricT : public OpenMesh::Decimater::
         return max_err_;
     }
 
+    void set_frame_skip(uint fs)
+    {
+        frame_skip_ = fs;
+    }
+
+    uint frame_skip() const
+    {
+        return frame_skip_;
+    }
+
   private:
     // maximum quadric error
     double max_err_;
+
+    uint num_frames_;
+    uint frame_skip_;
 
     // this vertex property stores a quadric for each frame for each vertex
     OpenMesh::VPropHandleT<std::vector<OpenMesh::Geometry::Quadricf>> quadrics_;
@@ -216,4 +273,4 @@ template <class MeshT> class ModFramewiseQuadricT : public OpenMesh::Decimater::
 
 } // namespace c2m
 
-#endif // C2M_MOD_QUADRIC_HPP defined
+#endif // C2M_FRAMEWISE_QUADRIC_HPP defined

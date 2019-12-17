@@ -18,9 +18,8 @@ struct MeshInfo
      */
     MeshInfo()
         : numNodes(0), numConnectedElements(0), numVertices(0), numFaces(0), numBoundaryVertices(0),
-          numFixedVertices(0), numMultiPartVertices(0), bboxMin(), bboxMax(), meanDisplacement(), minDisplacement(),
-          maxDisplacement(), meanPlasticStrain(), minPlasticStrain(), maxPlasticStrain(), meanEPlasticStrain(),
-          minEPlasticStrain(), maxEPlasticStrain()
+          numFixedVertices(0), numMultiPartVertices(0), bboxMin(), bboxMax(),
+          meanPlasticStrain(), minPlasticStrain(), maxPlasticStrain()
     {
     }
 
@@ -34,20 +33,14 @@ struct MeshInfo
     int numFixedVertices;     //!< Number of fixed vertices (either multipart vertices or manifold/complex vertices)
     int numMultiPartVertices; //!< Number of multipart vertices
 
+    Vec3 bboxSize; //!< width, height, depth of initial bbox
+
     MatX3 bboxMin; //!< One vec3 per time sample (minX/minY corner)
     MatX3 bboxMax; //!< One vec3 per time sample (maxX/maxY corner)
-
-    MatX3 meanDisplacement; //!< One vec3 per time sample (displacement mean)
-    MatX3 minDisplacement;  //!< One vec3 per time sample (displacement min)
-    MatX3 maxDisplacement;  //!< One vec3 per time sample (displacement max)
 
     VecX meanPlasticStrain; //!< One float per time sample (plastic strain mean)
     VecX minPlasticStrain;  //!< One float per time sample (plastic strain min)
     VecX maxPlasticStrain;  //!< One float per time sample (plastic strain max)
-
-    VecX meanEPlasticStrain; //!< One float per time sample (equivalent plastic strain mean
-    VecX minEPlasticStrain;  //!< One float per time sample (equivalent plastic strain min)
-    VecX maxEPlasticStrain;  //!< One float per time sample (equivalent plastic strain max)
 
     /**
      * @brief Prettyprint the contained info in string format
@@ -70,14 +63,14 @@ class MeshAnalyzer
      * @param mesh mesh to query info for
      * @return MeshInfo info about the mesh
      */
-    static MeshInfo getInfo(const Mesh& mesh);
+    static MeshInfo getInfo(const CMesh& mesh);
 
     /**
      * @brief Opens a window rendering the passed mesh's triangles
      *
      * @param mesh mesh to render
      */
-    static void render(const Mesh& mesh);
+    static void render(const CMesh& mesh);
 };
 
 } // namespace c2m

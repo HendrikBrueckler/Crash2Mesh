@@ -171,19 +171,19 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
     {
         Vec3 coord(nodeCoordinates[i][0], nodeCoordinates[i][1], nodeCoordinates[i][2]);
         const vector<vector<float>>& displacementsSTL = nodeDisplacements[nodeIDs[i]];
-        if (displacementsSTL.size() != numStates)
+        if (displacementsSTL.size() < numStates)
         {
             logFileInfo(Logger::WARN,
                         "Missing displacements for node with id " + std::to_string(nodeIDs[i]) + ", filling with zeros",
                         FEType::NODE.pathToPerStateResults("stateXXX", ResultType::TRANSLATIONAL_DISPLACEMENT));
         }
-        MatX3 displacements(MatX3::Zero(numStates, 3));
+        MatX3 positions(MatX3::Zero(std::max(numStates, static_cast<uint>(displacementsSTL.size())), 3));
         for (uint j = 0; j < displacementsSTL.size(); j++)
         {
-            displacements.row(j)
-                = Vec3(displacementsSTL[j][0], displacementsSTL[j][1], displacementsSTL[j][2]).transpose();
+            positions.row(j)
+                = (coord + Vec3(displacementsSTL[j][0], displacementsSTL[j][1], displacementsSTL[j][2])).transpose();
         }
-        nodeIDToNode[nodeIDs[i]] = std::make_shared<Node>(nodeIDs[i], coord, displacements);
+        nodeIDToNode[nodeIDs[i]] = std::make_shared<Node>(nodeIDs[i], positions);
     }
 
     logFileInfo(Logger::INFO, "Successfully read " + std::to_string(nodeIDToNode.size()) + " vertices");

@@ -51,7 +51,7 @@ class Part : public Collector
   public:
     using Ptr = std::shared_ptr<Part>;
     const partid_t ID; ///< A part's identifier
-    Mesh mesh;
+    CMesh mesh;
 
     /**
      * @brief Construct a new Collector given its part identifier and contained atomic elements

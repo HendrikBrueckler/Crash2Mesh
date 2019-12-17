@@ -61,16 +61,14 @@ class Node : public FiniteElement
     }
 
     /**
-     * @brief Construct a new Node given a node identifier, coordinates and displacements
+     * @brief Construct a new Node given a node identifier and positions
      *
      * @param _ID node identifier
-     * @param coord 3D coordinates
-     * @param displacements 3D displacements
+     * @param positions 3D positions
      */
-    Node(nodeid_t _ID, const Vec3& coord, const MatX3& displacements);
+    Node(nodeid_t _ID, const MatX3& positions);
     const nodeid_t ID;         ///< A node's ID (not the same as FiniteElement::entityID)
-    const Vec3 coord;          ///< A node's coordinate
-    const MatX3 displacements; ///< A node's displacements
+    const MatX3 positions; ///< A node's positions
     uint referencingParts;     ///< Number of parts referencing this vertex
 };
 
@@ -196,7 +194,7 @@ class Element3D : public ConnectedElement
  * @brief Represents atomic 2D surface elements extracted from 3D volume elements
  *
  */
-class SurfaceElement : public ConnectedElement
+class SurfaceElement : public Element2D
 {
   public:
     using Ptr = std::shared_ptr<SurfaceElement>;

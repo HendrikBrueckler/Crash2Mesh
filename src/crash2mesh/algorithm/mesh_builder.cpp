@@ -59,7 +59,7 @@ class Triangle
     }
     bool mark;
     vector<Edge> edges;
-    ConnectedElement::Ptr elem;
+    Element2D::Ptr elem;
 };
 
 static void
@@ -87,8 +87,7 @@ floodFlip(size_t fi, vector<Triangle>& allTriangles, std::map<Edge, vector<size_
             if (f2i != fi)
             {
                 auto e2it = std::find(allTriangles[f2i].edges.begin(), allTriangles[f2i].edges.end(), e);
-                if (e2it != allTriangles[f2i].edges.end() && e2it->from->ID == e.from->ID
-                    && !allTriangles[f2i].mark)
+                if (e2it != allTriangles[f2i].edges.end() && e2it->from->ID == e.from->ID && !allTriangles[f2i].mark)
                 {
                     for (Edge& e2 : allTriangles[f2i].edges)
                     {
@@ -114,13 +113,11 @@ bool MeshBuilder::build(std::vector<Part::Ptr>& parts, bool deleteMeshedElements
             continue;
         }
 
-        // easy3d::Viewer viewer(std::string("Part ") + std::to_string(partptr->ID)); // DEBUG
-
         // Try flipping badly oriented faces
         // Create faces for parts
         std::vector<Triangle> allTriangles;
         std::map<Edge, vector<size_t>, Edge::CmpLess> edgeTriangleIndices;
-        auto addTriangles = [&](const ConnectedElement::Ptr& elem) {
+        auto addTriangles = [&](const Element2D::Ptr& elem) {
             vector<vector<Node::Ptr>> triangles;
             if (elem->nodes.size() == 3)
             {
@@ -165,6 +162,12 @@ bool MeshBuilder::build(std::vector<Part::Ptr>& parts, bool deleteMeshedElements
             addTriangles(elem);
         }
 
+        if (deleteMeshedElements)
+        {
+            partptr->elements2D.clear();
+            partptr->surfaceElements.clear();
+        }
+
         for (uint i = 0; i < allTriangles.size(); i++)
         {
             if (!allTriangles[i].mark)
@@ -173,161 +176,164 @@ bool MeshBuilder::build(std::vector<Part::Ptr>& parts, bool deleteMeshedElements
             }
         }
 
-        Mesh& mesh = partptr->mesh;
-        mesh = Mesh();
+        CMesh& mesh = partptr->mesh;
+        mesh = CMesh();
         map<nodeid_t, VHandle> nodeToVertex;
-        // easy3d::SurfaceMesh* drawableMesh = new easy3d::SurfaceMesh;     // DEBUG
-        // map<nodeid_t, easy3d::SurfaceMesh::Vertex> nodeToDrawableVertex; // DEBUG
+        map<VHandle, VHandle> duplicates;
+
+        auto getDuplicate = [&duplicates, &mesh](VHandle& v) -> VHandle {
+            auto it = duplicates.find(v);
+            if (duplicates.find(v) == duplicates.end())
+            {
+                VHandle duplicate = mesh.add_vertex(mesh.point(v));
+                mesh.data(duplicate) = mesh.data(v);
+                mesh.data(duplicate).fixed = true;
+                mesh.status(duplicate).set_fixed_nonmanifold(true);
+                duplicates[v] = duplicate;
+                return duplicate;
+            }
+            else
+            {
+                return it->second;
+            }
+        };
 
         for (size_t fi = 0; fi < allTriangles.size(); fi++)
         {
             const Triangle& f = allTriangles[fi];
             vector<VHandle> vertices;
-            // vector<easy3d::SurfaceMesh::Vertex> drawableVertices; // DEBUG
             for (uint i = 0; i < 3; i++)
             {
                 const Node::Ptr& nodeptr = f.edges[i].from;
                 if (nodeToVertex.find(nodeptr->ID) == nodeToVertex.end())
                 {
-                    VHandle v = mesh.add_vertex(OMVec3(nodeptr->coord(0), nodeptr->coord(1), nodeptr->coord(2)));
+                    VHandle v = mesh.add_vertex(OMVec3(nodeptr->positions.coeff(0, 0),
+                                                       nodeptr->positions.coeff(0, 1),
+                                                       nodeptr->positions.coeff(0, 2)));
                     nodeToVertex[nodeptr->ID] = v;
                     mesh.data(v).node = nodeptr;
                     mesh.data(v).fixed = nodeptr->referencingParts > 1;
                     vertices.emplace_back(v);
-                    // easy3d::SurfaceMesh::Vertex vDrawable = drawableMesh->add_vertex(
-                    //     easy3d::vec3(nodeptr->coord[0], nodeptr->coord[1], nodeptr->coord[2])); // DEBUG
-                    // drawableVertices.emplace_back(vDrawable);                                   // DEBUG
-                    // nodeToDrawableVertex[nodeptr->ID] = vDrawable;                              // DEBUG
                 }
                 else
                 {
                     vertices.emplace_back(nodeToVertex[nodeptr->ID]);
-                    // drawableVertices.emplace_back(nodeToDrawableVertex[nodeptr->ID]); // DEBUG
                 }
             }
             std::cerr.setstate(std::ios_base::failbit);
-            Mesh::FaceHandle fh = mesh.add_face(vertices);
+            CMesh::FaceHandle fh = mesh.add_face(vertices);
             if (fh.is_valid())
             {
-                // drawableMesh->add_triangle(drawableVertices[0], drawableVertices[1], drawableVertices[2]); // DEBUG
                 mesh.data(fh).element = f.elem;
                 validTriangles++;
             }
             else
             {
-                // Try duplicating and fixing until valid...this is bad....
-                vector<VHandle> duplicates(3);
-                // vector<easy3d::SurfaceMesh::Vertex> duplicatesDrawable(3); // DEBUG
-                for (uint i = 0; i < 3; i++)
-                {
-                    // duplicatesDrawable[i]
-                    //     = drawableMesh->add_vertex(drawableMesh->position(drawableVertices[i])); // DEBUG
-                    duplicates[i] = mesh.add_vertex(mesh.point(vertices[i]));
-                    mesh.data(duplicates[i]) = mesh.data(vertices[i]);
-                    mesh.status(duplicates[i]).set_fixed_nonmanifold(true);
-                }
+                invalidTriangles++;
                 // Duplicate one vertex
-                vector<VHandle> dupeTri = {duplicates[0], vertices[1], vertices[2]};
-                fh = mesh.add_face(dupeTri);
-                if (fh.is_valid())
+                bool fixed = false;
+                vector<VHandle> prevVertices = vertices;
+                while (!fixed)
                 {
-                    // drawableMesh->add_triangle(
-                    //     duplicatesDrawable[0], drawableVertices[1], drawableVertices[2]); // DEBUG
-                    mesh.data(duplicates[0]).fixed = mesh.data(vertices[0]).fixed = true;
-                    mesh.data(fh).element = f.elem;
-                    validTriangles++;
-                }
-                else
-                {
-                    invalidTriangles++;
-                    dupeTri = {vertices[0], duplicates[1], vertices[2]};
+                    fixed = true;
+                    vector<VHandle> dupeTri = {getDuplicate(prevVertices[0]), vertices[1], vertices[2]};
                     fh = mesh.add_face(dupeTri);
                     if (fh.is_valid())
                     {
-                        // drawableMesh->add_triangle(
-                        //     drawableVertices[0], duplicatesDrawable[1], drawableVertices[2]); // DEBUG
-                        mesh.data(vertices[1]).fixed = true;
-                        mesh.status(vertices[1]).set_fixed_nonmanifold(true);
+                        mesh.data(prevVertices[0]).fixed = true;
+                        mesh.status(prevVertices[0]).set_fixed_nonmanifold(true);
                         mesh.data(fh).element = f.elem;
                         mesh.status(fh).set_fixed_nonmanifold(true);
                     }
                     else
                     {
-                        dupeTri = {vertices[0], vertices[1], duplicates[2]};
+                        dupeTri = {vertices[0], getDuplicate(prevVertices[1]), vertices[2]};
                         fh = mesh.add_face(dupeTri);
                         if (fh.is_valid())
                         {
-                            // drawableMesh->add_triangle(
-                            //     drawableVertices[0], drawableVertices[1], duplicatesDrawable[2]); // DEBUG
+                            mesh.data(prevVertices[1]).fixed = true;
+                            mesh.status(prevVertices[1]).set_fixed_nonmanifold(true);
                             mesh.data(fh).element = f.elem;
-                            mesh.data(vertices[2]).fixed = true;
-                            mesh.status(vertices[2]).set_fixed_nonmanifold(true);
                             mesh.status(fh).set_fixed_nonmanifold(true);
                         }
                         else
                         {
-                            // Duplicate two vertices
-                            dupeTri = {duplicates[0], duplicates[1], vertices[2]};
+                            dupeTri = {vertices[0], vertices[1], getDuplicate(prevVertices[2])};
                             fh = mesh.add_face(dupeTri);
                             if (fh.is_valid())
                             {
-                                // drawableMesh->add_triangle(
-                                //     duplicatesDrawable[0], duplicatesDrawable[1], drawableVertices[2]); // DEBUG
                                 mesh.data(fh).element = f.elem;
-                                mesh.data(vertices[0]).fixed = true;
-                                mesh.data(vertices[1]).fixed = true;
-                                mesh.status(vertices[0]).set_fixed_nonmanifold(true);
-                                mesh.status(vertices[1]).set_fixed_nonmanifold(true);
+                                mesh.data(prevVertices[2]).fixed = true;
+                                mesh.status(prevVertices[2]).set_fixed_nonmanifold(true);
                                 mesh.status(fh).set_fixed_nonmanifold(true);
                             }
                             else
                             {
-                                dupeTri = {duplicates[0], vertices[1], duplicates[2]};
+                                // Duplicate two vertices
+                                dupeTri = {getDuplicate(prevVertices[0]), getDuplicate(prevVertices[1]), vertices[2]};
                                 fh = mesh.add_face(dupeTri);
                                 if (fh.is_valid())
                                 {
-                                    // drawableMesh->add_triangle(
-                                    //     duplicatesDrawable[0], drawableVertices[1], duplicatesDrawable[2]); // DEBUG
                                     mesh.data(fh).element = f.elem;
-                                    mesh.data(vertices[0]).fixed = true;
-                                    mesh.data(vertices[2]).fixed = true;
-                                    mesh.status(vertices[0]).set_fixed_nonmanifold(true);
-                                    mesh.status(vertices[2]).set_fixed_nonmanifold(true);
+                                    mesh.data(prevVertices[0]).fixed = true;
+                                    mesh.data(prevVertices[1]).fixed = true;
+                                    mesh.status(prevVertices[0]).set_fixed_nonmanifold(true);
+                                    mesh.status(prevVertices[1]).set_fixed_nonmanifold(true);
                                     mesh.status(fh).set_fixed_nonmanifold(true);
                                 }
                                 else
                                 {
-                                    dupeTri = {vertices[0], duplicates[1], duplicates[2]};
+                                    dupeTri
+                                        = {getDuplicate(prevVertices[0]), vertices[1], getDuplicate(prevVertices[2])};
+                                    fh = mesh.add_face(dupeTri);
                                     if (fh.is_valid())
                                     {
-                                        // drawableMesh->add_triangle(
-                                        //     duplicatesDrawable[0], duplicatesDrawable[1], drawableVertices[2]); //
-                                        //     DEBUG
                                         mesh.data(fh).element = f.elem;
-                                        mesh.data(vertices[1]).fixed = true;
-                                        mesh.data(vertices[2]).fixed = true;
-                                        mesh.status(vertices[1]).set_fixed_nonmanifold(true);
-                                        mesh.status(vertices[2]).set_fixed_nonmanifold(true);
+                                        mesh.data(prevVertices[0]).fixed = true;
+                                        mesh.data(prevVertices[2]).fixed = true;
+                                        mesh.status(prevVertices[0]).set_fixed_nonmanifold(true);
+                                        mesh.status(prevVertices[2]).set_fixed_nonmanifold(true);
                                         mesh.status(fh).set_fixed_nonmanifold(true);
                                     }
                                     else
                                     {
-                                        // Duplicate all three vertices
-                                        dupeTri = {duplicates[0], duplicates[1], duplicates[2]};
-                                        fh = mesh.add_face(dupeTri);
+                                        dupeTri = {
+                                            vertices[0], getDuplicate(prevVertices[1]), getDuplicate(prevVertices[2])};
                                         if (fh.is_valid())
                                         {
-                                            // drawableMesh->add_triangle(duplicatesDrawable[0],
-                                            //                            duplicatesDrawable[1],
-                                            //                            duplicatesDrawable[2]); // DEBUG
                                             mesh.data(fh).element = f.elem;
-                                            mesh.data(vertices[0]).fixed = true;
-                                            mesh.data(vertices[1]).fixed = true;
-                                            mesh.data(vertices[2]).fixed = true;
-                                            mesh.status(vertices[0]).set_fixed_nonmanifold(true);
-                                            mesh.status(vertices[1]).set_fixed_nonmanifold(true);
-                                            mesh.status(vertices[2]).set_fixed_nonmanifold(true);
+                                            mesh.data(prevVertices[1]).fixed = true;
+                                            mesh.data(prevVertices[2]).fixed = true;
+                                            mesh.status(prevVertices[1]).set_fixed_nonmanifold(true);
+                                            mesh.status(prevVertices[2]).set_fixed_nonmanifold(true);
                                             mesh.status(fh).set_fixed_nonmanifold(true);
+                                        }
+                                        else
+                                        {
+                                            // Duplicate all three vertices
+                                            dupeTri = {getDuplicate(prevVertices[0]),
+                                                       getDuplicate(prevVertices[1]),
+                                                       getDuplicate(prevVertices[2])};
+                                            fh = mesh.add_face(dupeTri);
+                                            if (fh.is_valid())
+                                            {
+                                                mesh.data(fh).element = f.elem;
+                                                mesh.data(prevVertices[0]).fixed = true;
+                                                mesh.data(prevVertices[1]).fixed = true;
+                                                mesh.data(prevVertices[2]).fixed = true;
+                                                mesh.status(prevVertices[0]).set_fixed_nonmanifold(true);
+                                                mesh.status(prevVertices[1]).set_fixed_nonmanifold(true);
+                                                mesh.status(prevVertices[2]).set_fixed_nonmanifold(true);
+                                                mesh.status(fh).set_fixed_nonmanifold(true);
+                                            }
+                                            else
+                                            {
+                                                Logger::lout(Logger::WARN) << "Non-manifold element of complexity > {2 "
+                                                                              "touching manifold meshes} encountered"
+                                                                           << std::endl;
+                                                prevVertices = dupeTri;
+                                                fixed = false;
+                                            }
                                         }
                                     }
                                 }
@@ -343,14 +349,9 @@ bool MeshBuilder::build(std::vector<Part::Ptr>& parts, bool deleteMeshedElements
         mesh.delete_isolated_vertices();
         mesh.garbage_collection();
 
-        if (deleteMeshedElements)
-        {
-            partptr->elements2D.clear();
-            partptr->surfaceElements.clear();
-        }
-
         meshes++;
     }
+
     Logger::lout(Logger::DEBUG) << "Non-manifold triangles: " << invalidTriangles
                                 << ", valid triangles: " << validTriangles << std::endl;
 
@@ -358,6 +359,261 @@ bool MeshBuilder::build(std::vector<Part::Ptr>& parts, bool deleteMeshedElements
                                << " parts, rest didnt contain faces" << std::endl;
 
     return true;
+}
+
+CMesh MeshBuilder::buildSingle(std::vector<Part::Ptr>& parts, bool deleteMeshedElements)
+{
+    int validTriangles = 0;
+    int invalidTriangles = 0;
+    std::vector<Triangle> allTriangles;
+    std::map<Edge, vector<size_t>, Edge::CmpLess> edgeTriangleIndices;
+    for (Part::Ptr& partptr : parts)
+    {
+        if (partptr->elements2D.empty() && partptr->surfaceElements.empty())
+        {
+            continue;
+        }
+
+        // Try flipping badly oriented faces
+        // Create faces for parts
+        auto addTriangles = [&](const Element2D::Ptr& elem) {
+            vector<vector<Node::Ptr>> triangles;
+            if (elem->nodes.size() == 3)
+            {
+                triangles = {{elem->nodes[0], elem->nodes[1], elem->nodes[2]}};
+            }
+            else if (elem->nodes.size() == 4)
+            {
+                triangles = {{elem->nodes[0], elem->nodes[1], elem->nodes[2]},
+                             {elem->nodes[2], elem->nodes[3], elem->nodes[0]}};
+            }
+            else
+            {
+                throw std::logic_error("Can only handle triangles and quads (currently)");
+            }
+
+            for (const vector<Node::Ptr>& triangle : triangles)
+            {
+                Triangle& f = allTriangles.emplace_back(Triangle());
+                f.elem = elem;
+                for (uint i = 0; i < triangle.size(); i++)
+                {
+                    Edge e(triangle[i], triangle[(i + 1) % triangle.size()]);
+                    f.edges.emplace_back(e);
+                    auto eit = edgeTriangleIndices.find(e);
+                    if (eit == edgeTriangleIndices.end())
+                    {
+                        edgeTriangleIndices[e] = {allTriangles.size() - 1};
+                    }
+                    else
+                    {
+                        eit->second.emplace_back(allTriangles.size() - 1);
+                    }
+                }
+            }
+        };
+        for (const Element2D::Ptr& elem : partptr->elements2D)
+        {
+            addTriangles(elem);
+        }
+        for (const SurfaceElement::Ptr& elem : partptr->surfaceElements)
+        {
+            addTriangles(elem);
+        }
+
+        if (deleteMeshedElements)
+        {
+            partptr->elements2D.clear();
+            partptr->surfaceElements.clear();
+        }
+    }
+
+    for (uint i = 0; i < allTriangles.size(); i++)
+    {
+        if (!allTriangles[i].mark)
+        {
+            floodFlip(i, allTriangles, edgeTriangleIndices);
+        }
+    }
+
+    CMesh mesh;
+    mesh = CMesh();
+    map<nodeid_t, VHandle> nodeToVertex;
+    map<VHandle, VHandle> duplicates;
+
+    auto getDuplicate = [&duplicates, &mesh](VHandle& v) -> VHandle {
+        auto it = duplicates.find(v);
+        if (duplicates.find(v) == duplicates.end())
+        {
+            VHandle duplicate = mesh.add_vertex(mesh.point(v));
+            mesh.data(duplicate) = mesh.data(v);
+            mesh.data(duplicate).fixed = true;
+            mesh.status(duplicate).set_fixed_nonmanifold(true);
+            duplicates[v] = duplicate;
+            return duplicate;
+        }
+        else
+        {
+            return it->second;
+        }
+    };
+
+    for (size_t fi = 0; fi < allTriangles.size(); fi++)
+    {
+        const Triangle& f = allTriangles[fi];
+        vector<VHandle> vertices;
+        for (uint i = 0; i < 3; i++)
+        {
+            const Node::Ptr& nodeptr = f.edges[i].from;
+            if (nodeToVertex.find(nodeptr->ID) == nodeToVertex.end())
+            {
+                VHandle v = mesh.add_vertex(OMVec3(
+                    nodeptr->positions.coeff(0, 0), nodeptr->positions.coeff(0, 1), nodeptr->positions.coeff(0, 2)));
+                nodeToVertex[nodeptr->ID] = v;
+                mesh.data(v).node = nodeptr;
+                mesh.data(v).fixed = false;
+                vertices.emplace_back(v);
+            }
+            else
+            {
+                vertices.emplace_back(nodeToVertex[nodeptr->ID]);
+            }
+        }
+        std::cerr.setstate(std::ios_base::failbit);
+        CMesh::FaceHandle fh = mesh.add_face(vertices);
+        if (fh.is_valid())
+        {
+            mesh.data(fh).element = f.elem;
+            validTriangles++;
+        }
+        else
+        {
+            invalidTriangles++;
+            // Duplicate one vertex
+            bool fixed = false;
+            vector<VHandle> prevVertices = vertices;
+            while (!fixed)
+            {
+                fixed = true;
+                vector<VHandle> dupeTri = {getDuplicate(prevVertices[0]), vertices[1], vertices[2]};
+                fh = mesh.add_face(dupeTri);
+                if (fh.is_valid())
+                {
+                    mesh.data(prevVertices[0]).fixed = true;
+                    mesh.status(prevVertices[0]).set_fixed_nonmanifold(true);
+                    mesh.data(fh).element = f.elem;
+                    mesh.status(fh).set_fixed_nonmanifold(true);
+                }
+                else
+                {
+                    dupeTri = {vertices[0], getDuplicate(prevVertices[1]), vertices[2]};
+                    fh = mesh.add_face(dupeTri);
+                    if (fh.is_valid())
+                    {
+                        mesh.data(prevVertices[1]).fixed = true;
+                        mesh.status(prevVertices[1]).set_fixed_nonmanifold(true);
+                        mesh.data(fh).element = f.elem;
+                        mesh.status(fh).set_fixed_nonmanifold(true);
+                    }
+                    else
+                    {
+                        dupeTri = {vertices[0], vertices[1], getDuplicate(prevVertices[2])};
+                        fh = mesh.add_face(dupeTri);
+                        if (fh.is_valid())
+                        {
+                            mesh.data(fh).element = f.elem;
+                            mesh.data(prevVertices[2]).fixed = true;
+                            mesh.status(prevVertices[2]).set_fixed_nonmanifold(true);
+                            mesh.status(fh).set_fixed_nonmanifold(true);
+                        }
+                        else
+                        {
+                            // Duplicate two vertices
+                            dupeTri = {getDuplicate(prevVertices[0]), getDuplicate(prevVertices[1]), vertices[2]};
+                            fh = mesh.add_face(dupeTri);
+                            if (fh.is_valid())
+                            {
+                                mesh.data(fh).element = f.elem;
+                                mesh.data(prevVertices[0]).fixed = true;
+                                mesh.data(prevVertices[1]).fixed = true;
+                                mesh.status(prevVertices[0]).set_fixed_nonmanifold(true);
+                                mesh.status(prevVertices[1]).set_fixed_nonmanifold(true);
+                                mesh.status(fh).set_fixed_nonmanifold(true);
+                            }
+                            else
+                            {
+                                dupeTri = {getDuplicate(prevVertices[0]), vertices[1], getDuplicate(prevVertices[2])};
+                                fh = mesh.add_face(dupeTri);
+                                if (fh.is_valid())
+                                {
+                                    mesh.data(fh).element = f.elem;
+                                    mesh.data(prevVertices[0]).fixed = true;
+                                    mesh.data(prevVertices[2]).fixed = true;
+                                    mesh.status(prevVertices[0]).set_fixed_nonmanifold(true);
+                                    mesh.status(prevVertices[2]).set_fixed_nonmanifold(true);
+                                    mesh.status(fh).set_fixed_nonmanifold(true);
+                                }
+                                else
+                                {
+                                    dupeTri
+                                        = {vertices[0], getDuplicate(prevVertices[1]), getDuplicate(prevVertices[2])};
+                                    if (fh.is_valid())
+                                    {
+                                        mesh.data(fh).element = f.elem;
+                                        mesh.data(prevVertices[1]).fixed = true;
+                                        mesh.data(prevVertices[2]).fixed = true;
+                                        mesh.status(prevVertices[1]).set_fixed_nonmanifold(true);
+                                        mesh.status(prevVertices[2]).set_fixed_nonmanifold(true);
+                                        mesh.status(fh).set_fixed_nonmanifold(true);
+                                    }
+                                    else
+                                    {
+                                        // Duplicate all three vertices
+                                        dupeTri = {getDuplicate(prevVertices[0]),
+                                                   getDuplicate(prevVertices[1]),
+                                                   getDuplicate(prevVertices[2])};
+                                        fh = mesh.add_face(dupeTri);
+                                        if (fh.is_valid())
+                                        {
+                                            mesh.data(fh).element = f.elem;
+                                            mesh.data(prevVertices[0]).fixed = true;
+                                            mesh.data(prevVertices[1]).fixed = true;
+                                            mesh.data(prevVertices[2]).fixed = true;
+                                            mesh.status(prevVertices[0]).set_fixed_nonmanifold(true);
+                                            mesh.status(prevVertices[1]).set_fixed_nonmanifold(true);
+                                            mesh.status(prevVertices[2]).set_fixed_nonmanifold(true);
+                                            mesh.status(fh).set_fixed_nonmanifold(true);
+                                        }
+                                        else
+                                        {
+                                            Logger::lout(Logger::WARN) << "Non-manifold element of complexity > {2 "
+                                                                          "touching manifold meshes} encountered"
+                                                                       << std::endl;
+                                            prevVertices = dupeTri;
+                                            fixed = false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        std::cerr.clear();
+    }
+
+    // Delete duplicate vertices
+    Logger::lout(Logger::DEBUG) << "Non-Manifold vertices: " << duplicates.size() - mesh.delete_isolated_vertices()
+                                << std::endl;
+    mesh.garbage_collection();
+
+    Logger::lout(Logger::DEBUG) << "Non-manifold triangles: " << invalidTriangles
+                                << ", valid triangles: " << validTriangles << std::endl;
+
+    Logger::lout(Logger::INFO) << "Built a single mesh from " << parts.size() << " parts" << std::endl;
+
+    return mesh;
 }
 
 } // namespace c2m

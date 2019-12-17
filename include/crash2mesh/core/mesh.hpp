@@ -23,13 +23,13 @@ struct MeshTraits : public OpenMesh::DefaultTraits
 
     FaceTraits
     {
-        ConnectedElement::Ptr element;
+        Element2D::Ptr element;
     };
 };
 
-using Mesh = OpenMesh::TriMesh_ArrayKernelT<MeshTraits>;
-using VHandle = Mesh::VertexHandle;
-using FHandle = Mesh::FaceHandle;
-using HEHandle = Mesh::HalfedgeHandle;
+using CMesh = OpenMesh::TriMesh_ArrayKernelT<MeshTraits>;
+using VHandle = CMesh::VertexHandle;
+using FHandle = CMesh::FaceHandle;
+using HEHandle = CMesh::HalfedgeHandle;
 }
 #endif

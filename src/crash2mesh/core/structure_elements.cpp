@@ -26,8 +26,8 @@ bool FiniteElement::operator>(const FiniteElement& other) const
     return other < *this;
 }
 
-Node::Node(nodeid_t _ID, const Vec3& _coord, const MatX3& _displacements)
-    : FiniteElement(erfh5::FEType::NODE, ID_NULL), ID(_ID), coord(_coord), displacements(_displacements),
+Node::Node(nodeid_t _ID, const MatX3& _positions)
+    : FiniteElement(erfh5::FEType::NODE, ID_NULL), ID(_ID), positions(_positions),
       referencingParts(0)
 {
 }
@@ -100,7 +100,7 @@ SurfaceElement::SurfaceElement(elemid_t _ID,
                                partid_t _partID,
                                const std::vector<Node::Ptr>& _nodes,
                                Element3D::Ptr _volume)
-    : ConnectedElement(_type, _partID, _nodes), surfaceElemID(_ID), volume(_volume)
+    : Element2D(_ID, _type, _partID, _nodes, _volume->ePlasticStrains), surfaceElemID(_ID), volume(_volume)
 {
 }
 
