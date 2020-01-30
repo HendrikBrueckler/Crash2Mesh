@@ -28,7 +28,7 @@ add_subdirectory(HighFive)
 set(OPENMESH_DOCS FALSE)
 add_subdirectory(OpenMesh)
 
-set(EASY3D_BUILD_TUTORIALS FALSE)
+set(EASY3D_BUILD_TUTORIALS OFF)
 add_subdirectory(Easy3D)
 
 file( COPY ${CMAKE_BINARY_DIR}/resource DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} )

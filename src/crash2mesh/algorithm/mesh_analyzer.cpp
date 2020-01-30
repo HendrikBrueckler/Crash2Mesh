@@ -1,12 +1,11 @@
 #include <crash2mesh/algorithm/mesh_analyzer.hpp>
 
 #include <crash2mesh/util/logger.hpp>
+#include <crash2mesh/viewer/animation_viewer.hpp>
 
 #include <easy3d/core/point_cloud.h>
 #include <easy3d/core/surface_mesh.h>
 #include <easy3d/viewer/drawable.h>
-#include <easy3d/viewer/setting.h>
-#include <easy3d/viewer/viewer.h>
 
 #include <map>
 #include <sstream>
@@ -124,7 +123,7 @@ void MeshAnalyzer::render(const CMesh& mesh)
         return;
 
     std::cout.setstate(std::ios_base::failbit);
-    easy3d::Viewer viewer("Mesh View");
+    AnimationViewer viewer("Mesh View");
     std::cout.clear();
 
     for (uint i = 0; i < mesh.data(*mesh.vertices_begin()).node->positions.rows(); i++)
@@ -132,6 +131,7 @@ void MeshAnalyzer::render(const CMesh& mesh)
         easy3d::SurfaceMesh* drawableMesh = new easy3d::SurfaceMesh;
         easy3d::SurfaceMesh::VertexProperty colors = drawableMesh->add_vertex_property<easy3d::vec3>("v:color");
         easy3d::SurfaceMesh::VertexProperty strains = drawableMesh->add_vertex_property<float>("v:strain");
+        easy3d::SurfaceMesh::FaceProperty fstrains = drawableMesh->add_face_property<float>("f:strain");
         map<VHandle, easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex;
         for (VHandle v : mesh.vertices())
         {
@@ -168,7 +168,8 @@ void MeshAnalyzer::render(const CMesh& mesh)
             {
                 vs.emplace_back(vertexToDrawableVertex[v]);
             }
-            drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
+            easy3d::SurfaceMesh::Face fd = drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
+            fstrains[fd] = mesh.data(f).element->plasticStrains(i) * 20;
         }
 
         easy3d::PointsDrawable* drawablePoints = drawableMesh->add_points_drawable("points");
@@ -193,7 +194,7 @@ void MeshAnalyzer::render(const CMesh& mesh)
                 for (int j = 0; j < 3; j++)
                 {
                     points.emplace_back(drawableMesh->position(drawableMesh->to_vertex(he)));
-                    float strain = strains[drawableMesh->to_vertex(he)];
+                    float strain = fstrains[f];
                     strainColors.emplace_back(easy3d::vec3(1.0, 1.0 - strain, 1.0 - strain));
                     normals.emplace_back(normal);
                     he = drawableMesh->next_halfedge(he);
@@ -210,9 +211,11 @@ void MeshAnalyzer::render(const CMesh& mesh)
         }
         else
         {
-            drawableTriangles->update_vertex_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
+            drawableTriangles->update_vertex_buffer(
+                drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
             drawableMesh->update_vertex_normals();
-            drawableTriangles->update_normal_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:normal").vector());
+            drawableTriangles->update_normal_buffer(
+                drawableMesh->get_vertex_property<easy3d::vec3>("v:normal").vector());
             vector<easy3d::vec3> strainColors;
             for (easy3d::SurfaceMesh::Vertex v : drawableMesh->vertices())
             {

@@ -53,7 +53,7 @@ class ResultType
   public:
     std::string name; ///< The folder name associated with this result-type
 
-    const static ResultType DOMAIN;                     ///< Subdomain of space a finite element belongs to
+    const static ResultType SPACE_DOMAIN;                     ///< Subdomain of space a finite element belongs to
     const static ResultType COORDINATE;                 ///< Coordinate of a finite element
     const static ResultType TRANSLATIONAL_DISPLACEMENT; ///< Displacement of a finite element
     const static ResultType PLASTIC_STRAIN;             ///< plastic strain of a finite element

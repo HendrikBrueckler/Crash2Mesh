@@ -1,0 +1,21 @@
+In order of importance/urgency:
+[x] Make own viewer class with necessary hotkey config
+[ ] change Vertex properties to model cyclic duplication of non-manifold vertices
+[ ] change decimation operator to apply it to all duplicates at the same time
+[ ] change all affected decimation modules to consider duplicate vertices
+[ ] detect vertices connected to PLINKs/BEAMs etc. and preserve these!
+[ ] clean up code
+[ ] comment all code
+[ ] triangulate arbitrary faces (other than triangles and quads)
+[ ] establish a common decimation criterion (global error bound) and how to deduce it
+[ ] specify output format and code up output writer
+[ ] implement output function that uses file format usable in MeshLab
+[ ] use MeshLab to judge single-frame approximation errors
+[ ] make compilable on windows
+[ ] optimize runtime of reading
+[ ] optimize performance of decimation algorithm
+[ ] optimize runtime of decimation algorithm
+[ ] optimize memory consumption
+[ ] split reading into 1) read element/part connectivity, 2) per part read node
+    positions, 3) per part read plastic strains
+[ ] establish a way to decimate partwise first and global after

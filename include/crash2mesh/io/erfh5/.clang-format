@@ -11,10 +11,12 @@ BinPackParameters: 'false'
 BreakBeforeBraces: Allman
 BreakBeforeBinaryOperators: All
 BreakBeforeTernaryOperators: 'true'
+BreakConstructorInitializers: BeforeColon
 ColumnLimit: '120'
 ConstructorInitializerAllOnOneLineOrOnePerLine: 'false'
 Cpp11BracedListStyle: 'true'
 DerivePointerAlignment: 'false'
+IncludeBlocks: Preserve
 IndentCaseLabels: 'false'
 IndentWidth: '4'
 KeepEmptyLinesAtTheStartOfBlocks: 'true'

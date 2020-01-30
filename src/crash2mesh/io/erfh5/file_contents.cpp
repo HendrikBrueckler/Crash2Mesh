@@ -32,7 +32,7 @@ ResultType::ResultType(const std::string& _name) : name(_name)
 {
 }
 
-const ResultType ResultType::DOMAIN("Domain");
+const ResultType ResultType::SPACE_DOMAIN("Domain");
 const ResultType ResultType::COORDINATE("COORDINATE");
 const ResultType ResultType::TRANSLATIONAL_DISPLACEMENT("Translational_Displacement");
 const ResultType ResultType::PLASTIC_STRAIN("Membrane_Plastic_Strain");
