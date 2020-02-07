@@ -103,15 +103,49 @@ int main(int argc, char** argv)
     }
     if (argc == 3)
     {
-        Part::Ptr merged = std::make_shared<Part>(0);
-        merged->mesh = MeshBuilder::buildSingle(parts);
-
-        vector<Part::Ptr> dummyParts({merged});
-        if (!MeshDecimater::decimateSimple(dummyParts))
+        int nFaces = 0;
+        if (argv[2][0] == 'e')
         {
-            Logger::lout(Logger::ERROR) << "\t\ttesting mesh decimation failed!" << endl;
-            return -1;
+            Part::Ptr merged = std::make_shared<Part>(0);
+            merged->mesh = MeshBuilder::buildSingle(parts);
+
+            for (Part::Ptr& partptr : parts)
+                partptr->markElement1DNodes();
+
+            vector<Part::Ptr> dummyParts({merged});
+            if (!MeshDecimater::decimateSimple(dummyParts))
+            {
+                Logger::lout(Logger::ERROR) << "\t\ttesting mesh decimation failed!" << endl;
+                return -1;
+            }
         }
+        else
+        {
+            nFaces = atoi(argv[2]);
+
+            if (!MeshBuilder::build(parts))
+            {
+                Logger::lout(Logger::ERROR) << "\t\ttesting mesh building failed!" << endl;
+                return -1;
+            }
+            if (!MeshDecimater::decimatePartsErrorBound(parts, 100, 5, 5, 3, 3, 10))
+            {
+                Logger::lout(Logger::ERROR) << "\t\ttesting errorbound part decimation failed!" << endl;
+                return -1;
+            }
+            Scene::Ptr scene = MeshBuilder::merge(parts);
+            if (!scene)
+            {
+                Logger::lout(Logger::ERROR) << "\t\ttesting scene merging failed!" << endl;
+                return -1;
+            }
+            if (!MeshDecimater::decimateScene(scene, nFaces, 20, 20, 5, 5, 20))
+            {
+                Logger::lout(Logger::ERROR) << "\t\ttesting scene decimation failed!" << endl;
+                return -1;
+            }
+        }
+
     }
     else
     {

@@ -19,6 +19,7 @@ struct MeshTraits : public OpenMesh::DefaultTraits
     {
         Node::Ptr node;
         bool fixed;
+        typename Refs::VertexHandle duplicate;
     };
 
     FaceTraits
@@ -26,10 +27,10 @@ struct MeshTraits : public OpenMesh::DefaultTraits
         Element2D::Ptr element;
     };
 };
-
 using CMesh = OpenMesh::TriMesh_ArrayKernelT<MeshTraits>;
 using VHandle = CMesh::VertexHandle;
 using FHandle = CMesh::FaceHandle;
 using HEHandle = CMesh::HalfedgeHandle;
+
 }
 #endif

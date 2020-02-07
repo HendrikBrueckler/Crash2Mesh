@@ -29,6 +29,10 @@ set(OPENMESH_DOCS FALSE)
 add_subdirectory(OpenMesh)
 
 set(EASY3D_BUILD_TUTORIALS OFF)
+if(uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+add_definitions(-DNDEBUG)
 add_subdirectory(Easy3D)
+remove_definitions(-DNDEBUG)
+endif()
 
-file( COPY ${CMAKE_BINARY_DIR}/resource DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} )
+file( COPY Easy3D/resources DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} )

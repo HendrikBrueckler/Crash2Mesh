@@ -18,7 +18,7 @@ struct MeshInfo
      */
     MeshInfo()
         : numNodes(0), numConnectedElements(0), numVertices(0), numFaces(0), numBoundaryVertices(0),
-          numFixedVertices(0), numMultiPartVertices(0), bboxMin(), bboxMax(),
+          numLockedVertices(0), numComplexVertices(0), numMultiPartVertices(0), bboxMin(), bboxMax(),
           meanPlasticStrain(), minPlasticStrain(), maxPlasticStrain()
     {
     }
@@ -29,8 +29,11 @@ struct MeshInfo
     int numVertices; //!< Number of mesh vertices
     int numFaces;    //!< Number of mesh faces
 
+    int numDuplicateFaces; //!< Number of mesh faces which have an exact duplicate
+
     int numBoundaryVertices;  //!< Number of boundary vertices
-    int numFixedVertices;     //!< Number of fixed vertices (either multipart vertices or manifold/complex vertices)
+    int numLockedVertices;     //!< Number of vertices locked for decimation
+    int numComplexVertices; //!< Number of complex vertices
     int numMultiPartVertices; //!< Number of multipart vertices
 
     Vec3 bboxSize; //!< width, height, depth of initial bbox
@@ -71,6 +74,13 @@ class MeshAnalyzer
      * @param mesh mesh to render
      */
     static void render(const CMesh& mesh);
+
+    static void getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists);
+
+    //TODO
+    static std::vector<VHandle> dupes(const CMesh& mesh, const VHandle& vh);
+
+    static std::vector<HEHandle> dupes(const CMesh& mesh, const HEHandle& vh);
 };
 
 } // namespace c2m

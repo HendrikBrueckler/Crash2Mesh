@@ -29,9 +29,12 @@ std::string MeshInfo::print() const
          << "\tNumber of vertices: " << numVertices << "\n"
          << "\tNumber of faces: " << numFaces << "\n\n"
 
+         << "\tNumber of duplicate faces: " << numDuplicateFaces << "\n\n"
+
+         << "\tNumber of multi-part vertices: " << numMultiPartVertices << "\n"
          << "\tNumber of boundary vertices: " << numBoundaryVertices << "\n"
-         << "\tNumber of fixed vertices: " << numFixedVertices << "\n"
-         << "\tNumber of multi-part vertices: " << numMultiPartVertices << "\n\n"
+         << "\tNumber of complex vertices: " << numComplexVertices << "\n"
+         << "\tNumber of locked vertices: " << numLockedVertices << "\n\n"
 
          << "\tSize (x, y, z): " << bboxSize(0) << ", " << bboxSize(1) << ", " << bboxSize(2) << "\n\n";
 
@@ -68,7 +71,8 @@ MeshInfo MeshAnalyzer::getInfo(const CMesh& mesh)
     info.numFaces = mesh.n_faces();
 
     info.numBoundaryVertices = 0;
-    info.numFixedVertices = 0;
+    info.numLockedVertices = 0;
+    info.numComplexVertices = 0;
     info.numMultiPartVertices = 0;
     std::set<Node::Ptr> nodes;
     for (VHandle v : mesh.vertices())
@@ -80,7 +84,11 @@ MeshInfo MeshAnalyzer::getInfo(const CMesh& mesh)
         }
         if (mesh.data(v).fixed)
         {
-            info.numFixedVertices++;
+            info.numComplexVertices++;
+        }
+        if (mesh.status(v).locked())
+        {
+            info.numLockedVertices++;
         }
         if (mesh.data(v).node->referencingParts > 1)
         {
@@ -103,7 +111,7 @@ MeshInfo MeshAnalyzer::getInfo(const CMesh& mesh)
     info.maxPlasticStrain = VecX::Zero((*nodes.begin())->positions.rows());
     float sumsurface = 0;
     std::set<Element2D::Ptr> surfaceElements;
-    for (FHandle f : mesh.all_faces())
+    for (FHandle f : mesh.faces())
     {
         const Element2D::Ptr& elem = mesh.data(f).element;
         surfaceElements.emplace(elem);
@@ -116,6 +124,47 @@ MeshInfo MeshAnalyzer::getInfo(const CMesh& mesh)
     info.meanPlasticStrain /= sumsurface;
     info.numConnectedElements = surfaceElements.size();
 
+    info.numDuplicateFaces = 0;
+    for (const FHandle& f : mesh.all_faces())
+    {
+        std::set<Node::Ptr> fNodes;
+        for (const VHandle& v : mesh.fv_range(f))
+        {
+            fNodes.emplace(mesh.data(v).node);
+        }
+
+        vector<vector<HEHandle>> dupes;
+        vector<vector<HEHandle>> oppositeDupes;
+        for (const HEHandle& he: mesh.fh_range(f))
+        {
+            dupes.emplace_back(MeshAnalyzer::dupes(mesh, he));
+            oppositeDupes.emplace_back(MeshAnalyzer::dupes(mesh, mesh.opposite_halfedge_handle(he)));
+        }
+
+        std::set<FHandle> neighborFaces;
+        for (const  vector<vector<HEHandle>>& edgeDupes: {dupes, oppositeDupes})
+            for (const vector<HEHandle>& edgeDupesPart: edgeDupes)
+                for (const HEHandle& edgeDupe: edgeDupesPart)
+                    neighborFaces.emplace(mesh.face_handle(edgeDupe));
+
+        for (const FHandle& fOther : neighborFaces)
+        {
+            if (fOther == f || !fOther.is_valid())
+                continue;
+
+            std::set<Node::Ptr> fOtherNodes;
+            for (const VHandle& v : mesh.fv_range(fOther))
+            {
+                fOtherNodes.emplace(mesh.data(v).node);
+            }
+            if (fNodes == fOtherNodes)
+            {
+                info.numDuplicateFaces += 1;
+            }
+        }
+    }
+    info.numDuplicateFaces /= 2;
+
     return info;
 }
 
@@ -125,8 +174,10 @@ void MeshAnalyzer::render(const CMesh& mesh)
         return;
 
     std::cout.setstate(std::ios_base::failbit);
+    std::cerr.setstate(std::ios_base::failbit);
     AnimationViewer viewer("Mesh View");
     std::cout.clear();
+    std::cerr.clear();
 
     for (uint i = 0; i < mesh.data(*mesh.vertices_begin()).node->positions.rows(); i++)
     {
@@ -142,7 +193,10 @@ void MeshAnalyzer::render(const CMesh& mesh)
             float strain = 0;
             for (FHandle f : mesh.vf_range(v))
             {
-                strain = std::max(strain, mesh.data(f).element->plasticStrains(i));
+                if (mesh.data(f).element)
+                    strain = std::max(strain, mesh.data(f).element->plasticStrains(i));
+                else
+                    strain = 1.0;
             }
             strains[vertexToDrawableVertex[v]] = strain * 20;
             if (mesh.status(v).fixed_nonmanifold())
@@ -171,7 +225,10 @@ void MeshAnalyzer::render(const CMesh& mesh)
                 vs.emplace_back(vertexToDrawableVertex[v]);
             }
             easy3d::SurfaceMesh::Face fd = drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
-            fstrains[fd] = mesh.data(f).element->plasticStrains(i) * 20;
+            if (mesh.data(f).element)
+                fstrains[fd] = mesh.data(f).element->plasticStrains(i) * 20;
+            else
+                fstrains[fd] = 1.0;
         }
 
         easy3d::PointsDrawable* drawablePoints = drawableMesh->add_points_drawable("points");
@@ -237,9 +294,91 @@ void MeshAnalyzer::render(const CMesh& mesh)
             drawableTriangles->update_index_buffer(indices);
         }
 
+        std::cout.setstate(std::ios_base::failbit);
+        std::cerr.setstate(std::ios_base::failbit);
         viewer.add_model(drawableMesh);
+        std::cout.clear();
+        std::cerr.clear();
     }
+    std::cout.setstate(std::ios_base::failbit);
+    std::cerr.setstate(std::ios_base::failbit);
     viewer.run();
+    std::cout.clear();
+    std::cerr.clear();
+}
+
+void MeshAnalyzer::getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists)
+{
+    Logger::lout(Logger::INFO) << "Calculating epicenter of crash" << std::endl;
+    uint numFrames = mesh.data(*(mesh.vertices_begin())).node->positions.rows();
+
+    // Calc epicenter of crash
+    VecX sumOfWeights = VecX::Zero(numFrames);
+    epicenters = MatX3::Zero(numFrames, 3);
+    for (FHandle f : mesh.faces())
+    {
+        MatX3 positions = mesh.data(*(mesh.fv_begin(f))).node->positions;
+        VecX strains = mesh.data(f).element->plasticStrains * mesh.calc_face_area(f);
+        for (uint frame = 0; frame < numFrames; frame++)
+        {
+            epicenters.row(frame) +=  strains(frame) * positions.row(frame);
+            sumOfWeights(frame) += strains(frame);
+        }
+    }
+    for (uint frame = 0; frame < numFrames; frame++)
+    {
+        if (sumOfWeights(frame) > 1.0) // TODO use a more sensible number here
+            epicenters.row(frame) /= sumOfWeights(frame);
+        else
+            epicenters.row(frame) = Vec3(0, 0, 0);
+    }
+    meanDists = VecX::Zero(numFrames);
+    for (VHandle v : mesh.vertices())
+    {
+        MatX3 position = mesh.data(v).node->positions;
+        for (uint frame = 0; frame < numFrames; frame++)
+        {
+            meanDists(frame) += (position.row(frame) - epicenters.row(frame)).norm();
+        }
+    }
+    meanDists /= mesh.n_vertices();
+    Logger::lout(Logger::INFO) << "Finished calculating epicenter of crash" << std::endl;
+}
+
+std::vector<VHandle> MeshAnalyzer::dupes(const CMesh& mesh, const VHandle& vh)
+{
+    std::vector<VHandle> vDupes;
+    VHandle vDupe = vh;
+    assert(vDupe.is_valid());
+    do
+    {
+        vDupes.emplace_back(vDupe);
+        vDupe = mesh.data(vDupe).duplicate;
+    } while (vDupe.is_valid() && vDupe != vh);
+
+    return vDupes;
+}
+
+std::vector<HEHandle> MeshAnalyzer::dupes(const CMesh& mesh, const HEHandle& heh)
+{
+    assert(heh.is_valid());
+    assert(mesh.from_vertex_handle(heh).is_valid());
+    assert(mesh.to_vertex_handle(heh).is_valid());
+    std::vector<VHandle> v0Dupes = dupes(mesh, mesh.from_vertex_handle(heh));
+    std::vector<VHandle> v1Dupes = dupes(mesh, mesh.to_vertex_handle(heh));
+    std::vector<HEHandle> heDupes;
+    HEHandle heDupe = heh;
+    for (const VHandle& v0Dupe : v0Dupes)
+    {
+        for (const VHandle& v1Dupe : v1Dupes)
+        {
+            heDupe = mesh.find_halfedge(v0Dupe, v1Dupe);
+            if (heDupe.is_valid())
+                heDupes.emplace_back(heDupe);
+        }
+    }
+
+    return heDupes;
 }
 
 } // namespace c2m

@@ -2,10 +2,10 @@
 #define C2M_FRAMEWISE_NORMAL_HPP
 
 #include <crash2mesh/core/structure_elements.hpp>
+#include <crash2mesh/algorithm/modules/normal_cone.hpp>
 #include <crash2mesh/core/types.hpp>
 #include <crash2mesh/util/logger.hpp>
 
-#include <OpenMesh/Core/Geometry/NormalConeT.hh>
 #include <OpenMesh/Core/Utils/Property.hh>
 #include <OpenMesh/Core/Utils/vector_cast.hh>
 #include <OpenMesh/Tools/Decimater/ModBaseT.hh>
@@ -27,7 +27,6 @@ template <class MeshT> class ModFramewiseNormalT : public OpenMesh::Decimater::M
     typedef typename Mesh::VertexHandle VertexHandle;
     typedef typename Mesh::FaceHandle FaceHandle;
     typedef typename Mesh::EdgeHandle EdgeHandle;
-    typedef OpenMesh::NormalConeT<Scalar> NormalCone;
 
   public:
     /// Constructor
@@ -89,7 +88,7 @@ template <class MeshT> class ModFramewiseNormalT : public OpenMesh::Decimater::M
                 n = OpenMesh::vector_cast<typename Mesh::Normal>(cross(p1p2, p1p0));
                 typename OpenMesh::vector_traits<typename Mesh::Normal>::value_type length = norm(n);
                 n = (length != 0.0) ? n * (1.0 / length) : Normal(0, 0, 0);
-                normalCones.emplace_back(NormalCone(n));
+                normalCones.emplace_back(NormalCone(n, normal_deviation_ * factor_dist_to_epicenter((pt0 + pt1 + pt2) / 3.0, frame)));
             }
             mesh_.property(normal_cones_, *f_it) = normalCones;
         }
@@ -152,7 +151,7 @@ template <class MeshT> class ModFramewiseNormalT : public OpenMesh::Decimater::M
                 n = OpenMesh::vector_cast<typename Mesh::Normal>(cross(p1p2, p1p0));
                 typename OpenMesh::vector_traits<typename Mesh::Normal>::value_type length = norm(n);
                 n = (length != 0.0) ? n * (1.0 / length) : Normal(0, 0, 0);
-                nc[i].merge(NormalCone(n));
+                nc[i].merge(NormalCone(n, nc[i].max_angle()));
                 if (fh == fhl)
                     nc[i].merge(mesh_.property(normal_cones_, _ci.fl)[i]);
                 if (fh == fhr)
@@ -161,7 +160,7 @@ template <class MeshT> class ModFramewiseNormalT : public OpenMesh::Decimater::M
                 if (nc[i].angle() > max_angle)
                 {
                     max_angle = nc[i].angle();
-                    if (max_angle > 0.5 * normal_deviation_)
+                    if (max_angle > 0.5 * nc[i].max_angle())
                         legal = false;
                 }
             }
@@ -220,7 +219,7 @@ template <class MeshT> class ModFramewiseNormalT : public OpenMesh::Decimater::M
                 n = OpenMesh::vector_cast<typename Mesh::Normal>(cross(p1p2, p1p0));
                 typename OpenMesh::vector_traits<typename Mesh::Normal>::value_type length = norm(n);
                 n = (length != 0.0) ? n * (1.0 / length) : Normal(0, 0, 0);
-                ncs[i].merge(NormalCone(n));
+                ncs[i].merge(NormalCone(n, ncs[i].max_angle()));
                 if (fh == fhl)
                     ncs[i].merge(mesh_.property(normal_cones_, _ci.fl)[i]);
                 if (fh == fhr)
@@ -239,10 +238,40 @@ template <class MeshT> class ModFramewiseNormalT : public OpenMesh::Decimater::M
         return frame_skip_;
     }
 
+    void set_epicenter_vars(const MatX3& _epicenters, VecX _mean_dists)
+    {
+        epicenters_ = _epicenters;
+        mean_dists_ = _mean_dists;
+    }
+
+    VecX mean_dists()
+    {
+        return mean_dists_;
+    }
+
+    MatX3 epicenters()
+    {
+        return epicenters_;
+    }
+
+    float factor_dist_to_epicenter(Point pt, uint frame)
+    {
+        if (epicenters_.size() == 0 || mean_dists_.size() == 0 || epicenters_.row(frame).squaredNorm() < 1e-10)
+            return 1.0;
+        Vec3 p(pt[0], pt[1], pt[2]);
+        // TODO implement a proper function here
+        float factor = (0.3 + 0.7 * ((p - epicenters_.row(frame).transpose()).norm() / mean_dists_[frame]));
+        return factor * factor;
+    }
+
   private:
     Mesh& mesh_;
     uint frame_skip_;
     uint num_frames_;
+
+    MatX3 epicenters_;
+    VecX mean_dists_;
+
     Scalar normal_deviation_;
     OpenMesh::FPropHandleT<std::vector<NormalCone>> normal_cones_;
 };

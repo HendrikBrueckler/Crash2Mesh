@@ -29,6 +29,8 @@ class Collector
     std::set<Element3D::Ptr> elements3D;           ///< All contained 3D elements
     const entid_t entityID;                        ///< The unique ID identifying this collector
 
+    void markElement1DNodes();
+
   protected:
     static entid_t maxID; ///< To track the entityID given to any newly created Collector
 
@@ -67,6 +69,21 @@ class Part : public Collector
          const std::vector<Element2D::Ptr>& _elements2D = {},
          const std::vector<SurfaceElement::Ptr>& _surfaceElements = {},
          const std::vector<Element3D::Ptr>& _elements3D = {});
+};
+
+// TODO
+class Scene
+{
+  public:
+    using Ptr = std::shared_ptr<Scene>;
+
+    std::vector<Part::Ptr> parts;
+
+    CMesh mesh;
+
+    Scene(const std::vector<Part::Ptr> _parts) : parts(_parts)
+    {
+    }
 };
 
 } // namespace c2m

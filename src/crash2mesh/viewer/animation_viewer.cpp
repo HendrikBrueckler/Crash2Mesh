@@ -2,9 +2,11 @@
 #include <crash2mesh/viewer/animation_viewer.hpp>
 #include <easy3d/core/surface_mesh.h>
 #include <easy3d/viewer/drawable.h>
+#include <easy3d/viewer/setting.h>
 #include <easy3d/viewer/drawable_lines.h>
 #include <easy3d/viewer/drawable_points.h>
 #include <easy3d/viewer/drawable_triangles.h>
+#include <easy3d/viewer/renderer.h>
 
 namespace c2m
 {
@@ -103,6 +105,41 @@ bool AnimationViewer::key_press_event(int key, int modifiers)
             fit_screen(current_model());
         }
     }
+    else if (key == GLFW_KEY_B && modifiers == 0) {
+        for (auto model : models_)
+        {
+            SurfaceMesh* mesh = dynamic_cast<SurfaceMesh*>(model);
+            if (mesh) {
+                auto drawable = mesh->lines_drawable("borders");
+                if (!drawable) {
+                    auto prop = mesh->get_vertex_property<vec3>("v:point");
+                    std::vector<vec3> points;
+                    for (auto e : mesh->edges()) {
+                        if (mesh->is_boundary(e)) {
+                            points.push_back(prop[mesh->vertex(e, 0)]);
+                            points.push_back(prop[mesh->vertex(e, 1)]);
+                        }
+                    }
+                    if (!points.empty()) {
+                        drawable = mesh->add_lines_drawable("borders");
+                        drawable->update_vertex_buffer(points);
+                        drawable->set_default_color(easy3d::setting::surface_mesh_borders_color);
+                        drawable->set_per_vertex_color(false);
+                        drawable->set_impostor_type(LinesDrawable::CYLINDER);
+                        drawable->set_line_width(easy3d::setting::surface_mesh_borders_line_width);
+                    }
+                }
+                else
+                    drawable->set_visible(!drawable->is_visible());
+            }
+        }
+    }
+    else if (key == GLFW_KEY_F8 && modifiers == 0)
+    {
+        for (auto model : models_)
+            for (TrianglesDrawable* drawable : model->triangles_drawables())
+                drawable->set_visible(!drawable->is_visible());
+    }
     else
     {
         return Viewer::key_press_event(key, modifiers);
@@ -110,4 +147,4 @@ bool AnimationViewer::key_press_event(int key, int modifiers)
 
     return false;
 }
-}
+} // namespace c2m

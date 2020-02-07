@@ -1,21 +1,33 @@
 In order of importance/urgency:
 [x] Make own viewer class with necessary hotkey config
-[ ] change Vertex properties to model cyclic duplication of non-manifold vertices
-[ ] change decimation operator to apply it to all duplicates at the same time
-[ ] change all affected decimation modules to consider duplicate vertices
-[ ] detect vertices connected to PLINKs/BEAMs etc. and preserve these!
+[x] change Vertex properties to model cyclic duplication of non-manifold vertices
+[x] change mesh initialization to init cyclic duplicate lists
+[x] change decimation operator to apply it to all duplicates at the same time
+[x] change all affected decimation modules to consider duplicate vertices
+[PARTIALLY] improve splitting of non-manifold edges/vertices
+[x] make floodflip NOT recursive (use stack)
+[x] show number of duplicate mesh triangles in analyzer stats
+[x] detect epicenter of impact
+[x] adapt error quadric weighting to take into account distance from epicenter
+[x] see which other modules would benefit from taking distance from epicenter into account
+[x] detect vertices connected to PLINKs/BEAMs etc. and preserve these!
+[x] triangulate arbitrary faces (other than triangles and quads)
+[x] establish a way to decimate partwise first and global after
+[x] establish a common decimation criterion (global error bound) and how to deduce it
+[ ] parallelize partwise decimation
+[ ] specify output format and code up output writer
+[ ] make compilable on windows
 [ ] clean up code
 [ ] comment all code
-[ ] triangulate arbitrary faces (other than triangles and quads)
-[ ] establish a common decimation criterion (global error bound) and how to deduce it
-[ ] specify output format and code up output writer
-[ ] implement output function that uses file format usable in MeshLab
-[ ] use MeshLab to judge single-frame approximation errors
+[ ] split reading into 1) read element/part connectivity, 2) per part read node
+    positions, 3) per part read plastic strains
 [ ] make compilable on windows
+[ ] optimize memory consumption
 [ ] optimize runtime of reading
 [ ] optimize performance of decimation algorithm
 [ ] optimize runtime of decimation algorithm
-[ ] optimize memory consumption
-[ ] split reading into 1) read element/part connectivity, 2) per part read node
-    positions, 3) per part read plastic strains
-[ ] establish a way to decimate partwise first and global after
+[ ] make compilable on windows
+[ ] implement output function that uses file format usable in MeshLab
+[ ] use MeshLab to judge single-frame approximation errors
+[ ] clean up code
+[ ] comment all code

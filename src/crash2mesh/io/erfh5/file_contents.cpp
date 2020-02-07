@@ -126,8 +126,7 @@ std::string FEType::pathToResults(const ResultType& resultType, const DataType& 
     return pathToResults(resultType) + "/ZONE1_set0/erfblock/" + dataType.name;
 }
 
-std::string
-FEType::pathToPerStateResults(const std::string& state, const ResultType& resultType) const
+std::string FEType::pathToPerStateResults(const std::string& state, const ResultType& resultType) const
 {
     std::string templatedPath = Group::ENTITYRESULTS_PER_STATE.path() + "/" + genericType.name + "/" + resultType.name;
     return std::regex_replace(templatedPath, std::regex(STATE_TEMPLATE_STRING), state);
@@ -138,7 +137,7 @@ FEType::pathToPerStateResults(const std::string& state, const ResultType& result
 {
     std::string templatedPath = Group::ENTITYRESULTS_PER_STATE.path() + "/" + genericType.name + "/" + resultType.name
                                 + "/ZONE1_set1/erfblock/" + dataType.name;
-    return pathToPerStateResults(state, resultType) + "/ZONE1_set1/erfblock/" + dataType.name;;
+    return pathToPerStateResults(state, resultType) + "/ZONE1_set1/erfblock/" + dataType.name;
 }
 
 // 0D

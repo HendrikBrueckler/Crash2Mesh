@@ -14,6 +14,17 @@ Collector::Collector(const std::vector<Element1D::Ptr>& _elements1D,
 {
 }
 
+void Collector::markElement1DNodes()
+{
+    for (Element1D::Ptr elem: elements1D)
+    {
+        for (Node::Ptr node: elem->nodes)
+        {
+            node->referencingParts = std::numeric_limits<uint>::max();
+        }
+    }
+}
+
 bool Collector::operator==(const Collector& other) const
 {
     return other.entityID == entityID;

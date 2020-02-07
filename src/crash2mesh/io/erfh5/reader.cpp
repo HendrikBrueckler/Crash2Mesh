@@ -273,6 +273,7 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             }
         }
 
+        int missingStrains = 0;
         elemid_t elementsConverted = 0;
         for (uint i = 0; i < elementIDs.size(); i++)
         {
@@ -302,12 +303,7 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
 
             const vector<float>& plasticStrainsSTL = genTypeToPlasticStrains[genericType][elementIDs[i]];
             if (plasticStrainsSTL.size() != numStates)
-            {
-                logFileInfo(Logger::WARN,
-                            "Missing plastic strains for " + actualElemType->name + " element with id "
-                                + std::to_string(elementIDs[i]) + ", filling with zeros",
-                            actualElemType->pathToPerStateResults("stateXXX", ResultType::PLASTIC_STRAIN));
-            }
+                missingStrains++;
             VecX plasticStrains(VecX::Zero(numStates));
             for (uint j = 0; j < plasticStrainsSTL.size(); j++)
             {
@@ -317,6 +313,11 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             partIDTo2DElements[partIDs[i]].emplace_back(
                 std::make_shared<Element2D>(elementIDs[i], *actualElemType, partIDs[i], nodes, plasticStrains));
         }
+
+        if (missingStrains != 0)
+            logFileInfo(Logger::WARN,
+                        "Missing plastic strains for " + std::to_string(missingStrains) + " elements",
+                        elemType->pathToPerStateResults("stateXXX", ResultType::PLASTIC_STRAIN));
 
         logFileInfo(Logger::INFO,
                     "Successfully read " + std::to_string(elementIDs.size()) + " 2D finite elements of type "
@@ -373,6 +374,7 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             }
         }
 
+        int missingStrains = 0;
         for (uint i = 0; i < elementIDs.size(); i++)
         {
             vector<Node::Ptr> nodes;
@@ -381,12 +383,8 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
 
             const vector<float>& plasticStrainsSTL = genTypeToPlasticStrains[genericType][elementIDs[i]];
             if (plasticStrainsSTL.size() != numStates)
-            {
-                logFileInfo(Logger::WARN,
-                            "Missing plastic strains for " + elemType->name + " element with id "
-                                + std::to_string(elementIDs[i]) + ", filling with zeros",
-                            elemType->pathToPerStateResults("stateXXX", ResultType::PLASTIC_STRAIN));
-            }
+                missingStrains++;
+
             VecX plasticStrains(VecX::Zero(numStates));
             for (uint j = 0; j < plasticStrainsSTL.size(); j++)
             {
@@ -396,6 +394,11 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             partIDTo3DElements[partIDs[i]].emplace_back(
                 std::make_shared<Element3D>(elementIDs[i], *elemType, partIDs[i], nodes, plasticStrains));
         }
+
+        if (missingStrains != 0)
+            logFileInfo(Logger::WARN,
+                        "Missing plastic strains for " + std::to_string(missingStrains) + " elements",
+                        elemType->pathToPerStateResults("stateXXX", ResultType::PLASTIC_STRAIN));
 
         logFileInfo(Logger::INFO,
                     "Successfully read " + std::to_string(elementIDs.size()) + " 3D finite elements of type "

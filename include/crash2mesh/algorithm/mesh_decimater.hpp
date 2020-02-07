@@ -22,7 +22,25 @@ class MeshDecimater
      * @return true if successful for all parts
      * @return false else
      */
-    static bool decimateSimple(std::vector<Part::Ptr> parts);
+    static bool decimateSimple(std::vector<Part::Ptr>& parts);
+
+    // TODO make this instance based instead of class based with so many params
+    static bool decimatePartsErrorBound(std::vector<Part::Ptr>& parts,
+                                        float maxQuadricError,
+                                        float maxNormalAngle,
+                                        float maxBoundaryAngle,
+                                        uint frameSkipQuadric,
+                                        uint frameSkipNormal,
+                                        uint frameSkipBoundary);
+
+    // TODO make this instance based instead of class based with so many params
+    static bool decimateScene(Scene::Ptr scene,
+                              uint nFaces,
+                              float maxNormalAngle,
+                              float maxBoundaryAngle,
+                              uint frameSkipQuadric,
+                              uint frameSkipNormal,
+                              uint frameSkipBoundary);
 };
 } // namespace c2m
 

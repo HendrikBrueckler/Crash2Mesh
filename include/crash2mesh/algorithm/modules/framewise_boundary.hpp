@@ -1,6 +1,7 @@
 #ifndef C2M_FRAMEWISE_BOUNDARY_HPP
 #define C2M_FRAMEWISE_BOUNDARY_HPP
 
+#include <crash2mesh/algorithm/mesh_analyzer.hpp>
 #include <crash2mesh/core/structure_elements.hpp>
 #include <crash2mesh/core/types.hpp>
 #include <crash2mesh/util/logger.hpp>
@@ -77,7 +78,9 @@ template <class MeshT> class ModFramewiseBoundaryT : public OpenMesh::Decimater:
      */
     float collapse_priority(const CollapseInfo& _ci) override
     {
-        if (mesh_.is_boundary(_ci.v0v1) || mesh_.is_boundary(_ci.v1v0))
+        if ((mesh_.is_boundary(_ci.v0v1) || mesh_.is_boundary(_ci.v1v0))
+            && MeshAnalyzer::dupes(Base::mesh(), _ci.v0v1).size() == 1
+            && MeshAnalyzer::dupes(Base::mesh(), _ci.v1v0).size() == 1)
         {
             typename Mesh::VertexHandle vh2;
             if (mesh_.is_boundary(_ci.v0v1))
@@ -115,7 +118,8 @@ template <class MeshT> class ModFramewiseBoundaryT : public OpenMesh::Decimater:
                                        nodes[j]->positions.coeff(frame, 1),
                                        nodes[j]->positions.coeff(frame, 2));
                 }
-                if (acos((points[1] - points[0]).normalize() | (points[0] - points[2]).normalize()) > boundary_angle_)
+                if (acos((points[1] - points[0]).normalize() | (points[0] - points[2]).normalize())
+                    > boundary_angle_ * factor_dist_to_epicenter((points[1] + points[0]) / 2.0, frame))
                     return float(Base::ILLEGAL_COLLAPSE);
             }
         }
@@ -149,10 +153,40 @@ template <class MeshT> class ModFramewiseBoundaryT : public OpenMesh::Decimater:
         return frame_skip_;
     }
 
+    void set_epicenter_vars(const MatX3& _epicenters, VecX _mean_dists)
+    {
+        epicenters_ = _epicenters;
+        mean_dists_ = _mean_dists;
+    }
+
+    VecX mean_dists()
+    {
+        return mean_dists_;
+    }
+
+    MatX3 epicenters()
+    {
+        return epicenters_;
+    }
+
+    float factor_dist_to_epicenter(Point pt, uint frame)
+    {
+        if (epicenters_.size() == 0 || mean_dists_.size() == 0 || epicenters_.row(frame).squaredNorm() < 1e-10)
+            return 1.0;
+        Vec3 p(pt[0], pt[1], pt[2]);
+        // TODO implement a proper function here
+        float factor = (0.3 + 0.7 * ((p - epicenters_.row(frame).transpose()).norm() / mean_dists_[frame]));
+        return factor * factor;
+    }
+
   private:
     Mesh& mesh_;
     uint frame_skip_;
     uint num_frames_;
+
+    MatX3 epicenters_;
+    VecX mean_dists_;
+
     Scalar boundary_angle_;
 };
 

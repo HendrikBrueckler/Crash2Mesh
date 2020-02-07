@@ -27,6 +27,9 @@ class MeshBuilder
 
     // TODO
     static CMesh buildSingle(std::vector<Part::Ptr>& parts, bool deleteMeshedElements = true);
+
+    static Scene::Ptr merge(std::vector<Part::Ptr>& parts, bool deleteMeshedElements = true);
+
 };
 
 } // namespace c2m
