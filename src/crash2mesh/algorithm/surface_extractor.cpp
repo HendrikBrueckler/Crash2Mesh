@@ -12,7 +12,7 @@ using std::pair;
 using std::set;
 using std::vector;
 
-bool SurfaceExtractor::FaceCompare::operator()(const vector<Node::Ptr>& a, const vector<Node::Ptr>& b)
+bool SurfaceExtractor::FaceCompare::operator()(const vector<Node::Ptr>& a, const vector<Node::Ptr>& b) const
 {
     if (a.size() < b.size())
         return true;

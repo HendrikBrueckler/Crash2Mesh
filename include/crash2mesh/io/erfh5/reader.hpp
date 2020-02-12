@@ -141,7 +141,7 @@ class Reader
                 data = H5Easy::load<DATA>(m_file, path);
                 return true;
             }
-            catch (H5Exception)
+            catch (H5Exception& e)
             {
                 logFileInfo(Logger::ERROR, "HDF5 reading error ", path);
                 return false;

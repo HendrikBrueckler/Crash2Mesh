@@ -3,13 +3,14 @@
 
 #include <OpenMesh/Core/Geometry/VectorT.hh>
 
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 
 #include <highfive/H5Exception.hpp>
 #include <highfive/H5File.hpp>
 
 namespace c2m
 {
+using uint = unsigned int;
 /**
  * @brief Types to be used for the identifiers of HDF5 entities
  *
