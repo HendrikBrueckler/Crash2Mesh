@@ -42,7 +42,7 @@ class SurfaceExtractor
          *               compares to less than that of \p b, starting from the beginning
          * @return false else
          */
-        bool operator()(const std::vector<Node::Ptr>& a, const std::vector<Node::Ptr>& b);
+        bool operator()(const std::vector<Node::Ptr>& a, const std::vector<Node::Ptr>& b) const;
     };
 };
 } // namespace c2m

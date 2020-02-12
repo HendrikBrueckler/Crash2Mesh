@@ -10,6 +10,7 @@
 
 namespace c2m
 {
+using uint = unsigned int;
 
 AnimationViewer::AnimationViewer(const std::string& title) : Viewer(title)
 {

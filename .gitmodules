@@ -7,3 +7,7 @@
 [submodule "extern/Easy3D"]
 	path = extern/Easy3D
 	url = https://github.com/LiangliangNan/Easy3D.git
+[submodule "extern/eigen"]
+	path = extern/eigen
+	url = https://gitlab.com/libeigen/eigen.git
+	branch = 3.3
