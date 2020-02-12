@@ -19,6 +19,8 @@ In order of importance/urgency:
 [ ] make compilable on windows
 [ ] clean up code
 [ ] comment all code
+[ ] transfer quadrics from first decimation step over to global decimation
+[ ] postprocess decimation by moving all vertices to optimal position for each frame
 [ ] split reading into 1) read element/part connectivity, 2) per part read node
     positions, 3) per part read plastic strains
 [ ] make compilable on windows

@@ -2,6 +2,7 @@
 #include <crash2mesh/algorithm/mesh_decimater.hpp>
 #include <crash2mesh/algorithm/surface_extractor.hpp>
 #include <crash2mesh/io/erfh5/reader.hpp>
+#include <crash2mesh/io/c2m/c2m_writer.hpp>
 
 #include <crash2mesh/util/logger.hpp>
 
@@ -144,6 +145,9 @@ int main(int argc, char** argv)
                 Logger::lout(Logger::ERROR) << "\t\ttesting scene decimation failed!" << endl;
                 return -1;
             }
+
+            // TODO choose proper filename
+            // C2MWriter::write("test.c2m", scene, true);
         }
 
     }

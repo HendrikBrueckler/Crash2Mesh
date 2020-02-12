@@ -182,7 +182,7 @@ bool MeshDecimater::decimatePartsErrorBound(std::vector<Part::Ptr>& parts,
     uint f_after = 0;
 
     uint maxVLog = 10000000;
-    uint maxVRender = 3000000;
+    uint maxVRender = 300000;
     uint minVLog, minVRender;
     queryLogParts(minVLog, minVRender);
     for (Part::Ptr& partptr : parts)
@@ -247,7 +247,7 @@ bool MeshDecimater::decimateScene(Scene::Ptr scene,
     uint f_after = 0;
 
     uint maxVLog = 10000000;
-    uint maxVRender = 3000000;
+    uint maxVRender = 300000;
     uint minVLog, minVRender;
     queryLogParts(minVLog, minVRender);
 
