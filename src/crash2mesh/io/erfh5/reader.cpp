@@ -35,7 +35,7 @@ void Reader::logFileInfo(Logger::Level severity, const string& msg) const
     Logger::lout(severity) << msg << " (file " << m_file.getName() << ")" << endl;
 }
 
-uint Reader::getNumStates() const
+size_t Reader::getNumStates() const
 {
     if (m_file.exist(Group::SINGLESTATE.path()))
     {
@@ -157,7 +157,7 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
         return false;
     }
 
-    uint numStates = getNumStates();
+    size_t numStates = getNumStates();
     map<nodeid_t, vector<vector<float>>> nodeDisplacements;
     if (numStates > 0 && !readPerStateResults(FEType::NODE, ResultType::TRANSLATIONAL_DISPLACEMENT, nodeDisplacements))
     {
@@ -177,7 +177,7 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
                         "Missing displacements for node with id " + std::to_string(nodeIDs[i]) + ", filling with zeros",
                         FEType::NODE.pathToPerStateResults("stateXXX", ResultType::TRANSLATIONAL_DISPLACEMENT));
         }
-        MatX3 positions(MatX3::Zero(std::max(numStates, static_cast<uint>(displacementsSTL.size())), 3));
+        MatX3 positions(MatX3::Zero(std::max(numStates, displacementsSTL.size()), 3));
         for (uint j = 0; j < displacementsSTL.size(); j++)
         {
             positions.row(j)
@@ -245,7 +245,7 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
         return false;
     }
 
-    uint numStates = getNumStates();
+    size_t numStates = getNumStates();
 
     map<const FEGenericType*, map<elemid_t, vector<float>>> genTypeToPlasticStrains;
     for (const FEType* elemType : Element2D::allTypes)
@@ -322,7 +322,7 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
         logFileInfo(Logger::INFO,
                     "Successfully read " + std::to_string(elementIDs.size()) + " 2D finite elements of type "
                         + elemType->name);
-        logFileInfo(Logger::DEBUG,
+        logFileInfo(Logger::INFO,
                     "Had to convert " + std::to_string(elementsConverted) + " of " + elemType->name + "s to "
                         + FEType::SHEL3.name + ", because they were actually triangles, not quads");
     }

@@ -57,7 +57,7 @@ template <class MeshT> class ModFramewiseBoundaryT : public OpenMesh::Decimater:
     void initialize() override
     {
         if (Base::mesh().n_vertices() != 0)
-            num_frames_ = Base::mesh().data(*Base::mesh().vertices_begin()).node->positions.rows();
+            num_frames_ = static_cast<uint>(Base::mesh().data(*Base::mesh().vertices_begin()).node->positions.rows());
         else
             num_frames_ = 0;
     }
@@ -175,7 +175,7 @@ template <class MeshT> class ModFramewiseBoundaryT : public OpenMesh::Decimater:
             return 1.0;
         Vec3 p(pt[0], pt[1], pt[2]);
         // TODO implement a proper function here
-        float factor = (0.3 + 0.7 * ((p - epicenters_.row(frame).transpose()).norm() / mean_dists_[frame]));
+        float factor = (0.3f + 0.7f * ((p - epicenters_.row(frame).transpose()).norm() / mean_dists_[frame]));
         return factor * factor;
     }
 

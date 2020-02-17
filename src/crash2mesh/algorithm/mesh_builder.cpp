@@ -111,7 +111,7 @@ static void floodFlip(size_t fi,
     }
 }
 
-static int triangulate(const Element2D::Ptr& elem,
+static size_t triangulate(const Element2D::Ptr& elem,
                         vector<Triangle>& allTriangles,
                         map<Edge, vector<size_t>, Edge::CmpLess>& edgeTriangleIndices)
 {
@@ -146,7 +146,7 @@ static int triangulate(const Element2D::Ptr& elem,
     return triangles.size();
 }
 
-static int triangulateAll(Part::Ptr& partptr,
+static size_t triangulateAll(Part::Ptr& partptr,
                            vector<Triangle>& allTriangles,
                            map<Edge, vector<size_t>, Edge::CmpLess>& edgeTriangleIndices,
                            bool deleteMeshedElements)
@@ -154,7 +154,7 @@ static int triangulateAll(Part::Ptr& partptr,
     if (partptr->elements2D.empty() && partptr->surfaceElements.empty())
         return 0;
 
-    int numTriangles = 0;
+    size_t numTriangles = 0;
     for (const Element2D::Ptr& elem : partptr->elements2D)
     {
         numTriangles += triangulate(elem, allTriangles, edgeTriangleIndices);
@@ -177,7 +177,8 @@ static VHandle getDuplicate(VHandle& v, map<VHandle, VHandle>& orig2dupe, CMesh&
     auto it = orig2dupe.find(v);
     if (orig2dupe.find(v) == orig2dupe.end())
     {
-        VHandle duplicate = mesh.add_vertex(mesh.point(v));
+        CMesh::Point pt = mesh.point(v);
+        VHandle duplicate = mesh.add_vertex(pt);
         mesh.data(duplicate) = mesh.data(v);
         mesh.data(duplicate).fixed = true;
         mesh.status(duplicate).set_fixed_nonmanifold(true);
@@ -450,7 +451,7 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
         meshes++;
     }
 
-    Logger::lout(Logger::DEBUG) << "Non-manifold triangles: " << invalidTriangles
+    Logger::lout(Logger:INFO) << "Non-manifold triangles: " << invalidTriangles
                                 << ", valid triangles: " << validTriangles << std::endl;
 
     Logger::lout(Logger::INFO) << "Built " << meshes << " meshes from " << parts.size()
@@ -499,7 +500,7 @@ CMesh MeshBuilder::buildSingle(vector<Part::Ptr>& parts, bool deleteMeshedElemen
     CMesh mesh;
     assembleMeshFromTriangles(mesh, allTriangles, sortedTriangles, validTriangles, invalidTriangles);
 
-    Logger::lout(Logger::DEBUG) << "Non-manifold triangles: " << invalidTriangles
+    Logger::lout(Logger::INFO) << "Non-manifold triangles: " << invalidTriangles
                                 << ", valid triangles: " << validTriangles << std::endl;
 
     Logger::lout(Logger::INFO) << "Built a single mesh from " << parts.size() << " parts" << std::endl;
@@ -570,7 +571,7 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
     Scene::Ptr scene = std::make_shared<Scene>(parts);
     assembleMeshFromTriangles(scene->mesh, allTriangles, sortedTriangles, validTriangles, invalidTriangles);
 
-    Logger::lout(Logger::DEBUG) << "Non-manifold triangles: " << invalidTriangles
+    Logger::lout(Logger::INFO) << "Non-manifold triangles: " << invalidTriangles
                                 << ", valid triangles: " << validTriangles << std::endl;
 
     Logger::lout(Logger::INFO) << "Built a single mesh from " << parts.size() << " parts" << std::endl;

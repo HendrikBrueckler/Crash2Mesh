@@ -34,7 +34,6 @@ using std::set;
 
 static void queryLogParts(uint& minVLog, uint& minVRender)
 {
-    set<uint> partNums;
     std::cout << "Wanna visualize parts ? (y/N)" << std::endl;
     char query = 'n';
     std::cin >> query;
@@ -57,7 +56,7 @@ renderAndLog(const CMesh& mesh, bool preDecimation, uint minVLog, uint maxVLog, 
     if (mesh.n_vertices() < minVLog || mesh.n_vertices() > maxVLog)
         return false;
 
-    Logger& lout = Logger::lout(Logger::DEBUG);
+    Logger& lout = Logger::lout(Logger::INFO);
     if (preDecimation)
         lout << "Meshinfo before decimation:" << std::endl;
     else
@@ -176,10 +175,10 @@ bool MeshDecimater::decimatePartsErrorBound(std::vector<Part::Ptr>& parts,
                                             uint frameSkipNormal,
                                             uint frameSkipBoundary)
 {
-    uint v_before = 0;
-    uint v_after = 0;
-    uint f_before = 0;
-    uint f_after = 0;
+    size_t v_before = 0;
+    size_t v_after = 0;
+    size_t f_before = 0;
+    size_t f_after = 0;
 
     uint maxVLog = 10000000;
     uint maxVRender = 300000;
@@ -241,10 +240,10 @@ bool MeshDecimater::decimateScene(Scene::Ptr scene,
                                   uint frameSkipBoundary)
 {
 
-    uint v_before = 0;
-    uint v_after = 0;
-    uint f_before = 0;
-    uint f_after = 0;
+    size_t v_before = 0;
+    size_t v_after = 0;
+    size_t f_before = 0;
+    size_t f_after = 0;
 
     uint maxVLog = 10000000;
     uint maxVRender = 300000;

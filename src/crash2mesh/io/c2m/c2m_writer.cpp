@@ -117,7 +117,7 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
         triangles.emplace_back(static_cast<uint>(f.idx()), element->elem2dID, n1, n2, n3);
     }
 
-    uint nFrames = nodes.size() == 0 ? 0 : (*nodes.begin())->positions.rows();
+    uint nFrames = nodes.size() == 0 ? 0 : static_cast<uint>((*nodes.begin())->positions.rows());
     // output
     out << "$$SECTION HEADER$$\n"
         << "version " << 0.1 << "\n"
@@ -175,8 +175,8 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
         for (const Part::Ptr& partptr : scene->parts)
         {
             partID = partptr->ID;
-            numRods = partID2RodIDs[partID].size();
-            numTriangles = partID2TriangleIDs[partID].size();
+            numRods = static_cast<elemid_t>(partID2RodIDs[partID].size());
+            numTriangles = static_cast<elemid_t>(partID2TriangleIDs[partID].size());
             out << partID << " " << numRods << " " << numTriangles << "\n";
             bool first;
             if (numRods != 0)
@@ -259,8 +259,8 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
         for (const Part::Ptr& partptr : scene->parts)
         {
             partID = partptr->ID;
-            numRods = partID2RodIDs[partID].size();
-            numTriangles = partID2TriangleIDs[partID].size();
+            numRods = static_cast<elemid_t>(partID2RodIDs[partID].size());
+            numTriangles = static_cast<elemid_t>(partID2TriangleIDs[partID].size());
             out.write(reinterpret_cast<const char*>(&partID), sizeof(partid_t));
             out.write(reinterpret_cast<const char*>(&numRods), sizeof(elemid_t));
             out.write(reinterpret_cast<const char*>(&numTriangles), sizeof(elemid_t));

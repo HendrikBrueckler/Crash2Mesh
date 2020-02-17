@@ -41,7 +41,7 @@ std::string MeshInfo::print() const
     if (meanPlasticStrain.size() != 0)
     {
         info << "\tmeanPlasticStrains: " << meanPlasticStrain(0);
-        for (uint i = 1; i < meanPlasticStrain.size(); i += meanPlasticStrain.size() / 10)
+        for (int i = 1; i < meanPlasticStrain.size(); i += static_cast<int>(meanPlasticStrain.size()) / 10)
         {
             info << ", " << meanPlasticStrain(i);
         }
@@ -50,7 +50,7 @@ std::string MeshInfo::print() const
     if (maxPlasticStrain.size() != 0)
     {
         info << "\tmaxPlasticStrains: " << maxPlasticStrain(0);
-        for (uint i = 1; i < maxPlasticStrain.size(); i += maxPlasticStrain.size() / 10)
+        for (int i = 1; i < maxPlasticStrain.size(); i += static_cast<int>(maxPlasticStrain.size()) / 10)
         {
             info << ", " << maxPlasticStrain(i);
         }

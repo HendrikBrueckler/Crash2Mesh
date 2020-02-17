@@ -1,3 +1,10 @@
+if (MSVC)
+    if(uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+    set(ERR_WARN_FLAGS /sdl /W3)
+    else()
+    set(ERR_WARN_FLAGS /sdl /W3 /O2)
+    endif()
+else()
 set(ERR_WARN_FLAGS -Wall -Wextra  -Wstrict-aliasing -pedantic -fmax-errors=5 -Werror
                     -Wunreachable-code -Wcast-align -Wcast-qual
                     -Wdisabled-optimization -Wformat=2 -Winit-self -Wlogical-op
@@ -5,6 +12,7 @@ set(ERR_WARN_FLAGS -Wall -Wextra  -Wstrict-aliasing -pedantic -fmax-errors=5 -We
                     -Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel
                     -Wstrict-overflow=5 -Wswitch-enum -Wundef -Wunused
                     -Wno-variadic-macros -Wno-parentheses -fdiagnostics-show-option)
+endif()
 
 ### Find dependencies
 find_package(OpenGL REQUIRED)

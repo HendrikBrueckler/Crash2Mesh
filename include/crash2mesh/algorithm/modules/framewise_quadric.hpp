@@ -50,7 +50,7 @@ template <class MeshT> class ModFramewiseQuadricT : public OpenMesh::Decimater::
         using Quadric = OpenMesh::Geometry::Quadricf;
 
         if (mesh_.n_vertices() != 0)
-            num_frames_ = mesh_.data(*mesh_.vertices_begin()).node->positions.rows();
+            num_frames_ = static_cast<uint>(mesh_.data(*mesh_.vertices_begin()).node->positions.rows());
         else
             num_frames_ = 0;
 
@@ -101,10 +101,10 @@ template <class MeshT> class ModFramewiseQuadricT : public OpenMesh::Decimater::
                     area *= 0.5;
                 }
 
-                double a = faceNormal[0];
-                double b = faceNormal[1];
-                double c = faceNormal[2];
-                double d = -(points[0] | faceNormal);
+                float a = faceNormal[0];
+                float b = faceNormal[1];
+                float c = faceNormal[2];
+                float d = -(points[0] | faceNormal);
 
                 Quadric q(a, b, c, d);
                 // TODO area weighting yes or no?
@@ -286,8 +286,8 @@ template <class MeshT> class ModFramewiseQuadricT : public OpenMesh::Decimater::
             return 1.0;
         Vec3 p(pt[0], pt[1], pt[2]);
         // TODO implement a proper function here
-        float factor = (0.3 + 0.7 * ((p - epicenters_.row(frame).transpose()).norm() / mean_dists_[frame]));
-        return 1.0 / (factor * factor);
+        float factor = (0.3f + 0.7f * ((p - epicenters_.row(frame).transpose()).norm() / mean_dists_[frame]));
+        return 1.0f / (factor * factor);
     }
 
   private:

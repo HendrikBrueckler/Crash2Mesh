@@ -9,3 +9,7 @@
 *.msh
 *.eps
 *.log
+
+/.vs
+/out
+CMakeSettings.json

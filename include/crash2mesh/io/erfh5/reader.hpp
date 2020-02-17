@@ -25,7 +25,7 @@ class Reader
      */
     Reader(const std::string& filename);
 
-    uint getNumStates() const;
+    size_t getNumStates() const;
 
     bool readParts(std::vector<Part::Ptr>& parts) const;
 

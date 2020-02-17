@@ -90,7 +90,16 @@ class Logger
         if ((l.m_lvl & showLvl) != 0)
         {
             auto t = std::time(nullptr);
-            auto tm = *std::localtime(&t);
+            std::tm tm;
+#if defined(__unix__)
+            localtime_r(&t, &tm);
+#elif defined(_MSC_VER)
+            localtime_s(&tm, &t);
+#else
+            static std::mutex mtx;
+            std::lock_guard<std::mutex> lock(mtx);
+            tm = *std::localtime(&t);
+#endif
             l << "[" << toString(msgLvl) << "] " << std::put_time(&tm, "%H:%M:%S") << ": ";
         }
         return l;
