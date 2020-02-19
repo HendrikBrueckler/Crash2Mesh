@@ -73,14 +73,35 @@ class MeshAnalyzer
      *
      * @param mesh mesh to render
      */
-    static void render(const CMesh& mesh);
+    static void render(const CMesh& mesh, const MatX3* epicenters = nullptr, const VecX* meanDists = nullptr);
 
+    /**
+     * @brief Get the epicenter positions for the given mesh for each frame
+     *        as well as the mean distances of all vertices from the epicenter.
+     *
+     * @param mesh deforming mesh to extract epicenters from
+     * @param epicenters the epicenter coordinates for each frame
+     * @param meanDists the mean distances from the epicenter for each frame
+     */
     static void getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists);
 
-    //TODO
+    /**
+     * @brief Get all duplicate vertices of \p vh (duplicated to fix non-manifoldness)
+     *
+     * @param mesh mesh which contains \p vh
+     * @param vh the handle of the vertex to query
+     * @return std::vector<VHandle> all duplicates of \p vh, this will include \p vh !
+     */
     static std::vector<VHandle> dupes(const CMesh& mesh, const VHandle& vh);
 
-    static std::vector<HEHandle> dupes(const CMesh& mesh, const HEHandle& vh);
+    /**
+     * @brief Get all duplicate vertices of \p heh (duplicated to fix non-manifoldness)
+     *
+     * @param mesh mesh which contains \p heh
+     * @param heh the handle of the halfedge to query
+     * @return std::vector<VHandle> all duplicates of \p heh, this will include \p heh !
+     */
+    static std::vector<HEHandle> dupes(const CMesh& mesh, const HEHandle& heh);
 };
 
 } // namespace c2m

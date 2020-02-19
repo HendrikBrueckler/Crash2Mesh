@@ -21,7 +21,15 @@ find_package(OpenGL REQUIRED)
 file(GLOB_RECURSE SOURCE_LIST "*.cpp")
 add_library(${PROJECT_NAME} ${SOURCE_LIST})
 
+### Configurable options
+option(C2M_PARALLEL "Whether to use parallel (threadsafe) algorithms where appropriate" OFF)
+
 ### Set compile options
+if(${C2M_PARALLEL})
+    add_compile_definitions(C2M_PARALLEL)
+    message("Setting up using parallel algorithms!")
+endif()
+
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 target_compile_options(${PROJECT_NAME} PRIVATE ${ERR_WARN_FLAGS})
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include)

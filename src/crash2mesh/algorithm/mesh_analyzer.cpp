@@ -168,10 +168,37 @@ MeshInfo MeshAnalyzer::getInfo(const CMesh& mesh)
     return info;
 }
 
-void MeshAnalyzer::render(const CMesh& mesh)
+void MeshAnalyzer::render(const CMesh& _mesh, const MatX3* epis, const VecX* meanDists)
 {
-    if (mesh.n_vertices() == 0)
+    if (_mesh.n_vertices() == 0)
         return;
+
+    CMesh mesh(_mesh);
+    if (epis != nullptr && meanDists != nullptr && epis->size() != 0 && meanDists->size() != 0)
+    {
+        MatX3 epicenters = *epis;
+        VecX meanDistsFromEpicenters = *meanDists;
+
+        uint numFrames = mesh.data(*(mesh.vertices_begin())).node->positions.rows();
+        Node::Ptr epiNode1 = std::make_shared<Node>(-1, epicenters);
+        for (uint frame = 0; frame < numFrames; frame++)
+        {
+            epicenters(frame, 0) -= meanDistsFromEpicenters(frame);
+            epicenters(frame, 2) += meanDistsFromEpicenters(frame);
+        }
+        Node::Ptr epiNode2 = std::make_shared<Node>(-1, epicenters);
+        for (uint frame = 0; frame < numFrames; frame++)
+        {
+            epicenters(frame, 0) += 2 * meanDistsFromEpicenters(frame);
+        }
+        Node::Ptr epiNode3 = std::make_shared<Node>(-1, epicenters);
+        OMVec3 pos(epicenters.coeff(0,0), epicenters.coeff(0,1), epicenters.coeff(0,2));
+        VHandle v1 = mesh.add_vertex(pos), v2 = mesh.add_vertex(pos), v3 = mesh.add_vertex(pos);
+        mesh.data(v1).node = epiNode1;
+        mesh.data(v2).node = epiNode2;
+        mesh.data(v3).node = epiNode3;
+        mesh.add_face(std::vector<VHandle>({v1, v2, v3}));
+    }
 
     std::cout.setstate(std::ios_base::failbit);
     std::cerr.setstate(std::ios_base::failbit);
@@ -182,7 +209,7 @@ void MeshAnalyzer::render(const CMesh& mesh)
     for (uint i = 0; i < mesh.data(*mesh.vertices_begin()).node->positions.rows(); i++)
     {
         easy3d::SurfaceMesh* drawableMesh = new easy3d::SurfaceMesh;
-        easy3d::SurfaceMesh::VertexProperty colors = drawableMesh->add_vertex_property<easy3d::vec3>("v:color");
+        easy3d::SurfaceMesh::VertexProperty colors = drawableMesh->add_vertex_property<easy3d::vec3>("v:marking");
         easy3d::SurfaceMesh::VertexProperty strains = drawableMesh->add_vertex_property<float>("v:strain");
         easy3d::SurfaceMesh::FaceProperty fstrains = drawableMesh->add_face_property<float>("f:strain");
         map<VHandle, easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex;
@@ -235,9 +262,8 @@ void MeshAnalyzer::render(const CMesh& mesh)
         drawablePoints->set_point_size(5);
         drawablePoints->set_per_vertex_color(true);
         drawablePoints->update_vertex_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
-        drawablePoints->update_color_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:color").vector());
+        drawablePoints->update_color_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:marking").vector());
 
-        // TODO visualize
         easy3d::TrianglesDrawable* drawableTriangles = drawableMesh->add_triangles_drawable("surface");
 
         bool faceNormals = true;
@@ -327,7 +353,7 @@ void MeshAnalyzer::getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists)
     }
     for (uint frame = 0; frame < numFrames; frame++)
     {
-        if (sumOfWeights(frame) > 1.0) // TODO use a more sensible number here
+        if (sumOfWeights(frame) > 0.1)
             epicenters.row(frame) /= sumOfWeights(frame);
         else
             epicenters.row(frame) = Vec3(0, 0, 0);

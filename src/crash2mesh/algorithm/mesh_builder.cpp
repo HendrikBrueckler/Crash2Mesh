@@ -451,7 +451,7 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
         meshes++;
     }
 
-    Logger::lout(Logger:INFO) << "Non-manifold triangles: " << invalidTriangles
+    Logger::lout(Logger::INFO) << "Non-manifold triangles: " << invalidTriangles
                                 << ", valid triangles: " << validTriangles << std::endl;
 
     Logger::lout(Logger::INFO) << "Built " << meshes << " meshes from " << parts.size()

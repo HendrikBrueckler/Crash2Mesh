@@ -1,5 +1,6 @@
 #include <crash2mesh/algorithm/mesh_builder.hpp>
 #include <crash2mesh/algorithm/mesh_decimater.hpp>
+#include <crash2mesh/algorithm/mesh_analyzer.hpp>
 #include <crash2mesh/algorithm/surface_extractor.hpp>
 #include <crash2mesh/io/erfh5/reader.hpp>
 #include <crash2mesh/io/c2m/c2m_writer.hpp>
@@ -95,7 +96,8 @@ int main(int argc, char** argv)
         return -1;
 
     vector<Part::Ptr> parts;
-    Reader reader(argv[1]);
+    std::string filename = argv[1];
+    Reader reader(filename);
 
     if (!reader.readParts(parts))
     {
@@ -129,7 +131,22 @@ int main(int argc, char** argv)
                 Logger::lout(Logger::ERROR) << "\t\ttesting mesh building failed!" << endl;
                 return -1;
             }
-            if (!MeshDecimater::decimatePartsErrorBound(parts, 100, 5, 5, 3, 3, 10))
+            MeshDecimater deci;
+            deci.useQuadric = true;
+            deci.framesQuadric = 20;
+            deci.maxQuadricError = 100;
+            deci.useNormalDeviation = true;
+            deci.framesNormalDeviation = 20;
+            deci.maxNormalDeviation = 5;
+            deci.useBoundaryDeviation = true;
+            deci.framesBoundaryDeviation = 5;
+            deci.maxBoundaryDeviation = 5;
+            deci.useAspectRatio = true;
+            deci.maxAspectRatio = 10;
+            deci.maxVLog = 10000000;
+            deci.maxVRender = 200000;
+            deci.queryLogParts();
+            if (!deci.decimateParts(parts))
             {
                 Logger::lout(Logger::ERROR) << "\t\ttesting errorbound part decimation failed!" << endl;
                 return -1;
@@ -140,14 +157,28 @@ int main(int argc, char** argv)
                 Logger::lout(Logger::ERROR) << "\t\ttesting scene merging failed!" << endl;
                 return -1;
             }
-            if (!MeshDecimater::decimateScene(scene, nFaces, 20, 20, 5, 5, 20))
+            MeshAnalyzer::getEpicenter(scene->mesh, deci.epicenters, deci.meanDistsFromEpicenters);
+            deci.useQuadric = true;
+            deci.framesQuadric = 10;
+            deci.maxQuadricError = DBL_MAX;
+            deci.useNormalDeviation = true;
+            deci.framesNormalDeviation = 10;
+            deci.maxNormalDeviation = 20;
+            deci.useBoundaryDeviation = true;
+            deci.framesBoundaryDeviation = 3;
+            deci.maxBoundaryDeviation = 20;
+            deci.useAspectRatio = true;
+            deci.maxAspectRatio = 10;
+            deci.queryLogParts();
+            deci.maxVLog = 10000000;
+            deci.maxVRender = 200000;
+            if (deci.decimateScene(scene, nFaces))
             {
                 Logger::lout(Logger::ERROR) << "\t\ttesting scene decimation failed!" << endl;
                 return -1;
             }
 
-            // TODO choose proper filename
-            // C2MWriter::write("test.c2m", scene, true);
+            // C2MWriter::write(filename + ".c2m", scene, true);
         }
 
     }

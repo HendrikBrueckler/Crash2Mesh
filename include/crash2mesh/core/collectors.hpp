@@ -71,16 +71,24 @@ class Part : public Collector
          const std::vector<Element3D::Ptr>& _elements3D = {});
 };
 
-// TODO
+/**
+ * @brief Represents a collection of parts
+ *
+ */
 class Scene
 {
   public:
     using Ptr = std::shared_ptr<Scene>;
 
-    std::vector<Part::Ptr> parts;
+    std::vector<Part::Ptr> parts; //< References to the parts that form the scene
 
-    CMesh mesh;
+    CMesh mesh; //< Should be used to join separate part meshes into one mesh
 
+    /**
+     * @brief Merge parts into a scene
+     *
+     * @param _parts parts to merge into a scene
+     */
     Scene(const std::vector<Part::Ptr> _parts) : parts(_parts)
     {
     }

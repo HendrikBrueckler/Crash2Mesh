@@ -14,7 +14,6 @@ class RobustDecimater : virtual public OpenMesh::Decimater::BaseDecimaterT<CMesh
     using Module = OpenMesh::Decimater::ModBaseT<CMesh>;
     using ModuleList = std::vector<Module*>;
     using ModuleListIterator = ModuleList::iterator;
-
     using HeapInterface = OpenMesh::Decimater::DecimaterT<CMesh>::HeapInterface;
     using DeciHeap = OpenMesh::Utils::HeapT<VHandle, HeapInterface>;
 
