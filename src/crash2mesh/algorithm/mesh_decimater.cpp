@@ -78,7 +78,6 @@ bool MeshDecimater::decimateParts(std::vector<Part::Ptr>& parts) const
     size_t f_before = 0;
     size_t f_after = 0;
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
-qwerew
     std::mutex mutVars;
 #endif
 
