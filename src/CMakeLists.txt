@@ -8,9 +8,9 @@ else()
 set(ERR_WARN_FLAGS -Wall -Wextra  -Wstrict-aliasing -pedantic -fmax-errors=5 -Werror
                     -Wunreachable-code -Wcast-align -Wcast-qual
                     -Wdisabled-optimization -Wformat=2 -Winit-self -Wlogical-op
-                    -Wmissing-include-dirs -Wnoexcept -Wold-style-cast -Woverloaded-virtual
+                    -Wmissing-include-dirs -Wold-style-cast -Woverloaded-virtual
                     -Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel
-                    -Wstrict-overflow=5 -Wswitch-enum -Wundef -Wunused
+                    -Wstrict-overflow=2 -Wswitch-enum -Wundef -Wunused
                     -Wno-variadic-macros -Wno-parentheses -fdiagnostics-show-option)
 endif()
 

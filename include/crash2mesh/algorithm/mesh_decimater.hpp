@@ -5,6 +5,8 @@
 #include <crash2mesh/core/mesh.hpp>
 #include <crash2mesh/core/structure_elements.hpp>
 
+#include <version>
+
 namespace c2m
 {
 /**
@@ -87,7 +89,7 @@ class MeshDecimater
     uint maxVRender; //< Max number of mesh vertices to render mesh in own window
 
   private:
-#ifdef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
     static std::mutex mutLog;
     static std::mutex mutRender;
 #endif

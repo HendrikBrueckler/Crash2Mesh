@@ -11,7 +11,9 @@
 #include <OpenMesh/Tools/Decimater/ModAspectRatioT.hh>
 
 #include <algorithm>
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
 #include <execution>
+#endif
 #include <set>
 
 namespace c2m
@@ -20,8 +22,10 @@ using ModAspectRatio = OpenMesh::Decimater::ModAspectRatioT<CMesh>;
 
 using std::set;
 
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
 std::mutex MeshDecimater::mutLog = std::mutex();
 std::mutex MeshDecimater::mutRender = std::mutex();
+#endif
 
 void MeshDecimater::queryLogParts()
 {
@@ -73,7 +77,8 @@ bool MeshDecimater::decimateParts(std::vector<Part::Ptr>& parts) const
     size_t v_after = 0;
     size_t f_before = 0;
     size_t f_after = 0;
-#ifdef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
+qwerew
     std::mutex mutVars;
 #endif
 
@@ -89,34 +94,34 @@ bool MeshDecimater::decimateParts(std::vector<Part::Ptr>& parts) const
                                       || mesh.data(v).node->referencingParts == std::numeric_limits<uint>::max());
         }
 
-#ifdef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutVars.lock();
 #endif
         v_before += mesh.n_vertices();
         f_before += mesh.n_faces();
-#ifdef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutVars.unlock();
 #endif
         bool logged = log(mesh, true, false);
         bool rendered = render(mesh, true, false);
         decimate(mesh, 0, 0);
-#ifdef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutVars.lock();
 #endif
         v_after += mesh.n_vertices();
         f_after += mesh.n_faces();
-#ifdef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutVars.unlock();
 #endif
         log(mesh, false, logged);
         render(mesh, false, rendered);
     };
 
-#ifndef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
+    std::for_each(std::execution::par_unseq, parts.begin(), parts.end(), decimatePart);
+#else
     for (Part::Ptr& partptr : parts)
         decimatePart(partptr);
-#else
-    std::for_each(std::execution::par_unseq, parts.begin(), parts.end(), decimatePart);
 #endif
 
     Logger::lout(Logger::INFO) << "Reduced meshes from a total of " << v_before << " vertices and " << f_before
@@ -230,7 +235,7 @@ bool MeshDecimater::log(const CMesh& mesh, bool preDecimation, bool force) const
 {
     if (force || mesh.n_vertices() >= minVLog && mesh.n_vertices() <= maxVLog)
     {
-#ifdef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutLog.lock();
 #endif
         Logger& lout = Logger::lout(Logger::INFO);
@@ -239,7 +244,7 @@ bool MeshDecimater::log(const CMesh& mesh, bool preDecimation, bool force) const
         else
             lout << "Meshinfo after decimation:" << std::endl;
         lout << MeshAnalyzer::getInfo(mesh).print();
-#ifdef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutLog.unlock();
 #endif
         return true;
@@ -251,14 +256,14 @@ bool MeshDecimater::render(const CMesh& mesh, bool epicenterVis, bool force) con
 {
     if (force || mesh.n_vertices() >= minVRender && mesh.n_vertices() <= maxVRender)
     {
-#ifdef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutRender.lock();
 #endif
         if (epicenterVis)
             MeshAnalyzer::render(mesh, &epicenters, &meanDistsFromEpicenters);
         else
             MeshAnalyzer::render(mesh, nullptr, nullptr);
-#ifdef C2M_PARALLEL
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutRender.unlock();
 #endif
         return true;
