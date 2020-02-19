@@ -5,7 +5,11 @@
 #include <crash2mesh/core/mesh.hpp>
 #include <crash2mesh/core/structure_elements.hpp>
 
+#if __cplusplus > 201703L
 #include <version>
+#else
+#include <ciso646>
+#endif
 
 namespace c2m
 {

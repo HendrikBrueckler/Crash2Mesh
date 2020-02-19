@@ -24,10 +24,32 @@ add_library(${PROJECT_NAME} ${SOURCE_LIST})
 ### Configurable options
 option(C2M_PARALLEL "Whether to use parallel (threadsafe) algorithms where appropriate" OFF)
 
+set(C2M_DEPENDENCIES
+    HighFive
+    OpenMeshCore
+    OpenMeshTools
+    ${OPENGL_LIBRARIES}
+    glew
+    glfw
+    core
+    viewer
+)
+
 ### Set compile options
 if(${C2M_PARALLEL})
-    add_compile_definitions(C2M_PARALLEL)
-    message("Setting up using parallel algorithms!")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "9.0")
+            find_package(TBB)
+            if (TBB_FOUND)
+            message("Setting up using parallel algorithms!")
+            add_compile_definitions(C2M_PARALLEL)
+            set(C2M_DEPENDENCIES ${C2M_DEPENDENCIES} TBB::tbb)
+            endif()
+        endif()
+    else()
+        message("Setting up using parallel algorithms!")
+        add_compile_definitions(C2M_PARALLEL)
+    endif()
 endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
@@ -40,9 +62,4 @@ target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${PROJECT_SOURCE_DIR}/extern/eigen)
 
 ### Link with dependencies
-target_link_libraries(${PROJECT_NAME}
-    HighFive
-    OpenMeshCore
-    OpenMeshTools
-    ${OPENGL_LIBRARIES} glew glfw core viewer
-)
+target_link_libraries(${PROJECT_NAME} ${C2M_DEPENDENCIES})
