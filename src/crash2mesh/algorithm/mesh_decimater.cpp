@@ -101,7 +101,7 @@ bool MeshDecimater::decimateParts(std::vector<Part::Ptr>& parts) const
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutVars.unlock();
 #endif
-        bool logged = log(mesh, true, false);
+        bool logged = log(mesh, true, false, partptr->ID, partptr->userID);
         bool rendered = render(mesh, true, false);
         decimate(mesh, 0, 0);
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
@@ -112,7 +112,7 @@ bool MeshDecimater::decimateParts(std::vector<Part::Ptr>& parts) const
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutVars.unlock();
 #endif
-        log(mesh, false, logged);
+        log(mesh, false, logged, partptr->ID, partptr->userID);
         render(mesh, false, rendered);
     };
 
@@ -164,7 +164,7 @@ bool MeshDecimater::decimateScene(Scene::Ptr scene, uint nFaces, uint nVertices)
     return true;
 }
 
-void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices) const
+void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t pid) const
 {
     // Create decimater and decimation modules
     RobustDecimater decimater(mesh);
@@ -198,7 +198,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices) const
         ModAspectRatio::Handle hModAspectRatio;
         decimater.add(hModAspectRatio);
         decimater.module(hModAspectRatio).set_binary(true);
-        decimater.module(hModAspectRatio).set_aspect_ratio(20);
+        decimater.module(hModAspectRatio).set_aspect_ratio(maxAspectRatio);
     }
 
     // Init and decimate
@@ -230,7 +230,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices) const
         mesh.data(vh).duplicate = *oldIdx2ptr[mesh.data(vh).duplicate.idx()];
 }
 
-bool MeshDecimater::log(const CMesh& mesh, bool preDecimation, bool force) const
+bool MeshDecimater::log(const CMesh& mesh, bool preDecimation, bool force, partid_t pid, entid_t uid) const
 {
     if (force || mesh.n_vertices() >= minVLog && mesh.n_vertices() <= maxVLog)
     {
@@ -239,9 +239,9 @@ bool MeshDecimater::log(const CMesh& mesh, bool preDecimation, bool force) const
 #endif
         Logger& lout = Logger::lout(Logger::INFO);
         if (preDecimation)
-            lout << "Meshinfo before decimation:" << std::endl;
+            lout << "Part " << pid << " (" << uid << ") Meshinfo before decimation:" << std::endl;
         else
-            lout << "Meshinfo after decimation:" << std::endl;
+            lout << "Part " << pid << " (" << uid << ") Meshinfo after decimation:" << std::endl;
         lout << MeshAnalyzer::getInfo(mesh).print();
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutLog.unlock();

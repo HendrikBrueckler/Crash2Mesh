@@ -53,6 +53,7 @@ bool SurfaceExtractor::extract(std::vector<Part::Ptr>& parts, bool deleteVolumes
 
     int facesExtracted = 0;
     int facesDiscarded = 0;
+    int facesInvalid = 0;
     for (Part::Ptr& partptr : parts)
     {
         if (partptr->elements3D.empty())
@@ -91,16 +92,15 @@ bool SurfaceExtractor::extract(std::vector<Part::Ptr>& parts, bool deleteVolumes
                 {
                     throw std::logic_error("Unexpected size of 3D element face");
                 }
-                partptr->surfaceElements.emplace(std::make_shared<SurfaceElement>(
-                    ++maxSurfaceID, *elemType, partptr->ID, faceNodes, volumeElement));
+                partptr->surfaceElements.emplace(
+                    std::make_shared<SurfaceElement>(++maxSurfaceID, *elemType, partptr->ID, faceNodes, volumeElement));
                 facesExtracted++;
             }
             else
             {
                 if (referencingVolumes.size() > 2)
                 {
-                    Logger::lout(Logger::ERROR)
-                        << "Found faces being referenced by 3 or more volume elements, check your input!" << std::endl;
+                    facesInvalid++;
                 }
                 facesDiscarded++;
             }
@@ -111,8 +111,14 @@ bool SurfaceExtractor::extract(std::vector<Part::Ptr>& parts, bool deleteVolumes
         }
     }
 
+    if (facesInvalid != 0)
+    {
+        Logger::lout(Logger::WARN) << "Found " << facesInvalid
+                                << " faces being referenced by 3 or more volume elements, check your input!"
+                                << std::endl;
+    }
     Logger::lout(Logger::INFO) << "Extracted " << facesExtracted << " surface 2D elements and discarded "
-                                << facesDiscarded << " internal faces from 3D elements" << std::endl;
+                               << facesDiscarded << " internal faces from 3D elements" << std::endl;
 
     return true;
 }

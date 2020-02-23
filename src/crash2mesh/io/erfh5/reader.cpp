@@ -92,17 +92,27 @@ bool Reader::readParts(vector<Part::Ptr>& parts) const
         logFileInfo(Logger::WARN, "No part containing any displayable elements was read, but there were nodes");
     }
 
+    map<entid_t, entid_t> partIDToPartUID;
+    if (!readIdentifiers(FEGenericType::PART, partIDToPartUID))
+    {
+        logFileInfo(Logger::WARN, "Error reading part identifiers, some or all parts will be assigned user id 0!");
+    }
+
     map<partid_t, Part::Ptr> growingParts;
     map<partid_t, set<Node::Ptr>> partToNodes;
-    auto createIfNotExists = [&growingParts](partid_t partID) {
+    auto createIfNotExists = [&growingParts, &partIDToPartUID](partid_t partID) {
         if (growingParts.find(partID) == growingParts.end())
         {
-            growingParts[partID] = std::make_shared<Part>(partID);
+            growingParts[partID] = std::make_shared<Part>(partID, partIDToPartUID[partID]);
         }
     };
 
     for (auto [partID, elements] : partIDToElements1D)
     {
+        // TODO don't completely remove parts but handle differently in decimation!
+        // TODO collect these magic numbers in collectors.hpp as static vars
+        // if (partIDToPartUID[partID] >= 9600000 && partIDToPartUID[partID] < 9980000)
+        //     continue;
         createIfNotExists(partID);
         growingParts[partID]->elements1D = std::set<Element1D::Ptr>(elements.begin(), elements.end());
         for (const Element1D::Ptr& elem : elements)
@@ -110,6 +120,10 @@ bool Reader::readParts(vector<Part::Ptr>& parts) const
     }
     for (auto [partID, elements] : partIDToElements2D)
     {
+        // TODO don't completely remove parts but handle differently in decimation!
+        // TODO collect these magic numbers in collectors.hpp as static vars
+        // if (partIDToPartUID[partID] >= 9600000 && partIDToPartUID[partID] < 9980000)
+        //     continue;
         createIfNotExists(partID);
         growingParts[partID]->elements2D = std::set<Element2D::Ptr>(elements.begin(), elements.end());
         for (const Element2D::Ptr& elem : elements)
@@ -117,6 +131,10 @@ bool Reader::readParts(vector<Part::Ptr>& parts) const
     }
     for (auto [partID, elements] : partIDToElements3D)
     {
+        // TODO don't completely remove parts but handle differently in decimation!
+        // TODO collect these magic numbers in collectors.hpp as static vars
+        // if (partIDToPartUID[partID] >= 9600000 && partIDToPartUID[partID] < 9980000)
+        //     continue;
         createIfNotExists(partID);
         growingParts[partID]->elements3D = std::set<Element3D::Ptr>(elements.begin(), elements.end());
         for (const Element3D::Ptr& elem : elements)
@@ -148,6 +166,7 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
     string nodeIDpath(FEType::NODE.pathToResults(ResultType::COORDINATE, DataType::ENTITY_IDS));
     string nodeCoordPath(FEType::NODE.pathToResults(ResultType::COORDINATE, DataType::RESULTS));
 
+    Logger::lout(Logger::DEBUG) << "Reading node ids and positions..." << std::endl;
     if (!readData(nodeIDpath, nodeIDs) || !readData(nodeCoordPath, nodeCoordinates) || nodeIDs.size() == 0
         || nodeCoordinates.size() != nodeIDs.size())
     {
@@ -157,15 +176,19 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
         return false;
     }
 
+    Logger::lout(Logger::DEBUG) << "Finished reading node ids and positions, now reading displacements..." << std::endl;
+
     size_t numStates = getNumStates();
     map<nodeid_t, vector<vector<float>>> nodeDisplacements;
-    if (numStates > 0 && !readPerStateResults(FEType::NODE, ResultType::TRANSLATIONAL_DISPLACEMENT, nodeDisplacements))
+    if (numStates > 0 && !readPerStateResults(FEType::NODE, ResultType::DISPLACEMENT, nodeDisplacements))
     {
         logFileInfo(Logger::ERROR,
                     "Could not read node displacements, aborting reading of nodes",
-                    FEType::NODE.pathToPerStateResults("stateXXX", ResultType::TRANSLATIONAL_DISPLACEMENT));
+                    FEType::NODE.pathToPerStateResults("stateXXX", ResultType::DISPLACEMENT));
         return false;
     }
+
+    Logger::lout(Logger::DEBUG) << "Finished reading displacements, now generating c2m::Nodes from data..." << std::endl;
 
     for (uint i = 0; i < nodeIDs.size(); i++)
     {
@@ -175,7 +198,7 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
         {
             logFileInfo(Logger::WARN,
                         "Missing displacements for node with id " + std::to_string(nodeIDs[i]) + ", filling with zeros",
-                        FEType::NODE.pathToPerStateResults("stateXXX", ResultType::TRANSLATIONAL_DISPLACEMENT));
+                        FEType::NODE.pathToPerStateResults("stateXXX", ResultType::DISPLACEMENT));
         }
         MatX3 positions(MatX3::Zero(std::max(numStates, displacementsSTL.size()), 3));
         for (uint j = 0; j < displacementsSTL.size(); j++)
@@ -426,6 +449,31 @@ bool Reader::readConnectivities(const FEType* elemType,
         || elementIDs.size() == 0 || partIDs.size() != elementIDs.size() || nodeIDs.size() != elementIDs.size())
     {
         return false;
+    }
+
+    return true;
+}
+
+bool Reader::readIdentifiers(const FEGenericType& feGenType, std::map<entid_t, entid_t>& id2userid) const
+{
+    id2userid.clear();
+
+    std::vector<entid_t> entityIDs;
+    std::vector<vector<entid_t>> userIDs;
+
+    std::string entityIDPath(feGenType.pathToIdentifiers(DataType::ENTITY_IDS));
+    std::string userIDPath(feGenType.pathToIdentifiers(DataType::USER_IDS));
+
+    if (!readData(entityIDPath, entityIDs) || !readData(userIDPath, userIDs) || entityIDs.size() == 0
+        || userIDs.size() != entityIDs.size())
+    {
+        logFileInfo(Logger::ERROR, "Could not read identifiers", feGenType.pathToIdentifiers());
+        return false;
+    }
+
+    for (size_t i = 0; i < entityIDs.size(); i++)
+    {
+        id2userid[entityIDs[i]] = userIDs[i].front();
     }
 
     return true;

@@ -228,19 +228,19 @@ void MeshAnalyzer::render(const CMesh& _mesh, const MatX3* epis, const VecX* mea
             strains[vertexToDrawableVertex[v]] = strain * 20;
             if (mesh.status(v).fixed_nonmanifold())
             {
-                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8, 0.0, 0.0);
+                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8f, 0.0f, 0.0f);
             }
             else if (mesh.data(v).node->referencingParts > 1)
             {
-                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.9, 0.6, 0.0);
+                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.9f, 0.6f, 0.0f);
             }
             else if (mesh.is_boundary(v))
             {
-                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8, 0.8, 0.0);
+                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8f, 0.8f, 0.0f);
             }
             else
             {
-                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.0, 0.6, 0.0);
+                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.0f, 0.6f, 0.0f);
             }
         }
 
@@ -341,19 +341,38 @@ void MeshAnalyzer::getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists)
     // Calc epicenter of crash
     VecX sumOfWeights = VecX::Zero(numFrames);
     epicenters = MatX3::Zero(numFrames, 3);
-    for (FHandle f : mesh.faces())
+    for (VHandle v : mesh.vertices())
     {
-        MatX3 positions = mesh.data(*(mesh.fv_begin(f))).node->positions;
-        VecX strains = mesh.data(f).element->plasticStrains * mesh.calc_face_area(f);
+        const MatX3& positions = mesh.data(v).node->positions;
+        MatX3 relativeDisplacements = (positions.rowwise() - positions.row(0)) * mesh.valence(v);
+        for (VHandle vNeighbor : mesh.vv_range(v))
+        {
+            const MatX3& positionsNeighbor = mesh.data(vNeighbor).node->positions;
+            MatX3 displacementsNeighbor = positionsNeighbor.rowwise() - positionsNeighbor.row(0);
+            relativeDisplacements -= displacementsNeighbor * 1.0f;
+        }
+        relativeDisplacements /= mesh.valence(v);
         for (uint frame = 0; frame < numFrames; frame++)
         {
-            epicenters.row(frame) +=  strains(frame) * positions.row(frame);
-            sumOfWeights(frame) += strains(frame);
+            Vec3 relDispFrame = relativeDisplacements.row(frame).transpose();
+            float weight = sqrt(relDispFrame.transpose() * relDispFrame);
+            epicenters.row(frame) += weight * positions.row(frame);
+            sumOfWeights(frame) += weight;
         }
     }
+    // for (FHandle f : mesh.faces())
+    // {
+    //     MatX3 positions = mesh.data(*(mesh.fv_begin(f))).node->positions;
+    //     VecX strains = mesh.data(f).element->plasticStrains * mesh.calc_face_area(f);
+    //     for (uint frame = 0; frame < numFrames; frame++)
+    //     {
+    //         epicenters.row(frame) += strains(frame) * positions.row(frame);
+    //         sumOfWeights(frame) += strains(frame);
+    //     }
+    // }
     for (uint frame = 0; frame < numFrames; frame++)
     {
-        if (sumOfWeights(frame) > 0.1)
+        if (sumOfWeights(frame) > 1.0)
             epicenters.row(frame) /= sumOfWeights(frame);
         else
             epicenters.row(frame) = Vec3(0, 0, 0);
@@ -367,7 +386,7 @@ void MeshAnalyzer::getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists)
             meanDists(frame) += (position.row(frame) - epicenters.row(frame)).norm();
         }
     }
-    meanDists /= mesh.n_vertices();
+    meanDists /= static_cast<float>(mesh.n_vertices());
     Logger::lout(Logger::INFO) << "Finished calculating epicenter of crash" << std::endl;
 }
 

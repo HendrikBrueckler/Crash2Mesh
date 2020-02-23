@@ -39,13 +39,10 @@ void testReader(const Reader& reader, vector<Part::Ptr>& parts)
 void testSurfaceExtraction(vector<Part::Ptr>& parts)
 {
     Logger::lout(Logger::INFO) << "SurfaceExtractor::extract(): starting" << endl;
-
-    map<partid_t, std::vector<SurfaceElement::Ptr>> partIDToSurfaceElements;
     if (!SurfaceExtractor::extract(parts))
     {
         Logger::lout(Logger::ERROR) << "\t\ttesting SurfaceExtractor::extract() failed!" << endl;
     }
-
     Logger::lout(Logger::INFO) << "SurfaceExtractor::extract(): finished" << endl;
 }
 
@@ -104,12 +101,16 @@ int main(int argc, char** argv)
         Logger::lout(Logger::ERROR) << "\t\ttesting readParts() failed!" << endl;
         return -1;
     }
+    if (!SurfaceExtractor::extract(parts))
+    {
+        Logger::lout(Logger::ERROR) << "\t\ttesting SurfaceExtractor::extract() failed!" << endl;
+    }
     if (argc == 3)
     {
         int nFaces = 0;
         if (argv[2][0] == 'e')
         {
-            Part::Ptr merged = std::make_shared<Part>(0);
+            Part::Ptr merged = std::make_shared<Part>(0, 0);
             merged->mesh = MeshBuilder::buildSingle(parts);
 
             for (Part::Ptr& partptr : parts)
@@ -144,7 +145,9 @@ int main(int argc, char** argv)
             deci.useAspectRatio = true;
             deci.maxAspectRatio = 10;
             deci.maxVLog = 10000000;
-            deci.maxVRender = 200000;
+            deci.maxVRender = 0;
+            deci.minVLog = 10000;
+            deci.minVRender = 1000000;
             deci.queryLogParts();
             if (!deci.decimateParts(parts))
             {
@@ -160,7 +163,7 @@ int main(int argc, char** argv)
             MeshAnalyzer::getEpicenter(scene->mesh, deci.epicenters, deci.meanDistsFromEpicenters);
             deci.useQuadric = true;
             deci.framesQuadric = 10;
-            deci.maxQuadricError = DBL_MAX;
+            deci.maxQuadricError = FLT_MAX;
             deci.useNormalDeviation = true;
             deci.framesNormalDeviation = 10;
             deci.maxNormalDeviation = 20;
@@ -168,17 +171,19 @@ int main(int argc, char** argv)
             deci.framesBoundaryDeviation = 3;
             deci.maxBoundaryDeviation = 20;
             deci.useAspectRatio = true;
-            deci.maxAspectRatio = 10;
-            deci.queryLogParts();
+            deci.maxAspectRatio = 20;
+            deci.minVLog = 0;
+            deci.minVRender = 0;
             deci.maxVLog = 10000000;
             deci.maxVRender = 200000;
-            if (deci.decimateScene(scene, nFaces))
+            deci.queryLogParts();
+            if (!deci.decimateScene(scene, nFaces))
             {
                 Logger::lout(Logger::ERROR) << "\t\ttesting scene decimation failed!" << endl;
                 return -1;
             }
 
-            // C2MWriter::write(filename + ".c2m", scene, true);
+            C2MWriter::write(filename + ".c2m", scene, true);
         }
 
     }

@@ -105,8 +105,9 @@ class MeshDecimater
      * @param mesh the mesh to decimate
      * @param nFaces the number of faces to achieve
      * @param nVertices the number of vertices to achieve
+     * @param pid part id of part to be decimated
      */
-    void decimate(CMesh& mesh, uint nFaces, uint nVertices = 0) const;
+    void decimate(CMesh& mesh, uint nFaces, uint nVertices = 0, partid_t pid = 0) const;
 
     /**
      * @brief Logs the mesh info if number of vertices satisfies the internal bounds.
@@ -114,10 +115,12 @@ class MeshDecimater
      * @param mesh mesh to log
      * @param preDecimation whether to log "before decimation" or "after decimation" on console
      * @param force whether to force logging regardless of internal bounds
+     * @param pid part id of part to be decimated
+     * @param uid user-specified part id of part to be decimated
      * @return true if logged
      * @return false else
      */
-    bool log(const CMesh& mesh, bool preDecimation, bool force) const;
+    bool log(const CMesh& mesh, bool preDecimation, bool force, partid_t pid = 0, entid_t uid = 0) const;
 
     /**
      * @brief Renders the mesh if number of vertices satisfies the internal bounds.

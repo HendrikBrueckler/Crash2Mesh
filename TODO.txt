@@ -20,6 +20,8 @@ In order of importance/urgency:
 [ ] clean up code
 [ ] comment all code
 [ ] fix decimation of non-manifold elements (shits broken...)
+[ ] HOW 2 HANDLE DAMPFWALZE
+[ ] HOW 2 HANDLE FAILURE VECTOR
 [ ] implement proper distance-to-epicenter weighting functions for each module
 [ ] transfer quadrics from first decimation step over to global decimation
 [ ] postprocess decimation by moving all vertices to optimal position for each frame

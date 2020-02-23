@@ -43,11 +43,12 @@ bool Collector::operator>(const Collector& other) const
 }
 
 Part::Part(partid_t _ID,
+           entid_t _userID,
            const std::vector<Element1D::Ptr>& _elements1D,
            const std::vector<Element2D::Ptr>& _elements2D,
            const std::vector<SurfaceElement::Ptr>& _surfaceElements,
            const std::vector<Element3D::Ptr>& _elements3D)
-    : Collector(_elements1D, _elements2D, _surfaceElements, _elements3D), ID(_ID)
+    : Collector(_elements1D, _elements2D, _surfaceElements, _elements3D), ID(_ID), userID(_userID)
 {
 }
 

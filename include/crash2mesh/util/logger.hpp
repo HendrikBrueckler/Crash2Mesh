@@ -44,7 +44,9 @@ class Logger
      */
     static const Level showLvl =
 #ifdef NDEBUG
-        static_cast<Level>(Level::ALL & ~Level::DEBUG);
+        // TODO
+        // static_cast<Level>(Level::ALL & ~Level::DEBUG);
+        Level::ALL;
 #else
         Level::ALL;
 #endif

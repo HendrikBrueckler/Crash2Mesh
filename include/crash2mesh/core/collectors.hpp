@@ -52,7 +52,8 @@ class Part : public Collector
 {
   public:
     using Ptr = std::shared_ptr<Part>;
-    const partid_t ID; ///< A part's identifier
+    const partid_t ID;    ///< A part's identifier
+    const entid_t userID; ///< The user-specified part-id
     CMesh mesh;
 
     /**
@@ -65,6 +66,7 @@ class Part : public Collector
      * @param _elements3D contained 3D elements
      */
     Part(partid_t _ID,
+         entid_t _userID,
          const std::vector<Element1D::Ptr>& _elements1D = {},
          const std::vector<Element2D::Ptr>& _elements2D = {},
          const std::vector<SurfaceElement::Ptr>& _surfaceElements = {},

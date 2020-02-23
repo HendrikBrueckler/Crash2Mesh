@@ -24,6 +24,7 @@ const Group Group::CSMEXPL(nullptr, "CSMEXPL");
 const Group Group::CONSTANT(&Group::CSMEXPL, "constant");
 const Group Group::CONNECTIVITIES(&Group::CONSTANT, "connectivities");
 const Group Group::ENTITYRESULTS_CONSTANT(&Group::CONSTANT, "entityresults");
+const Group Group::IDENTIFIERS(&Group::CONSTANT, "identifiers");
 const Group Group::SINGLESTATE(&Group::CSMEXPL, "singlestate");
 const Group Group::STATE_TEMPLATE(&Group::SINGLESTATE, STATE_TEMPLATE_STRING);
 const Group Group::ENTITYRESULTS_PER_STATE(&Group::STATE_TEMPLATE, "entityresults");
@@ -34,7 +35,7 @@ ResultType::ResultType(const std::string& _name) : name(_name)
 
 const ResultType ResultType::SPACE_DOMAIN("Domain");
 const ResultType ResultType::COORDINATE("COORDINATE");
-const ResultType ResultType::TRANSLATIONAL_DISPLACEMENT("Translational_Displacement");
+const ResultType ResultType::DISPLACEMENT("Translational_Displacement");
 const ResultType ResultType::PLASTIC_STRAIN("Membrane_Plastic_Strain");
 const ResultType ResultType::MIN_PLASTIC_STRAIN("Min_Plastic_Strain");
 const ResultType ResultType::MAX_PLASTIC_STRAIN("Max_Plastic_Strain");
@@ -49,6 +50,7 @@ const DataType DataType::CONNECTED_NODE_IDS("ic");
 const DataType DataType::ELEMENT_IDS("idele");
 const DataType DataType::PART_IDS("pid");
 const DataType DataType::ENTITY_IDS("entid");
+const DataType DataType::USER_IDS("uid");
 const DataType DataType::RESULTS("res");
 const DataType DataType::STATE_INDEX("indexident");
 const DataType DataType::STATE_VALUE("indexval");
@@ -83,6 +85,16 @@ const FEFamily FEFamily::PYRAMID13("pyramid13", 3, 5, {{0, 3, 2, 1}, {0, 1, 4}, 
 
 FEGenericType::FEGenericType(const std::string& _name) : name(_name)
 {
+}
+
+std::string FEGenericType::pathToIdentifiers() const
+{
+    return Group::IDENTIFIERS.path() + "/" + name;
+}
+
+std::string FEGenericType::pathToIdentifiers(const DataType& dataType) const
+{
+    return pathToIdentifiers() + "/erfblock/" + dataType.name;
 }
 
 const FEGenericType FEGenericType::NODE("NODE");

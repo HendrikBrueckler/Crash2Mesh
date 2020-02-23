@@ -101,6 +101,9 @@ void RobustDecimater::heap_vertex(VHandle _vh)
 
     // find best target in one ring
     CMesh::VertexOHalfedgeIter voh_it(mesh_, _vh);
+    // TODO this doesnt make any sense. If vh is a fixed duplicate
+    // but has a connection to a vertex that its first duplicate doesn't
+    // then we are missing some possible collapses
     for (; voh_it.is_valid() && !mesh_.data(_vh).fixed; ++voh_it)
     {
         heh = *voh_it;

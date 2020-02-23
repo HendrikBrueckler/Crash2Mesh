@@ -20,6 +20,7 @@ class Group
     const static Group CONSTANT;                ///< subfolder containing non-timevariant variables
     const static Group CONNECTIVITIES;          ///< subsubfolder containing time-constant connectivities
     const static Group ENTITYRESULTS_CONSTANT;  ///< subsubfolder containing time-constant float-type results
+    const static Group IDENTIFIERS;             ///< subsubfolder containing a mapping of internal to user-specified ids
     const static Group SINGLESTATE;             ///< subfolder containing time-variant variables/results
     const static Group STATE_TEMPLATE;          ///< subsubfolder template for each state of the time-series
     const static Group ENTITYRESULTS_PER_STATE; ///< subsubsubfolder template containing float-type results of one state
@@ -53,9 +54,9 @@ class ResultType
   public:
     std::string name; ///< The folder name associated with this result-type
 
-    const static ResultType SPACE_DOMAIN;                     ///< Subdomain of space a finite element belongs to
+    const static ResultType SPACE_DOMAIN;               ///< Subdomain of space a finite element belongs to
     const static ResultType COORDINATE;                 ///< Coordinate of a finite element
-    const static ResultType TRANSLATIONAL_DISPLACEMENT; ///< Displacement of a finite element
+    const static ResultType DISPLACEMENT;               ///< Displacement of a finite element
     const static ResultType PLASTIC_STRAIN;             ///< plastic strain of a finite element
     const static ResultType MIN_PLASTIC_STRAIN;         ///< minimum plastic strain of a finite element
     const static ResultType MAX_PLASTIC_STRAIN;         ///< maximum plastic strain of a finite element
@@ -84,6 +85,7 @@ class DataType
     const static DataType ELEMENT_IDS;        ///< Finite element identifiers
     const static DataType PART_IDS;           ///< Part identifiers
     const static DataType ENTITY_IDS;         ///< Generic entity identifiers
+    const static DataType USER_IDS;           ///< User specified identifiers (for identifier mapping)
     const static DataType RESULTS;            ///< Float type results
     const static DataType STATE_INDEX;        ///< Index of time series states
     const static DataType STATE_VALUE;        ///< Time value associated with a time series state
@@ -163,6 +165,21 @@ class FEGenericType
     const static FEGenericType SHELL;
     const static FEGenericType SOLID;
     const static FEGenericType PART;
+
+    /**
+     * @brief Returns the path within an ERF-HDF5 file containing the mapping of internal id to user-specified id
+     *
+     * @return std::string path to the mapping of internal id to user-specified id
+     */
+    std::string pathToIdentifiers() const;
+
+    /**
+     * @brief Returns the path within an ERF-HDF5 file containing the mapping of internal id to user-specified id
+     *
+     * @param dataType datatype to read from identifier mapping (either ENTITY_IDS or USER_IDS)
+     * @return std::string path to the mapping of internal id to user-specified id
+     */
+    std::string pathToIdentifiers(const DataType& dataType) const;
 
   private:
     /**
