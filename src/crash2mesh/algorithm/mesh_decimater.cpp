@@ -1,10 +1,10 @@
 #include <crash2mesh/algorithm/mesh_decimater.hpp>
 
-#include <crash2mesh/algorithm/decimater/robust_decimater.hpp>
+#include <crash2mesh/decimater/robust_decimater.hpp>
 #include <crash2mesh/algorithm/mesh_analyzer.hpp>
-#include <crash2mesh/algorithm/modules/mod_boundary.hpp>
-#include <crash2mesh/algorithm/modules/mod_normal.hpp>
-#include <crash2mesh/algorithm/modules/mod_quadric.hpp>
+#include <crash2mesh/decimater/modules/mod_boundary.hpp>
+#include <crash2mesh/decimater/modules/mod_normal.hpp>
+#include <crash2mesh/decimater/modules/mod_quadric.hpp>
 #include <crash2mesh/util/logger.hpp>
 
 #include <OpenMesh/Tools/Decimater/DecimaterT.hh>
@@ -181,7 +181,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
     {
         ModNormal::Handle hModFWNormal;
         decimater.add(hModFWNormal);
-        decimater.module(hModFWNormal).set_normal_deviation(maxNormalDeviation);
+        decimater.module(hModFWNormal).set_max_normal_deviation(maxNormalDeviation);
         decimater.module(hModFWNormal).set_num_frames(framesNormalDeviation);
         decimater.module(hModFWNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }
@@ -189,7 +189,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
     {
         ModBoundary::Handle hModFWBoundary;
         decimater.add(hModFWBoundary);
-        decimater.module(hModFWBoundary).set_boundary_angle(maxBoundaryDeviation);
+        decimater.module(hModFWBoundary).set_max_boundary_angle(maxBoundaryDeviation);
         decimater.module(hModFWBoundary).set_num_frames(framesBoundaryDeviation);
         decimater.module(hModFWBoundary).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }

@@ -1,4 +1,4 @@
-#include <crash2mesh/algorithm/decimater/robust_decimater.hpp>
+#include <crash2mesh/decimater/robust_decimater.hpp>
 
 #include <crash2mesh/util/logger.hpp>
 

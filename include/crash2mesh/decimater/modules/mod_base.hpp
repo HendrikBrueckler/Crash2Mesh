@@ -4,7 +4,6 @@
 #include <OpenMesh/Tools/Decimater/ModBaseT.hh>
 #include <crash2mesh/core/mesh.hpp>
 #include <crash2mesh/core/types.hpp>
-#include <crash2mesh/util/logger.hpp>
 
 namespace c2m
 {
@@ -25,15 +24,7 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
 
   public:
     /// Constructor
-    ModBase(CMesh& _mesh, bool binary) : Base(_mesh, binary), mesh_(_mesh), frame_skip_(1.0)
-    {
-        if (mesh_.n_vertices() != 0 || !mesh_.data(*mesh_.vertices_begin()).node)
-            num_frames_ = static_cast<uint>(mesh_.data(*mesh_.vertices_begin()).node->positions.rows());
-        else
-            num_frames_ = 0;
-
-        update_frame_sequence();
-    }
+    ModBase(CMesh& _mesh, bool binary);
 
     /// Destructor
     ~ModBase()
@@ -61,30 +52,12 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
     /**
      * @brief Set frameskip interval relative to total frames (0..1)
      */
-    void set_frame_skip(float _frame_skip_rel)
-    {
-        if (_frame_skip_rel >= 0.0 && _frame_skip_rel <= 1.0)
-            frame_skip_ = std::max(1.0f, _frame_skip_rel * (num_frames_ - 1));
-        else
-            Logger::lout(Logger::ERROR) << "Specify frameskip relative to total frames (0..1)" << std::endl;
-        update_frame_sequence();
-    }
+    void set_frame_skip(float _frame_skip_rel);
 
     /**
      * @brief Set number of frames to be evaluated, linearly spaced.
      */
-    void set_num_frames(uint frames)
-    {
-        if (frames <= 1)
-        {
-            frame_skip_ = num_frames_;
-            update_frame_sequence();
-        }
-        else
-        {
-            set_frame_skip(1.0f / (frames - 1));
-        }
-    }
+    void set_num_frames(uint frames);
 
     /**
      * @brief Frames skipped between two subsequent evaluated frames (1.0 means none, 2.0 is one etc.)
@@ -130,16 +103,7 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
      * @param frame frame to consider
      * @return float weight of specified point (>= 0.0)
      */
-    float dist2epicenter_f(Point pt, uint frame)
-    {
-        if (epicenters_.size() == 0 || mean_dists_.size() == 0 || epicenters_.row(frame).squaredNorm() == 0.0)
-            return 1.0;
-
-        float factor = factor_dist_to_epicenter(
-            Vec3(pt[0], pt[1], pt[2]), epicenters_.row(frame).transpose(), mean_dists_[frame]);
-        assert(factor >= 0.0);
-        return factor;
-    }
+    float dist2epicenter_f(Point pt, uint frame);
 
   protected:
     /**
@@ -158,12 +122,7 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
     /**
      * @brief Update the frame sequence according to frame_skip_
      */
-    void update_frame_sequence()
-    {
-        frame_sequence_.clear();
-        for (float frameF = 0; frameF < num_frames(); frameF += frame_skip())
-            frame_sequence_.emplace_back(std::floor(frameF));
-    }
+    void update_frame_sequence();
 
     float frame_skip_;
     uint num_frames_;
