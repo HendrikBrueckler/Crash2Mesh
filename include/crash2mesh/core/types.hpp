@@ -15,10 +15,10 @@ using uint = unsigned int;
  * @brief Types to be used for the identifiers of HDF5 entities
  *
  */
-using entid_t = uint; // needs to be >= nodeid_t, elemid_t, partid_t
-using nodeid_t = uint;
-using elemid_t = uint;
-using partid_t = uint;
+using entid_t = int; // needs to be >= nodeid_t, elemid_t, partid_t
+using nodeid_t = int;
+using elemid_t = int;
+using partid_t = int;
 #define ID_NULL 0
 
 /**

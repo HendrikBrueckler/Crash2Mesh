@@ -17,9 +17,9 @@ struct MeshTraits : public OpenMesh::DefaultTraits
 
     VertexTraits
     {
-        Node::Ptr node;
-        bool fixed;
-        typename Refs::VertexHandle duplicate;
+        Node::Ptr node; //< Finite Element node belonging to a vertex
+        bool fixed; //< Whether this vertex is a fixated fixed non-manifold vertex
+        typename Refs::VertexHandle duplicate; //< Cyclic fixed non-manifold vertex list
     };
 
     FaceTraits
@@ -27,6 +27,7 @@ struct MeshTraits : public OpenMesh::DefaultTraits
         Element2D::Ptr element;
     };
 };
+
 using CMesh = OpenMesh::TriMesh_ArrayKernelT<MeshTraits>;
 using VHandle = CMesh::VertexHandle;
 using FHandle = CMesh::FaceHandle;

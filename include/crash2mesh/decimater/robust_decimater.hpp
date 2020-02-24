@@ -38,7 +38,15 @@ class RobustDecimater : virtual public OpenMesh::Decimater::BaseDecimaterT<CMesh
     size_t decimate_to_faces(size_t _n_vertices = 0, size_t _n_faces = 0);
 
   protected:
-    // Gather duplicates of single vertices and halfedge neighborhoods (i.e. COllapseInfo)
+    /**
+     * @brief Gather duplicates of single vertices and halfedge
+     *        neighborhoods.
+     *
+     * @param _ci
+     * @param v0Dupes
+     * @param v1Dupes
+     * @param ciDupes
+     */
     void getDupes(const CollapseInfo& _ci,
                   std::vector<VHandle>& v0Dupes,
                   std::vector<VHandle>& v1Dupes,
@@ -50,12 +58,8 @@ class RobustDecimater : virtual public OpenMesh::Decimater::BaseDecimaterT<CMesh
     // reference to mesh
     Mesh& mesh_;
 
-// heap
-#if (defined(_MSC_VER) && (_MSC_VER >= 1800)) || __cplusplus > 199711L || defined(__GXX_EXPERIMENTAL_CXX0X__)
+    // heap
     std::unique_ptr<DeciHeap> heap_;
-#else
-    std::auto_ptr<DeciHeap> heap_;
-#endif
 
     // vertex properties
     OpenMesh::VPropHandleT<HEHandle> collapse_target_;

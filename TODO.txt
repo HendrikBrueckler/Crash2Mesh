@@ -17,9 +17,9 @@ In order of importance/urgency:
 [x] parallelize partwise decimation
 [x] specify output format and code up output writer
 [x] make compilable on windows
-[ ] clean up code
-[ ] comment all code
-[ ] write basic tests for some functionality that is not surely working
+[x] clean up code
+[x] comment all header code
+[ ] write basic tests for some functionality that is not surely working ?
 [ ] fix decimation of non-manifold elements (shits broken...)
 [ ] HOW 2 HANDLE DAMPFWALZE
 [ ] HOW 2 HANDLE FAILURE VECTOR
@@ -36,4 +36,4 @@ In order of importance/urgency:
 [ ] implement output function that uses file format usable in MeshLab
 [ ] use MeshLab to judge single-frame approximation errors
 [ ] clean up code
-[ ] comment all code
+[ ] comment all header code

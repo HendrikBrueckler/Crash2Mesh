@@ -174,6 +174,8 @@ void MeshAnalyzer::render(const CMesh& _mesh, const MatX3* epis, const VecX* mea
         return;
 
     CMesh mesh(_mesh);
+
+    // Add epicenter triangle if info was supplied
     if (epis != nullptr && meanDists != nullptr && epis->size() != 0 && meanDists->size() != 0)
     {
         MatX3 epicenters = *epis;
@@ -200,18 +202,23 @@ void MeshAnalyzer::render(const CMesh& _mesh, const MatX3* epis, const VecX* mea
         mesh.add_face(std::vector<VHandle>({v1, v2, v3}));
     }
 
+    // Silence annyoing messages
     std::cout.setstate(std::ios_base::failbit);
     std::cerr.setstate(std::ios_base::failbit);
     AnimationViewer viewer("Mesh View");
     std::cout.clear();
     std::cerr.clear();
 
+    // For each frame...
     for (uint i = 0; i < mesh.data(*mesh.vertices_begin()).node->positions.rows(); i++)
     {
+        // Create a drawable model
         easy3d::SurfaceMesh* drawableMesh = new easy3d::SurfaceMesh;
         easy3d::SurfaceMesh::VertexProperty colors = drawableMesh->add_vertex_property<easy3d::vec3>("v:marking");
         easy3d::SurfaceMesh::VertexProperty strains = drawableMesh->add_vertex_property<float>("v:strain");
         easy3d::SurfaceMesh::FaceProperty fstrains = drawableMesh->add_face_property<float>("f:strain");
+
+        // Copy over vertices and their properties to drawable model
         map<VHandle, easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex;
         for (VHandle v : mesh.vertices())
         {
@@ -244,6 +251,7 @@ void MeshAnalyzer::render(const CMesh& _mesh, const MatX3* epis, const VecX* mea
             }
         }
 
+        // Copy over faces and their properties to drawable model
         for (FHandle f : mesh.faces())
         {
             vector<easy3d::SurfaceMesh::Vertex> vs;
@@ -258,17 +266,17 @@ void MeshAnalyzer::render(const CMesh& _mesh, const MatX3* epis, const VecX* mea
                 fstrains[fd] = 1.0;
         }
 
+        // Visualize points as billboards
         easy3d::PointsDrawable* drawablePoints = drawableMesh->add_points_drawable("points");
         drawablePoints->set_point_size(5);
         drawablePoints->set_per_vertex_color(true);
         drawablePoints->update_vertex_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
         drawablePoints->update_color_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:marking").vector());
 
+        // Visualize triangles with face normals (vertex normal code is below but shouldnt ever be used)
         easy3d::TrianglesDrawable* drawableTriangles = drawableMesh->add_triangles_drawable("surface");
 
-        bool faceNormals = true;
-        if (faceNormals)
-        {
+#if 1
             vector<easy3d::vec3> points;
             vector<easy3d::vec3> normals;
             vector<easy3d::vec3> strainColors;
@@ -293,9 +301,8 @@ void MeshAnalyzer::render(const CMesh& _mesh, const MatX3* epis, const VecX* mea
             vector<unsigned int> indices(3 * drawableMesh->faces_size());
             std::iota(indices.begin(), indices.end(), 0);
             drawableTriangles->update_index_buffer(indices);
-        }
-        else
-        {
+#else
+            // Keep the code here just in case...
             drawableTriangles->update_vertex_buffer(
                 drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
             drawableMesh->update_vertex_normals();
@@ -318,14 +325,16 @@ void MeshAnalyzer::render(const CMesh& _mesh, const MatX3* epis, const VecX* mea
                 indices.insert(indices.end(), vts.begin(), vts.end());
             }
             drawableTriangles->update_index_buffer(indices);
-        }
+#endif
 
+        // Silence annyoing messages
         std::cout.setstate(std::ios_base::failbit);
         std::cerr.setstate(std::ios_base::failbit);
         viewer.add_model(drawableMesh);
         std::cout.clear();
         std::cerr.clear();
     }
+    // Silence annyoing messages
     std::cout.setstate(std::ios_base::failbit);
     std::cerr.setstate(std::ios_base::failbit);
     viewer.run();

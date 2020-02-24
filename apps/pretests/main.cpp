@@ -69,7 +69,7 @@ int main(int argc, char** argv)
             deci.useAspectRatio = true;
             deci.maxAspectRatio = 10;
             deci.maxVLog = 10000000;
-            deci.maxVRender = 0;
+            deci.maxVRender = 100000;
             deci.minVLog = 10000;
             deci.minVRender = 1000000;
             deci.queryLogParts();
