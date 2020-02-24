@@ -19,8 +19,8 @@ In order of importance/urgency:
 [x] make compilable on windows
 [x] clean up code
 [x] comment all header code
+[x] fix decimation of non-manifold elements (shits broken...)
 [ ] write basic tests for some functionality that is not surely working ?
-[ ] fix decimation of non-manifold elements (shits broken...)
 [ ] HOW 2 HANDLE DAMPFWALZE
 [ ] HOW 2 HANDLE FAILURE VECTOR
 [ ] implement proper distance-to-epicenter weighting functions for each module

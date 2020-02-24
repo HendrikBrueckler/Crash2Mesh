@@ -38,6 +38,17 @@ class RobustDecimater : virtual public OpenMesh::Decimater::BaseDecimaterT<CMesh
     size_t decimate_to_faces(size_t _n_vertices = 0, size_t _n_faces = 0);
 
   protected:
+    /** Is an edge collapse legal?  Performs topological test only.
+     *  The method evaluates the status bit Locked, Deleted, and Feature.
+     *  \attention The method temporarily sets the bit Tagged. After usage
+     *             the bit will be disabled!
+     */
+    bool is_multi_collapse_legal(const CollapseInfo& _ci,
+                                 const std::vector<VHandle>& v0Dupes,
+                                 const std::vector<VHandle>& v1Dupes,
+                                 const std::vector<CollapseInfo>& ciDupes,
+                                 bool separated = true);
+
     /**
      * @brief Gather duplicates of single vertices and halfedge
      *        neighborhoods.
@@ -47,10 +58,10 @@ class RobustDecimater : virtual public OpenMesh::Decimater::BaseDecimaterT<CMesh
      * @param v1Dupes
      * @param ciDupes
      */
-    void getDupes(const CollapseInfo& _ci,
-                  std::vector<VHandle>& v0Dupes,
-                  std::vector<VHandle>& v1Dupes,
-                  std::vector<CollapseInfo>& ciDupes) const;
+    void get_dupes(const CollapseInfo& _ci,
+                   std::vector<VHandle>& v0Dupes,
+                   std::vector<VHandle>& v1Dupes,
+                   std::vector<CollapseInfo>& ciDupes) const;
 
     /// Insert vertex in heap
     void heap_vertex(VHandle _vh);

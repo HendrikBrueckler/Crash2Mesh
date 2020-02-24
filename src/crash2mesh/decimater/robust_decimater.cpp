@@ -6,6 +6,8 @@
 
 namespace c2m
 {
+using std::map;
+using std::set;
 
 RobustDecimater::RobustDecimater(CMesh& _mesh)
     : Base(_mesh), mesh_(_mesh),
@@ -36,12 +38,121 @@ RobustDecimater::~RobustDecimater()
 
 //-----------------------------------------------------------------------------
 
-void RobustDecimater::getDupes(const CollapseInfo& _ci,
+bool RobustDecimater::is_multi_collapse_legal(const CollapseInfo& _ci,
+                                              const std::vector<VHandle>& v0Dupes,
+                                              const std::vector<VHandle>& v1Dupes,
+                                              const std::vector<CollapseInfo>& ciDupes,
+                                              bool separated)
+{
+    if (v0Dupes.size() > 1 && v1Dupes.size() == 1 || v0Dupes.size() > 1 && ciDupes.size() == 1)
+        return false;
+
+    // Check collapses separately
+    for (const CollapseInfo& ciDupe : ciDupes)
+    {
+        if (mesh_.is_boundary(ciDupe.v0v1) || mesh_.is_boundary(ciDupe.v1v0))
+        {
+            HEHandle boundary = mesh_.is_boundary(ciDupe.v0v1) ? ciDupe.v0v1 : ciDupe.v1v0;
+            HEHandle next = boundary;
+            for (uint i = 0; i < 3; i++)
+                next = mesh_.next_halfedge_handle(next);
+
+            // Should isolated triangles be allowed for decimation?
+            // if (next == boundary)
+            //     continue;
+
+            // Quads are preserved!
+            if (mesh_.next_halfedge_handle(next) == boundary)
+                return false;
+        }
+
+        if (!this->is_collapse_legal(ciDupe))
+            return false;
+    }
+
+    // Check collapses as a sequence by testing them on a duplicated test submesh
+    if (!separated && ciDupes.size() > 1)
+    {
+        CMesh testMesh;
+        map<VHandle, VHandle> main2test;
+        set<FHandle> neighborhood;
+        for (const CollapseInfo& ciDupe : ciDupes)
+        {
+            if (main2test.find(ciDupe.v0) == main2test.end())
+                main2test[ciDupe.v0] = testMesh.add_vertex(mesh_.point(ciDupe.v0));
+            for (const VHandle& v0RingV : mesh_.vv_range(ciDupe.v0))
+            {
+                if (main2test.find(v0RingV) == main2test.end())
+                    main2test[v0RingV] = testMesh.add_vertex(mesh_.point(v0RingV));
+            }
+            if (main2test.find(ciDupe.v1) == main2test.end())
+                main2test[ciDupe.v1] = testMesh.add_vertex(mesh_.point(ciDupe.v1));
+            for (const VHandle& v1RingV : mesh_.vv_range(ciDupe.v1))
+            {
+                if (main2test.find(v1RingV) == main2test.end())
+                    main2test[v1RingV] = testMesh.add_vertex(mesh_.point(v1RingV));
+            }
+        }
+        for (const CollapseInfo& ciDupe : ciDupes)
+        {
+            for (const FHandle& v0RingF : mesh_.vf_range(ciDupe.v0))
+            {
+                if (neighborhood.find(v0RingF) == neighborhood.end())
+                {
+                    neighborhood.insert(v0RingF);
+                    std::vector<VHandle> vs;
+                    for (const VHandle& v0RingFV : mesh_.fv_range(v0RingF))
+                    {
+                        assert(main2test.find(v0RingFV) != main2test.end());
+                        vs.emplace_back(main2test[v0RingFV]);
+                    }
+                    testMesh.add_face(vs);
+                }
+            }
+            for (const FHandle& v1RingF : mesh_.vf_range(ciDupe.v1))
+            {
+                if (neighborhood.find(v1RingF) == neighborhood.end())
+                {
+                    neighborhood.insert(v1RingF);
+                    std::vector<VHandle> vs;
+                    for (const VHandle& v1RingFV : mesh_.fv_range(v1RingF))
+                    {
+                        assert(main2test.find(v1RingFV) != main2test.end());
+                        vs.emplace_back(main2test[v1RingFV]);
+                    }
+                    testMesh.add_face(vs);
+                }
+            }
+        }
+        RobustDecimater testDecimater(testMesh);
+        for (const CollapseInfo ciDupe : ciDupes)
+        {
+            assert(ciDupe.v0v1.is_valid());
+            HEHandle testv0v1 = testMesh.find_halfedge(main2test[ciDupe.v0], main2test[ciDupe.v1]);
+            if (!testv0v1.is_valid())
+            {
+                // TODO find out why this happens and properly fix it
+                // NO IDEA WHY THIS CAN HAPPEN BUT IT DOES
+                // Logger::lout(Logger::DEBUG) << "Some error in duplicating submesh must have occurred" << std::endl;
+                return false;
+            }
+            CollapseInfo ciTest(testMesh, testv0v1);
+
+            if (testDecimater.is_collapse_legal(ciTest))
+                testMesh.collapse(testv0v1);
+            else
+                return false;
+        }
+    }
+
+    return true;
+}
+
+void RobustDecimater::get_dupes(const CollapseInfo& _ci,
                                std::vector<VHandle>& v0Dupes,
                                std::vector<VHandle>& v1Dupes,
                                std::vector<CollapseInfo>& ciDupes) const
 {
-    //   std::clog << "McDecimaterT<>::is_collapse_legal()\n";
     v0Dupes.clear();
     v1Dupes.clear();
     ciDupes.clear();
@@ -108,21 +219,9 @@ void RobustDecimater::heap_vertex(VHandle _vh)
     {
         heh = *voh_it;
         CollapseInfo _ci(mesh_, heh);
-        getDupes(_ci, v0Dupes, v1Dupes, ciDupes);
+        get_dupes(_ci, v0Dupes, v1Dupes, ciDupes);
 
-        bool isLegal = true;
-
-        int dupe = 0;
-        for (const CollapseInfo& ciDupe : ciDupes)
-        {
-            ++dupe;
-            if (!this->is_collapse_legal(ciDupe))
-            {
-                isLegal = false;
-                break;
-            }
-        }
-        if (!isLegal)
+        if (!this->is_multi_collapse_legal(_ci, v0Dupes, v1Dupes, ciDupes, true))
             continue;
 
         sumPrio = 0.0;
@@ -187,7 +286,7 @@ size_t RobustDecimater::decimate_to_faces(size_t _nv, size_t _nf)
     size_t nv = mesh_.n_vertices();
     size_t nf = mesh_.n_faces();
 
-    using Support = std::set<CMesh::VHandle>;
+    using Support = set<CMesh::VHandle>;
     using SupportIterator = Support::iterator;
 
     Support support;
@@ -197,9 +296,6 @@ size_t RobustDecimater::decimate_to_faces(size_t _nv, size_t _nf)
     std::vector<VHandle> v1Dupes;
     std::vector<CollapseInfo> ciDupes;
     std::vector<VHandle> coveredV0Dupes;
-    CMesh testMesh;
-    std::map<VHandle, VHandle> main2test;
-    std::set<FHandle> neighborhood;
 
     // initialize heap
     HeapInterface HI(mesh_, priority_, heap_position_);
@@ -233,103 +329,9 @@ size_t RobustDecimater::decimate_to_faces(size_t _nv, size_t _nf)
 
         // setup collapse info
         CollapseInfo _ci(mesh_, v0v1);
-        getDupes(_ci, v0Dupes, v1Dupes, ciDupes);
+        get_dupes(_ci, v0Dupes, v1Dupes, ciDupes);
 
-        bool legal = true;
-        // Check collapses separately
-        for (const CollapseInfo& ciDupe : ciDupes)
-        {
-            if (!this->is_collapse_legal(ciDupe))
-            {
-                legal = false;
-                break;
-            }
-        }
-
-        if (!legal)
-            continue;
-
-        // Check collapses as a sequence by testing them on a duplicated test submesh
-        if (ciDupes.size() > 1)
-        {
-            neighborhood.clear();
-            main2test.clear();
-            testMesh.clear();
-            for (const CollapseInfo& ciDupe : ciDupes)
-            {
-                if (main2test.find(ciDupe.v0) == main2test.end())
-                    main2test[ciDupe.v0] = testMesh.add_vertex(mesh_.point(ciDupe.v0));
-                for (const VHandle& v0RingV : mesh_.vv_range(ciDupe.v0))
-                {
-                    if (main2test.find(v0RingV) == main2test.end())
-                        main2test[v0RingV] = testMesh.add_vertex(mesh_.point(v0RingV));
-                }
-                if (main2test.find(ciDupe.v1) == main2test.end())
-                    main2test[ciDupe.v1] = testMesh.add_vertex(mesh_.point(ciDupe.v1));
-                for (const VHandle& v1RingV : mesh_.vv_range(ciDupe.v1))
-                {
-                    if (main2test.find(v1RingV) == main2test.end())
-                        main2test[v1RingV] = testMesh.add_vertex(mesh_.point(v1RingV));
-                }
-            }
-            for (const CollapseInfo& ciDupe : ciDupes)
-            {
-                for (const FHandle& v0RingF : mesh_.vf_range(ciDupe.v0))
-                {
-                    if (neighborhood.find(v0RingF) == neighborhood.end())
-                    {
-                        neighborhood.insert(v0RingF);
-                        std::vector<VHandle> vs;
-                        for (const VHandle& v0RingFV : mesh_.fv_range(v0RingF))
-                        {
-                            assert(main2test.find(v0RingFV) != main2test.end());
-                            vs.emplace_back(main2test[v0RingFV]);
-                        }
-                        testMesh.add_face(vs);
-                    }
-                }
-                for (const FHandle& v1RingF : mesh_.vf_range(ciDupe.v1))
-                {
-                    if (neighborhood.find(v1RingF) == neighborhood.end())
-                    {
-                        neighborhood.insert(v1RingF);
-                        std::vector<VHandle> vs;
-                        for (const VHandle& v1RingFV : mesh_.fv_range(v1RingF))
-                        {
-                            assert(main2test.find(v1RingFV) != main2test.end());
-                            vs.emplace_back(main2test[v1RingFV]);
-                        }
-                        testMesh.add_face(vs);
-                    }
-                }
-            }
-            RobustDecimater testDecimater(testMesh);
-            for (const CollapseInfo ciDupe : ciDupes)
-            {
-                assert(ciDupe.v0v1.is_valid());
-                HEHandle testv0v1 = testMesh.find_halfedge(main2test[ciDupe.v0], main2test[ciDupe.v1]);
-                if (!testv0v1.is_valid())
-                {
-                    // TODO find out why this happens and properly fix it
-                    // NO IDEA WHY THIS CAN HAPPEN BUT IT DOES
-                    legal = false;
-                    break;
-                }
-                CollapseInfo ciTest(testMesh, testv0v1);
-
-                if (testDecimater.is_collapse_legal(ciTest))
-                {
-                    testMesh.collapse(testv0v1);
-                }
-                else
-                {
-                    legal = false;
-                    break;
-                }
-            }
-        }
-
-        if (!legal)
+        if (!is_multi_collapse_legal(_ci, v0Dupes, v1Dupes, ciDupes, false))
             continue;
 
         // store support (= combined one ring of all v0Dupes)
