@@ -41,6 +41,10 @@ using OMVec3 = OpenMesh::Vec3f;
 using Vec3 = Eigen::Vector3f;
 using VecX = Eigen::VectorXf;
 
+template <typename Scalar, int Rows, int Cols>
+using Mat = Eigen::Matrix<Scalar, Rows, Cols>;
+using Eigen::Dynamic;
+
 using Mat3X = Eigen::Matrix3Xf;
 using MatX3 = Eigen::MatrixX3f;
 using MatX = Eigen::MatrixXf;

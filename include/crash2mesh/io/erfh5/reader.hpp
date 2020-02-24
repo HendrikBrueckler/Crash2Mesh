@@ -90,10 +90,10 @@ class Reader
      * @return true if successful
      * @return false else
      */
-    template <typename ID_T, typename RESULT_T>
+    template <typename ID_T, typename Scalar, int DIM>
     bool readPerStateResults(const FEType& elemType,
                              const ResultType& resultType,
-                             std::map<ID_T, std::vector<RESULT_T>>& entityIDToAllResults) const
+                             std::map<ID_T, Mat<Scalar, Dynamic, DIM>>& entityIDToAllResults) const
     {
         std::vector<std::string> states = {};
         if (m_file.exist(Group::SINGLESTATE.path()))
@@ -102,25 +102,42 @@ class Reader
             states = singlestateGroup.listObjectNames();
         }
 
-        for (const std::string& state : states)
+        std::vector<ID_T> entityIDs;
+        Mat<Scalar, Dynamic, DIM> results = Mat<Scalar, Dynamic, DIM>::Zero(entityIDs.size(), DIM);
+        std::vector<Mat<Scalar, Dynamic, DIM>> perStateResults(entityIDs.size(),
+                                                               Mat<Scalar, Dynamic, DIM>::Zero(states.size(), DIM));
+        for (int stateIndex = 0; stateIndex < states.size(); stateIndex++)
         {
+            std::string state = states[stateIndex];
             std::string entityIDPath(elemType.pathToPerStateResults(state, resultType, DataType::ENTITY_IDS));
             std::string resultPath(elemType.pathToPerStateResults(state, resultType, DataType::RESULTS));
 
-            std::vector<ID_T> entityIDs;
-            std::vector<RESULT_T> results;
-            if (!readData(entityIDPath, entityIDs) || !readData(resultPath, results) || entityIDs.size() == 0
-                || results.size() != entityIDs.size())
+            if ((entityIDs.empty() && !readData(entityIDPath, entityIDs)) || !readData(resultPath, results)
+                || entityIDs.empty() || results.rows() != entityIDs.size())
             {
                 logFileInfo(Logger::ERROR,
                             "Could not read per-state results",
                             elemType.pathToPerStateResults(state, resultType));
                 return false;
             }
+            if (perStateResults.empty())
+            {
+                perStateResults = std::vector<Mat<Scalar, Dynamic, DIM>>(
+                    entityIDs.size(), Mat<Scalar, Dynamic, DIM>::Zero(states.size(), DIM));
+            }
             for (uint i = 0; i < entityIDs.size(); i++)
             {
-                entityIDToAllResults[entityIDs[i]].emplace_back(results[i]);
+                perStateResults[i].row(stateIndex) = results.row(i);
             }
+
+            // TODO test on big datasets if entityIDs are really the same for all states!!!
+            // entityIDs.clear();
+            // results.resize(0, DIM);
+        }
+
+        for (uint i = 0; i < entityIDs.size(); i++)
+        {
+            entityIDToAllResults[entityIDs[i]] = perStateResults[i];
         }
 
         return true;

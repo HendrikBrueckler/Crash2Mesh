@@ -20,16 +20,13 @@ In order of importance/urgency:
 [x] clean up code
 [x] comment all header code
 [x] fix decimation of non-manifold elements (shits broken...)
-[ ] write basic tests for some functionality that is not surely working ?
-[ ] HOW 2 HANDLE DAMPFWALZE
-[ ] HOW 2 HANDLE FAILURE VECTOR
+[x] optimize runtime of reading
+[PARTIALLY] optimize memory consumption
 [ ] implement proper distance-to-epicenter weighting functions for each module
 [ ] transfer quadrics from first decimation step over to global decimation
 [ ] postprocess decimation by moving all vertices to optimal position for each frame
-[ ] split reading into 1) read element/part connectivity, 2) per part read node
-    positions, 3) per part read plastic strains
-[ ] optimize memory consumption
-[ ] optimize runtime of reading
+[ ] HOW 2 HANDLE DAMPFWALZE
+[ ] HOW 2 HANDLE FAILURE VECTOR
 [ ] optimize performance of decimation algorithm
 [ ] optimize runtime of decimation algorithm
 [ ] find a way to judge results (Hausdorff-distance will be baaad for parts away from epicenter)

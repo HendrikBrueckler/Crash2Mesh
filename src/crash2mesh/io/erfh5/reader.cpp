@@ -162,13 +162,13 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
     }
 
     vector<nodeid_t> nodeIDs;
-    vector<vector<float>> nodeCoordinates;
+    MatX3 nodeCoordinates;
     string nodeIDpath(FEType::NODE.pathToResults(ResultType::COORDINATE, DataType::ENTITY_IDS));
     string nodeCoordPath(FEType::NODE.pathToResults(ResultType::COORDINATE, DataType::RESULTS));
 
     Logger::lout(Logger::DEBUG) << "Reading node ids and positions..." << std::endl;
     if (!readData(nodeIDpath, nodeIDs) || !readData(nodeCoordPath, nodeCoordinates) || nodeIDs.size() == 0
-        || nodeCoordinates.size() != nodeIDs.size())
+        || nodeCoordinates.rows() != nodeIDs.size())
     {
         logFileInfo(Logger::ERROR,
                     "Could not read node coordinates, aborting reading of nodes",
@@ -179,7 +179,7 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
     Logger::lout(Logger::DEBUG) << "Finished reading node ids and positions, now reading displacements..." << std::endl;
 
     size_t numStates = getNumStates();
-    map<nodeid_t, vector<vector<float>>> nodeDisplacements;
+    map<nodeid_t, MatX3> nodeDisplacements;
     if (numStates > 0 && !readPerStateResults(FEType::NODE, ResultType::DISPLACEMENT, nodeDisplacements))
     {
         logFileInfo(Logger::ERROR,
@@ -192,20 +192,7 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
 
     for (uint i = 0; i < nodeIDs.size(); i++)
     {
-        Vec3 coord(nodeCoordinates[i][0], nodeCoordinates[i][1], nodeCoordinates[i][2]);
-        const vector<vector<float>>& displacementsSTL = nodeDisplacements[nodeIDs[i]];
-        if (displacementsSTL.size() < numStates)
-        {
-            logFileInfo(Logger::WARN,
-                        "Missing displacements for node with id " + std::to_string(nodeIDs[i]) + ", filling with zeros",
-                        FEType::NODE.pathToPerStateResults("stateXXX", ResultType::DISPLACEMENT));
-        }
-        MatX3 positions(MatX3::Zero(std::max(numStates, displacementsSTL.size()), 3));
-        for (uint j = 0; j < displacementsSTL.size(); j++)
-        {
-            positions.row(j)
-                = (coord + Vec3(displacementsSTL[j][0], displacementsSTL[j][1], displacementsSTL[j][2])).transpose();
-        }
+        MatX3 positions = nodeDisplacements[nodeIDs[i]].rowwise() + nodeCoordinates.row(i);
         nodeIDToNode[nodeIDs[i]] = std::make_shared<Node>(nodeIDs[i], positions);
     }
 
@@ -270,7 +257,7 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
 
     size_t numStates = getNumStates();
 
-    map<const FEGenericType*, map<elemid_t, vector<float>>> genTypeToPlasticStrains;
+    map<const FEGenericType*, map<elemid_t, VecX>> genTypeToPlasticStrains;
     for (const FEType* elemType : Element2D::allTypes)
     {
         vector<elemid_t> elementIDs;
@@ -324,15 +311,12 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
                 nodes.emplace_back(nodeIDToNode.at(nodeID));
             }
 
-            const vector<float>& plasticStrainsSTL = genTypeToPlasticStrains[genericType][elementIDs[i]];
-            if (plasticStrainsSTL.size() != numStates)
-                missingStrains++;
-            VecX plasticStrains(VecX::Zero(numStates));
-            for (uint j = 0; j < plasticStrainsSTL.size(); j++)
+            VecX& plasticStrains(genTypeToPlasticStrains[genericType][elementIDs[i]]);
+            if (plasticStrains.size() == 0)
             {
-                plasticStrains(j) = plasticStrainsSTL[j];
+                missingStrains++;
+                plasticStrains = VecX::Zero(numStates);
             }
-
             partIDTo2DElements[partIDs[i]].emplace_back(
                 std::make_shared<Element2D>(elementIDs[i], *actualElemType, partIDs[i], nodes, plasticStrains));
         }
@@ -370,7 +354,7 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
 
     uint numStates = getNumStates();
 
-    map<const FEGenericType*, map<elemid_t, vector<float>>> genTypeToPlasticStrains;
+    map<const FEGenericType*, map<elemid_t, VecX>> genTypeToPlasticStrains;
     for (const FEType* elemType : Element3D::allTypes)
     {
         vector<elemid_t> elementIDs;
@@ -404,16 +388,12 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             for (nodeid_t nodeID : nodeIDs[i])
                 nodes.emplace_back(nodeIDToNode.at(nodeID));
 
-            const vector<float>& plasticStrainsSTL = genTypeToPlasticStrains[genericType][elementIDs[i]];
-            if (plasticStrainsSTL.size() != numStates)
-                missingStrains++;
-
-            VecX plasticStrains(VecX::Zero(numStates));
-            for (uint j = 0; j < plasticStrainsSTL.size(); j++)
+            VecX& plasticStrains(genTypeToPlasticStrains[genericType][elementIDs[i]]);
+            if (plasticStrains.size() == 0)
             {
-                plasticStrains(j) = plasticStrainsSTL[j];
+                missingStrains++;
+                plasticStrains = VecX::Zero(numStates);
             }
-
             partIDTo3DElements[partIDs[i]].emplace_back(
                 std::make_shared<Element3D>(elementIDs[i], *elemType, partIDs[i], nodes, plasticStrains));
         }

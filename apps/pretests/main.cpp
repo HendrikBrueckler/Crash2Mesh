@@ -59,10 +59,10 @@ int main(int argc, char** argv)
             MeshDecimater deci;
             deci.useQuadric = true;
             deci.framesQuadric = 20;
-            deci.maxQuadricError = 100;
+            deci.maxQuadricError = 20;
             deci.useNormalDeviation = true;
             deci.framesNormalDeviation = 20;
-            deci.maxNormalDeviation = 5;
+            deci.maxNormalDeviation = 3;
             deci.useBoundaryDeviation = true;
             deci.framesBoundaryDeviation = 5;
             deci.maxBoundaryDeviation = 5;
@@ -70,8 +70,8 @@ int main(int argc, char** argv)
             deci.maxAspectRatio = 10;
             deci.maxVLog = 10000000;
             deci.maxVRender = 100000;
-            deci.minVLog = 10000;
-            deci.minVRender = 1000000;
+            deci.minVLog = 1000000000;
+            deci.minVRender = 1000000000;
             deci.queryLogParts();
             if (!deci.decimateParts(parts))
             {
@@ -96,8 +96,8 @@ int main(int argc, char** argv)
             deci.maxBoundaryDeviation = 20;
             deci.useAspectRatio = true;
             deci.maxAspectRatio = 20;
-            deci.minVLog = 0;
-            deci.minVRender = 0;
+            deci.minVLog = 1000000000;
+            deci.minVRender = 1000000000;
             deci.maxVLog = 10000000;
             deci.maxVRender = 200000;
             deci.queryLogParts();
