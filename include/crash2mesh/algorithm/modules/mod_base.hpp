@@ -31,6 +31,8 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
             num_frames_ = static_cast<uint>(mesh_.data(*mesh_.vertices_begin()).node->positions.rows());
         else
             num_frames_ = 0;
+
+        update_frame_sequence();
     }
 
     /// Destructor
@@ -38,58 +40,96 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
     {
     }
 
+    /**
+     * @brief How many frames will be evaluated by the module
+     */
     uint num_frames() const
     {
         return num_frames_;
     }
 
-    std::vector<uint> frame_seq() const
+    /**
+     * @brief Which frames will be evaluated by the module
+     *
+     * @return const std::vector<uint>& evaluated frame indices
+     */
+    const std::vector<uint>& frame_seq() const
     {
-        std::vector<uint> fs;
-        for (float frameF = 0; frameF < num_frames(); frameF += frame_skip())
-            fs.emplace_back(std::floor(frameF));
-        return fs;
+        return frame_sequence_;
     }
 
-    // Specify frameskip interval relative to total frames (0..1)
+    /**
+     * @brief Set frameskip interval relative to total frames (0..1)
+     */
     void set_frame_skip(float _frame_skip_rel)
     {
         if (_frame_skip_rel >= 0.0 && _frame_skip_rel <= 1.0)
             frame_skip_ = std::max(1.0f, _frame_skip_rel * (num_frames_ - 1));
         else
             Logger::lout(Logger::ERROR) << "Specify frameskip relative to total frames (0..1)" << std::endl;
+        update_frame_sequence();
     }
 
-    // Specify total number of frames
-    void set_frames(uint frames)
+    /**
+     * @brief Set number of frames to be evaluated, linearly spaced.
+     */
+    void set_num_frames(uint frames)
     {
         if (frames <= 1)
+        {
             frame_skip_ = num_frames_;
+            update_frame_sequence();
+        }
         else
+        {
             set_frame_skip(1.0f / (frames - 1));
+        }
     }
 
-    uint frame_skip() const
+    /**
+     * @brief Frames skipped between two subsequent evaluated frames (1.0 means none, 2.0 is one etc.)
+     */
+    float frame_skip() const
     {
         return frame_skip_;
     }
 
+    /**
+     * @brief Set deformation epicenter variables
+     *
+     * @param _epicenters epicenter position for each frame
+     * @param _mean_dists mean distance from epicenter for each frame
+     */
     void set_epicenter_vars(const MatX3& _epicenters, VecX _mean_dists)
     {
         epicenters_ = _epicenters;
         mean_dists_ = _mean_dists;
     }
 
+    /**
+     * @brief Get mean distance from deformation epicenter for each frame
+     */
     VecX mean_dists()
     {
         return mean_dists_;
     }
 
+    /**
+     * @brief Get epicenter position for each frame
+     */
     MatX3 epicenters()
     {
         return epicenters_;
     }
 
+    /**
+     * @brief Base function to get weight of a points distance
+     *        to the deformation epicenter of a specific frame.
+     *
+     * @param pt point for which a weight is returned
+     * @param frame frame to consider
+     * @return float weight of specified point (>= 0.0)
+     */
     float dist2epicenter_f(Point pt, uint frame)
     {
         if (epicenters_.size() == 0 || mean_dists_.size() == 0 || epicenters_.row(frame).squaredNorm() == 0.0)
@@ -102,13 +142,32 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
     }
 
   protected:
+    /**
+     * @brief A weighting factor for submodules to override. Should be between about 0 and 5-10.
+     *
+     * @param pt point for which a weight is returned
+     * @param epicenter epicenter
+     * @param meanDist mean distance to epicenter
+     * @return float weighting factor of \p p
+     */
     virtual float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float meanDist) = 0;
 
     Mesh& mesh_;
 
   private:
-    uint frame_skip_;
+    /**
+     * @brief Update the frame sequence according to frame_skip_
+     */
+    void update_frame_sequence()
+    {
+        frame_sequence_.clear();
+        for (float frameF = 0; frameF < num_frames(); frameF += frame_skip())
+            frame_sequence_.emplace_back(std::floor(frameF));
+    }
+
+    float frame_skip_;
     uint num_frames_;
+    std::vector<uint> frame_sequence_;
 
     MatX3 epicenters_;
     VecX mean_dists_;

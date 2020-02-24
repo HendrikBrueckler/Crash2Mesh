@@ -19,6 +19,7 @@ In order of importance/urgency:
 [x] make compilable on windows
 [ ] clean up code
 [ ] comment all code
+[ ] write basic tests for some functionality that is not surely working
 [ ] fix decimation of non-manifold elements (shits broken...)
 [ ] HOW 2 HANDLE DAMPFWALZE
 [ ] HOW 2 HANDLE FAILURE VECTOR

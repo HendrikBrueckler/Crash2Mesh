@@ -174,7 +174,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
         ModQuadric::Handle hModFWQuadric;
         decimater.add(hModFWQuadric);
         decimater.module(hModFWQuadric).set_max_err(maxQuadricError, false);
-        decimater.module(hModFWQuadric).set_frames(framesQuadric);
+        decimater.module(hModFWQuadric).set_num_frames(framesQuadric);
         decimater.module(hModFWQuadric).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }
     if (useNormalDeviation)
@@ -182,7 +182,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
         ModNormal::Handle hModFWNormal;
         decimater.add(hModFWNormal);
         decimater.module(hModFWNormal).set_normal_deviation(maxNormalDeviation);
-        decimater.module(hModFWNormal).set_frames(framesNormalDeviation);
+        decimater.module(hModFWNormal).set_num_frames(framesNormalDeviation);
         decimater.module(hModFWNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }
     if (useBoundaryDeviation)
@@ -190,7 +190,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
         ModBoundary::Handle hModFWBoundary;
         decimater.add(hModFWBoundary);
         decimater.module(hModFWBoundary).set_boundary_angle(maxBoundaryDeviation);
-        decimater.module(hModFWBoundary).set_frames(framesBoundaryDeviation);
+        decimater.module(hModFWBoundary).set_num_frames(framesBoundaryDeviation);
         decimater.module(hModFWBoundary).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }
     if (useAspectRatio)
