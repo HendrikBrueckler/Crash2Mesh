@@ -75,7 +75,7 @@ void ModQuadric::initialize(void)
 
             Quadric q(a, b, c, d);
             // TODO area weighting yes or no?
-            q *= dist2epicenter_f((points[0] + points[1] + points[2]) / 3.0, frame);
+            q *= 1.0 / dist2epicenter_f((points[0] + points[1] + points[2]) / 3.0, frame);
 
             for (uint j = 0; j < 3; j++)
             {
@@ -127,7 +127,7 @@ void ModQuadric::initialize(void)
 
                 // TODO area weighting yes or no?
                 Quadric qEdge(Quadric(a, b, c, d));
-                qEdge *= weightFactor * dist2epicenter_f((points[(j + 1) % 3] + points[j]) / 2.0, frame);
+                qEdge *= weightFactor / dist2epicenter_f((points[(j + 1) % 3] + points[j]) / 2.0, frame);
 
                 mesh_.property(quadrics_, vh[j])[i] += qEdge;
                 mesh_.property(quadrics_, vh[(j + 1) % 3])[i] += qEdge;

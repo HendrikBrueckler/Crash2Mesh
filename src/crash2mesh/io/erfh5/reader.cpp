@@ -168,7 +168,7 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
 
     Logger::lout(Logger::DEBUG) << "Reading node ids and positions..." << std::endl;
     if (!readData(nodeIDpath, nodeIDs) || !readData(nodeCoordPath, nodeCoordinates) || nodeIDs.size() == 0
-        || nodeCoordinates.rows() != nodeIDs.size())
+        || nodeCoordinates.rows() != static_cast<long>(nodeIDs.size()))
     {
         logFileInfo(Logger::ERROR,
                     "Could not read node coordinates, aborting reading of nodes",

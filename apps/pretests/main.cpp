@@ -89,11 +89,11 @@ int main(int argc, char** argv)
             deci.framesQuadric = 10;
             deci.maxQuadricError = FLT_MAX;
             deci.useNormalDeviation = true;
-            deci.framesNormalDeviation = 10;
-            deci.maxNormalDeviation = 20;
+            deci.framesNormalDeviation = 5;
+            deci.maxNormalDeviation = 15;
             deci.useBoundaryDeviation = true;
             deci.framesBoundaryDeviation = 3;
-            deci.maxBoundaryDeviation = 20;
+            deci.maxBoundaryDeviation = 15;
             deci.useAspectRatio = true;
             deci.maxAspectRatio = 20;
             deci.minVLog = 1000000000;

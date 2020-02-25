@@ -45,6 +45,13 @@ float ModBase::dist2epicenter_f(Point pt, uint frame)
     float factor
         = factor_dist_to_epicenter(Vec3(pt[0], pt[1], pt[2]), epicenters_.row(frame).transpose(), mean_dists_[frame]);
     assert(factor >= 0.0);
+#if 0
+    static float avg = 1.0;
+    static uint times = 1;
+    avg = (avg * times + factor);
+    avg /= ++times;
+    std::cout << avg << std::endl;
+#endif
     return factor;
 }
 

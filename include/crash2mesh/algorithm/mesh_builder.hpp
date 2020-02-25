@@ -174,11 +174,11 @@ class MeshBuilder
      * @param validTris number of meshed triangles which were added without a non-manifoldness-alert
      * @param invalidTris number of meshed triangles which had to be fixed because of non-manifoldness
      */
-    static void MeshBuilder::assembleMeshFromTriangles(CMesh& mesh,
-                                                       const std::vector<Triangle>& allTriangles,
-                                                       const std::vector<size_t>& triangleOrdering,
-                                                       int& validTris,
-                                                       int& invalidTris);
+    static void assembleMeshFromTriangles(CMesh& mesh,
+                                          const std::vector<Triangle>& allTriangles,
+                                          const std::vector<size_t>& triangleOrdering,
+                                          int& validTris,
+                                          int& invalidTris);
 
 #if 0
   /**
@@ -188,7 +188,7 @@ class MeshBuilder
    * @param edgeTriangleIndices mapping from edge to connected triangles
    * @return std::vector<std::list<Edge>> connected non-manifold edge paths
    */
-  std::vector<std::list<Edge>> MeshBuilder::nonManifoldPaths(std::map<Edge, std::vector<size_t>, Edge::Less>& edgeTriangleIndices);
+  std::vector<std::list<Edge>> nonManifoldPaths(std::map<Edge, std::vector<size_t>, Edge::Less>& edgeTriangleIndices);
 
   /**
    * @brief Attempt to sort triangles adjacent to non-manifold paths in a way that keeps plane surfaces connected,
@@ -201,7 +201,7 @@ class MeshBuilder
    * @param allTriangles all triangles. will contain sorted triangles after function call
    * @param edgeTriangleIndices mapping from edge to connected triangles
    */
-  void MeshBuilder::sortFromNonManifoldPaths(std::vector<std::list<Edge>>& nMfPaths,
+  void sortFromNonManifoldPaths(std::vector<std::list<Edge>>& nMfPaths,
                                              std::vector<Triangle>& allTriangles,
                                              std::map<Edge, std::vector<size_t>, Edge::Less>& edgeTriangleIndices);
 #endif

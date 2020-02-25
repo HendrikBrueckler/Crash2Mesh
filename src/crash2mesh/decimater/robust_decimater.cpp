@@ -38,8 +38,7 @@ RobustDecimater::~RobustDecimater()
 
 //-----------------------------------------------------------------------------
 
-bool RobustDecimater::is_multi_collapse_legal(const CollapseInfo& _ci,
-                                              const std::vector<VHandle>& v0Dupes,
+bool RobustDecimater::is_multi_collapse_legal(const std::vector<VHandle>& v0Dupes,
                                               const std::vector<VHandle>& v1Dupes,
                                               const std::vector<CollapseInfo>& ciDupes,
                                               bool separated)
@@ -221,7 +220,7 @@ void RobustDecimater::heap_vertex(VHandle _vh)
         CollapseInfo _ci(mesh_, heh);
         get_dupes(_ci, v0Dupes, v1Dupes, ciDupes);
 
-        if (!this->is_multi_collapse_legal(_ci, v0Dupes, v1Dupes, ciDupes, true))
+        if (!this->is_multi_collapse_legal(v0Dupes, v1Dupes, ciDupes, true))
             continue;
 
         sumPrio = 0.0;
@@ -331,7 +330,7 @@ size_t RobustDecimater::decimate_to_faces(size_t _nv, size_t _nf)
         CollapseInfo _ci(mesh_, v0v1);
         get_dupes(_ci, v0Dupes, v1Dupes, ciDupes);
 
-        if (!is_multi_collapse_legal(_ci, v0Dupes, v1Dupes, ciDupes, false))
+        if (!is_multi_collapse_legal(v0Dupes, v1Dupes, ciDupes, false))
             continue;
 
         // store support (= combined one ring of all v0Dupes)

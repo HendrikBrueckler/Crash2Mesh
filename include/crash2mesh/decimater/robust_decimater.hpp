@@ -38,13 +38,12 @@ class RobustDecimater : virtual public OpenMesh::Decimater::BaseDecimaterT<CMesh
     size_t decimate_to_faces(size_t _n_vertices = 0, size_t _n_faces = 0);
 
   protected:
-    /** Is an edge collapse legal?  Performs topological test only.
+    /** Is a sequence of edge collapses legal?  Performs topological test only.
      *  The method evaluates the status bit Locked, Deleted, and Feature.
      *  \attention The method temporarily sets the bit Tagged. After usage
      *             the bit will be disabled!
      */
-    bool is_multi_collapse_legal(const CollapseInfo& _ci,
-                                 const std::vector<VHandle>& v0Dupes,
+    bool is_multi_collapse_legal(const std::vector<VHandle>& v0Dupes,
                                  const std::vector<VHandle>& v1Dupes,
                                  const std::vector<CollapseInfo>& ciDupes,
                                  bool separated = true);

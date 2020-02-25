@@ -164,7 +164,7 @@ bool MeshDecimater::decimateScene(Scene::Ptr scene, uint nFaces, uint nVertices)
     return true;
 }
 
-void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t pid) const
+void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t /*pid*/) const
 {
     // Create decimater and decimation modules
     RobustDecimater decimater(mesh);

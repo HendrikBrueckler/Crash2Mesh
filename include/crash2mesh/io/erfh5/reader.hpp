@@ -106,14 +106,14 @@ class Reader
         Mat<Scalar, Dynamic, DIM> results = Mat<Scalar, Dynamic, DIM>::Zero(entityIDs.size(), DIM);
         std::vector<Mat<Scalar, Dynamic, DIM>> perStateResults(entityIDs.size(),
                                                                Mat<Scalar, Dynamic, DIM>::Zero(states.size(), DIM));
-        for (int stateIndex = 0; stateIndex < states.size(); stateIndex++)
+        for (size_t stateIndex = 0; stateIndex < states.size(); stateIndex++)
         {
             std::string state = states[stateIndex];
             std::string entityIDPath(elemType.pathToPerStateResults(state, resultType, DataType::ENTITY_IDS));
             std::string resultPath(elemType.pathToPerStateResults(state, resultType, DataType::RESULTS));
 
             if ((entityIDs.empty() && !readData(entityIDPath, entityIDs)) || !readData(resultPath, results)
-                || entityIDs.empty() || results.rows() != entityIDs.size())
+                || entityIDs.empty() || results.rows() != static_cast<long>(entityIDs.size()))
             {
                 logFileInfo(Logger::ERROR,
                             "Could not read per-state results",
