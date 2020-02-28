@@ -38,6 +38,10 @@ void MeshDecimater::queryLogParts()
         std::cin >> minVLog;
         std::cout << "Enter minimum amount of vertices for rendering " << std::endl;
         std::cin >> minVRender;
+        std::cout << "Enter maximum amount of vertices for logging " << std::endl;
+        std::cin >> maxVLog;
+        std::cout << "Enter maximum amount of vertices for rendering " << std::endl;
+        std::cin >> maxVRender;
     }
     else
     {

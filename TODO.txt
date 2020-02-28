@@ -27,6 +27,7 @@ In order of importance/urgency:
 [ ] postprocess decimation by moving all vertices to optimal position for each frame
 [ ] HOW 2 HANDLE DAMPFWALZE
 [ ] HOW 2 HANDLE FAILURE VECTOR
+[ ] combine continuous normalcones with quadrics
 [ ] optimize performance of decimation algorithm
 [ ] optimize runtime of decimation algorithm
 [ ] find a way to judge results (Hausdorff-distance will be baaad for parts away from epicenter)
