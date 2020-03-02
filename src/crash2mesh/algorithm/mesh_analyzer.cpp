@@ -385,7 +385,7 @@ void MeshAnalyzer::getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists)
     for (long frame = numFrames-1; frame >= 0; frame--)
     {
         // TODO more sensible value here
-        if (sumOfWeights(frame) > 10.0)
+        if (sumOfWeights(frame) > 20.0)
             epicenters.row(frame) /= sumOfWeights(frame);
         else if (static_cast<uint>(frame + 1) < numFrames)
             epicenters.row(frame) = epicenters.row(frame+1);

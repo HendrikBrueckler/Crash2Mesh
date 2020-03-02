@@ -145,15 +145,64 @@ float ModQuadric::collapse_priority(const CollapseInfo& _ci)
     float error = 0;
     const MatX3& positions = mesh_.data(_ci.v1).node->positions;
     std::vector<uint> frames(frame_seq());
-    // TODO use parameter to consider position optimization
-    for (size_t i = 0; i < frames.size(); i++)
+
+    // TODO introduce parameter to control position optimizatiion
+    std::vector<VHandle> v1Dupes(MeshAnalyzer::dupes(mesh_, _ci.v1));
+    if (!mesh_.status(_ci.v1).locked() && (v1Dupes.size() == 1 || MeshAnalyzer::dupes(mesh_, _ci.v0v1).size() > 1) && false)
     {
-        uint frame = frames[i];
-        Quadric q = quadricsRemaining[i] + quadricsRemoved[i];
-        OMVec3 pointRemaining = OMVec3(positions.coeff(frame, 0), positions.coeff(frame, 1), positions.coeff(frame, 2));
-        error = std::max(error, q(pointRemaining));
-        if (error > max_err_)
-            return Base::ILLEGAL_COLLAPSE;
+        std::vector<VHandle> v0Dupes(MeshAnalyzer::dupes(mesh_, _ci.v0));
+        std::vector<VHandle> v1Dupes(MeshAnalyzer::dupes(mesh_, _ci.v1));
+        std::vector<const std::vector<Quadric>*> quadricDupesV0;
+        std::vector<const std::vector<Quadric>*> quadricDupesV1;
+        for (VHandle v0Dupe: v0Dupes)
+        {
+            quadricDupesV0.emplace_back(&mesh_.property(quadrics_, v0Dupe));
+        }
+        for (VHandle v1Dupe: v1Dupes)
+        {
+            quadricDupesV1.emplace_back(&mesh_.property(quadrics_, v1Dupe));
+        }
+        for (size_t i = 0; i < frames.size(); i++)
+        {
+            uint frame = frames[i];
+            Vec3 optPos;
+            Quadric q = quadricsRemaining[i] + quadricsRemoved[i];
+            Quadric qTotal;
+            for (const std::vector<Quadric>* quadrics: quadricDupesV0)
+            {
+                qTotal += (*quadrics)[i];
+            }
+            for (const std::vector<Quadric>* quadrics: quadricDupesV1)
+            {
+                qTotal += (*quadrics)[i];
+            }
+            if (optimal_position(qTotal, optPos))
+            {
+                OMVec3 pointRemaining = OMVec3(optPos[0], optPos[1], optPos[2]);
+                error = std::max(error, q(pointRemaining));
+                if (error > max_err_)
+                    return Base::ILLEGAL_COLLAPSE;
+            }
+            else
+            {
+                OMVec3 pointRemaining = OMVec3(positions.coeff(frame, 0), positions.coeff(frame, 1), positions.coeff(frame, 2));
+                error = std::max(error, q(pointRemaining));
+                if (error > max_err_)
+                    return Base::ILLEGAL_COLLAPSE;
+            }
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < frames.size(); i++)
+        {
+            uint frame = frames[i];
+            Quadric q = quadricsRemaining[i] + quadricsRemoved[i];
+            OMVec3 pointRemaining = OMVec3(positions.coeff(frame, 0), positions.coeff(frame, 1), positions.coeff(frame, 2));
+            error = std::max(error, q(pointRemaining));
+            if (error > max_err_)
+                return Base::ILLEGAL_COLLAPSE;
+        }
     }
 
     return error;
@@ -174,23 +223,25 @@ void ModQuadric::postprocess_collapse(const CollapseInfo& _ci)
     if (!mesh_.status(_ci.v1).locked() && false)
     {
         std::vector<VHandle> v1Dupes(MeshAnalyzer::dupes(mesh_, _ci.v1));
-        std::vector<const std::vector<Quadric>*> quadricDupes;
-        for (VHandle v1Dupe: v1Dupes)
+        if (v1Dupes.size() == 1 || MeshAnalyzer::dupes(mesh_, _ci.v0v1).size() > 1)
         {
-            quadricDupes.emplace_back(&mesh_.property(quadrics_, v1Dupe));
-        }
-        for (size_t i = 0; i < frames.size(); i++)
-        {
-            uint frame = frames[i];
-            Node::Ptr& node = mesh_.data(_ci.v1).node;
-            Vec3 optPos;
-            Quadric qTotal;
-            for (const std::vector<Quadric>* quadrics: quadricDupes)
+            std::vector<const std::vector<Quadric>*> quadricDupes;
+            for (VHandle v1Dupe: v1Dupes)
             {
-                qTotal += (*quadrics)[i];
+                quadricDupes.emplace_back(&mesh_.property(quadrics_, v1Dupe));
             }
-            if (optimal_position(qTotal, optPos))
-                node->positions.row(frame) = optPos.transpose();
+            for (size_t i = 0; i < frames.size(); i++)
+            {
+                uint frame = frames[i];
+                Vec3 optPos;
+                Quadric qTotal;
+                for (const std::vector<Quadric>* quadrics: quadricDupes)
+                {
+                    qTotal += (*quadrics)[i];
+                }
+                if (optimal_position(qTotal, optPos))
+                    mesh_.data(_ci.v1).node->positions.row(frame) = optPos.transpose();
+            }
         }
     }
 }
@@ -223,7 +274,7 @@ bool ModQuadric::optimal_position(OpenMesh::Geometry::Quadricf& q, Vec3& optimal
 
     Mat3 inverse;
     bool invertible;
-    m.computeInverseWithCheck(inverse, invertible, 0.1);
+    m.computeInverseWithCheck(inverse, invertible, 0.001);
     if (invertible)
         optimalPos = -inverse * Vec3(q.d(), q.g(), q.i());
     return invertible;
