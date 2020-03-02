@@ -113,6 +113,64 @@ CMesh MeshBuilder::buildSingle(vector<Part::Ptr>& parts, bool deleteMeshedElemen
 
 Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedElements)
 {
+    Scene::Ptr scene = std::make_shared<Scene>(parts);
+    CMesh& smesh(scene->mesh);
+    for (Part::Ptr& partptr: parts)
+    {
+        CMesh& pmesh(partptr->mesh);
+
+        map<VHandle, VHandle> old2new;
+        for (VHandle v: pmesh.vertices())
+        {
+            VHandle vs = smesh.add_vertex(pmesh.point(v));
+            old2new[v] = vs;
+            smesh.data(vs) = pmesh.data(v);
+            if (pmesh.data(v).node->referencingParts > 1)
+            {
+                smesh.data(v).fixed = true;
+            }
+            smesh.data(vs).duplicate = VHandle();
+        }
+
+        for (FHandle f: pmesh.faces())
+        {
+            std::vector<VHandle> vertices;
+            for (VHandle v: pmesh.fv_range(f))
+            {
+                vertices.emplace_back(old2new[v]);
+            }
+            smesh.add_face(vertices);
+        }
+
+        if (deleteMeshedElements)
+        {
+            pmesh.clear();
+        }
+    }
+
+    map<Node::Ptr, vector<VHandle>> node2duplicates;
+    for (const VHandle& v : smesh.vertices())
+    {
+        node2duplicates[smesh.data(v).node].emplace_back(v);
+    }
+    for (const auto kv : node2duplicates)
+    {
+        const vector<VHandle>& duplicates = kv.second;
+        if (duplicates.size() < 2)
+        {
+            continue;
+        }
+        for (uint i = 0; i < duplicates.size(); i++)
+        {
+            smesh.data(duplicates[i]).duplicate = duplicates[(i + 1) % duplicates.size()];
+            smesh.data(duplicates[i]).fixed = true;
+        }
+        smesh.data(duplicates.front()).fixed = false;
+    }
+
+    return scene;
+
+#if 0
     int validTriangles = 0;
     int invalidTriangles = 0;
     vector<Triangle> allTriangles;
@@ -186,6 +244,7 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
     Logger::lout(Logger::INFO) << "Built a single mesh from " << parts.size() << " parts" << std::endl;
 
     return scene;
+#endif
 }
 
 // -------------------------------------------------------------------------------------------
