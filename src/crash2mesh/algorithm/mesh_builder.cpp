@@ -124,12 +124,9 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
         {
             VHandle vs = smesh.add_vertex(pmesh.point(v));
             old2new[v] = vs;
-            smesh.data(vs) = pmesh.data(v);
-            if (pmesh.data(v).node->referencingParts > 1)
-            {
-                smesh.data(v).fixed = true;
-            }
+            smesh.data(vs).node = pmesh.data(v).node;
             smesh.data(vs).duplicate = VHandle();
+            smesh.data(vs).fixed = false;
         }
 
         for (FHandle f: pmesh.faces())
@@ -139,7 +136,8 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
             {
                 vertices.emplace_back(old2new[v]);
             }
-            smesh.add_face(vertices);
+            FHandle fs = smesh.add_face(vertices);
+            smesh.data(fs).element = pmesh.data(f).element;
         }
 
         if (deleteMeshedElements)
