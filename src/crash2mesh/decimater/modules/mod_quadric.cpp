@@ -145,6 +145,7 @@ float ModQuadric::collapse_priority(const CollapseInfo& _ci)
     float error = 0;
     const MatX3& positions = mesh_.data(_ci.v1).node->positions;
     std::vector<uint> frames(frame_seq());
+    // TODO use parameter to consider position optimization
     for (size_t i = 0; i < frames.size(); i++)
     {
         uint frame = frames[i];
@@ -163,9 +164,34 @@ void ModQuadric::postprocess_collapse(const CollapseInfo& _ci)
     using Quadric = OpenMesh::Geometry::Quadricf;
     const std::vector<Quadric>& quadricsRemoved = mesh_.property(quadrics_, _ci.v0);
     std::vector<Quadric>& quadricsRemaining = mesh_.property(quadrics_, _ci.v1);
-    for (uint i = 0; i < quadricsRemaining.size(); i++)
+    std::vector<uint> frames(frame_seq());
+    for (size_t i = 0; i < frames.size(); i++)
     {
         quadricsRemaining[i] += quadricsRemoved[i];
+    }
+
+    // TODO introduce parameter to control position optimizatiion
+    if (!mesh_.status(_ci.v1).locked() && false)
+    {
+        std::vector<VHandle> v1Dupes(MeshAnalyzer::dupes(mesh_, _ci.v1));
+        std::vector<const std::vector<Quadric>*> quadricDupes;
+        for (VHandle v1Dupe: v1Dupes)
+        {
+            quadricDupes.emplace_back(&mesh_.property(quadrics_, v1Dupe));
+        }
+        for (size_t i = 0; i < frames.size(); i++)
+        {
+            uint frame = frames[i];
+            Node::Ptr& node = mesh_.data(_ci.v1).node;
+            Vec3 optPos;
+            Quadric qTotal;
+            for (const std::vector<Quadric>* quadrics: quadricDupes)
+            {
+                qTotal += (*quadrics)[i];
+            }
+            if (optimal_position(qTotal, optPos))
+                node->positions.row(frame) = optPos.transpose();
+        }
     }
 }
 
@@ -187,10 +213,27 @@ void ModQuadric::set_error_tolerance_factor(double _factor)
     }
 }
 
+
+bool ModQuadric::optimal_position(OpenMesh::Geometry::Quadricf& q, Vec3& optimalPos)
+{
+    Mat3 m;
+    m << q.a(), q.b(), q.c(),
+        q.b(), q.e(), q.f(),
+        q.c(), q.f(), q.h();
+
+    Mat3 inverse;
+    bool invertible;
+    m.computeInverseWithCheck(inverse, invertible, 0.1);
+    if (invertible)
+        optimalPos = -inverse * Vec3(q.d(), q.g(), q.i());
+    return invertible;
+}
+
+
 float ModQuadric::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist)
 {
     // TODO implement a proper function here
-    float factor = 0.3f + 0.7f * ((pt - epicenter).norm() / mean_dist);
+    float factor = 0.2f + 0.8f * ((pt - epicenter).norm() / mean_dist);
     return factor * factor;
 }
 

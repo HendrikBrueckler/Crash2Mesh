@@ -77,8 +77,8 @@ void ModBoundary::set_error_tolerance_factor(double _factor)
 float ModBoundary::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist)
 {
     // TODO implement a proper function here
-    float factor = 0.3f + 0.7f * ((pt - epicenter).norm() / mean_dist);
-    return factor * factor;
+    float factor = 0.2f + 0.8f * ((pt - epicenter).norm() / mean_dist);
+    return factor;
 }
 
 } // namespace c2m

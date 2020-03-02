@@ -62,12 +62,12 @@ int main(int argc, char** argv)
             deci.maxQuadricError = 20;
             deci.useNormalDeviation = true;
             deci.framesNormalDeviation = 20;
-            deci.maxNormalDeviation = 3;
+            deci.maxNormalDeviation = 2;
             deci.useBoundaryDeviation = true;
             deci.framesBoundaryDeviation = 5;
             deci.maxBoundaryDeviation = 5;
             deci.useAspectRatio = true;
-            deci.maxAspectRatio = 10;
+            deci.maxAspectRatio = 20;
             deci.maxVLog = 10000000;
             deci.maxVRender = 100000;
             deci.minVLog = 1000000000;

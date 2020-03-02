@@ -22,8 +22,8 @@ In order of importance/urgency:
 [x] fix decimation of non-manifold elements (shits broken...)
 [x] optimize runtime of reading
 [PARTIALLY] optimize memory consumption
-[ ] implement proper distance-to-epicenter weighting functions for each module
-[ ] transfer quadrics from first decimation step over to global decimation
+[PARTIALLY] implement proper distance-to-epicenter weighting functions for each module
+[NOT FEASIBLE] transfer quadrics from first decimation step over to global decimation
 [ ] postprocess decimation by moving all vertices to optimal position for each frame
 [ ] HOW 2 HANDLE DAMPFWALZE
 [ ] HOW 2 HANDLE FAILURE VECTOR

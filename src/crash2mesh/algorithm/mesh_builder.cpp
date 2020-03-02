@@ -65,7 +65,13 @@ CMesh MeshBuilder::buildSingle(vector<Part::Ptr>& parts, bool deleteMeshedElemen
     map<Edge, vector<size_t>, Edge::Less> edgeTriangleIndices;
     vector<size_t> sortedTriangles;
     uint ffIndex = 0;
-    for (Part::Ptr& partptr : parts)
+
+    std::vector<Part::Ptr> sortedParts(parts);
+    std::sort(sortedParts.begin(), sortedParts.end(), [](const Part::Ptr& a, const Part::Ptr& b) -> bool {
+        return a->elements2D.size() + a->surfaceElements.size() > b->elements2D.size() + b->surfaceElements.size();
+    });
+
+    for (Part::Ptr& partptr : sortedParts)
     {
         triangulateAll(partptr, allTriangles, edgeTriangleIndices, deleteMeshedElements);
 
@@ -113,7 +119,13 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
     map<Edge, vector<size_t>, Edge::Less> edgeTriangleIndices;
     vector<size_t> sortedTriangles;
     uint ffIndex = 0;
-    for (Part::Ptr& partptr : parts)
+
+    std::vector<Part::Ptr> sortedParts(parts);
+    std::sort(sortedParts.begin(), sortedParts.end(), [](const Part::Ptr& a, const Part::Ptr& b) -> bool {
+        return a->elements2D.size() + a->surfaceElements.size() > b->elements2D.size() + b->surfaceElements.size();
+    });
+
+    for (Part::Ptr& partptr : sortedParts)
     {
         vector<vector<Node::Ptr>> triangles;
         vector<Element2D::Ptr> elements;
@@ -194,6 +206,33 @@ void MeshBuilder::floodFlip(size_t fi,
 
     allTriangles[fi].mark = true;
     std::list<size_t> triangleIndices({fi});
+
+// This is detrimental for some reason
+#if 0
+    for (Edge& e : allTriangles[fi].edges)
+    {
+        bool flipped = false;
+        for (size_t f2i : edgeTriangleIndices[e])
+        {
+            if (f2i != fi && allTriangles[f2i].mark)
+            {
+                auto e2it = std::find(allTriangles[f2i].edges.begin(), allTriangles[f2i].edges.end(), e);
+                if (e2it != allTriangles[f2i].edges.end() && e2it->from->ID == e.from->ID)
+                {
+                    for (Edge& e2 : allTriangles[fi].edges)
+                    {
+                        std::swap(e2.from, e2.to);
+                    }
+                    std::reverse(allTriangles[fi].edges.begin(), allTriangles[fi].edges.end());
+                }
+                flipped = true;
+                break;
+            }
+        }
+        if (flipped)
+            break;
+    }
+#endif
 
     while (!triangleIndices.empty())
     {

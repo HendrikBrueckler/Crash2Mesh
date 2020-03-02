@@ -168,7 +168,7 @@ OMVec3 ModNormal::face_normal(Vec3 p0, Vec3 p1, Vec3 p2)
 float ModNormal::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist)
 {
     // TODO implement a proper function here
-    float factor = 0.3f + 0.7f * ((pt - epicenter).norm() / mean_dist);
+    float factor = 0.4f + 0.6 * ((pt - epicenter).norm() / mean_dist);
     return factor * factor;
 }
 

@@ -68,7 +68,7 @@ class Node : public FiniteElement
      */
     Node(nodeid_t _ID, const MatX3& positions);
     const nodeid_t ID;         ///< A node's ID (not the same as FiniteElement::entityID)
-    const MatX3 positions; ///< A node's positions
+    MatX3 positions;           ///< A node's positions
     uint referencingParts;     ///< Number of parts referencing this vertex
 };
 

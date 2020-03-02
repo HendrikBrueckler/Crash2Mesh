@@ -92,6 +92,9 @@ class ModQuadric : public ModBase
         return max_err_;
     }
 
+    // TODO
+    bool optimal_position(OpenMesh::Geometry::Quadricf& q, Vec3& optimalPos);
+
   protected:
     float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) override;
 
