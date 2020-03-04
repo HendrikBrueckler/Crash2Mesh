@@ -2,6 +2,7 @@
 #define C2M_MESH_ANALYZER_HPP
 
 #include <crash2mesh/core/mesh.hpp>
+#include <crash2mesh/core/collectors.hpp>
 
 namespace c2m
 {
@@ -84,6 +85,16 @@ class MeshAnalyzer
      * @param meanDists the mean distances from the epicenter for each frame
      */
     static void getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists);
+
+    /**
+     * @brief Get the epicenter positions for the given parts for each frame
+     *        as well as the mean distances of all vertices from the epicenter.
+     *
+     * @param parts deforming parts to extract epicenters from
+     * @param epicenters the epicenter coordinates for each frame
+     * @param meanDists the mean distances from the epicenter for each frame
+     */
+    static void getEpicenter(std::vector<Part::Ptr>& parts, MatX3& epicenters, VecX& meanDists);
 
     /**
      * @brief Get all duplicate vertices of \p vh (duplicated to fix non-manifoldness)

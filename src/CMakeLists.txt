@@ -1,11 +1,11 @@
 if (MSVC)
     if(uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
-    set(ERR_WARN_FLAGS /sdl /W3)
+    set(C2M_COMPILE_FLAGS /sdl /W3 /fp:fast)
     else()
-    set(ERR_WARN_FLAGS /sdl /W3 /O2)
+    set(C2M_COMPILE_FLAGS /sdl /W3 /O2 /fp:fast)
     endif()
 else()
-set(ERR_WARN_FLAGS -Wall -Wextra  -Wstrict-aliasing -pedantic -fmax-errors=5 -Werror
+set(C2M_COMPILE_FLAGS -ffast-math -Wall -Wextra  -Wstrict-aliasing -pedantic -fmax-errors=5 -Werror
                     -Wunreachable-code -Wcast-align -Wcast-qual
                     -Wdisabled-optimization -Wformat=2 -Winit-self -Wlogical-op
                     -Wmissing-include-dirs -Wold-style-cast -Woverloaded-virtual
@@ -23,6 +23,7 @@ add_library(${PROJECT_NAME} ${SOURCE_LIST})
 
 ### Configurable options
 option(C2M_PARALLEL "Whether to use parallel (threadsafe) algorithms where appropriate" OFF)
+option(C2M_PROB_QUADRICS "Whether to use probabilistic instead of standard quadrics" OFF)
 
 set(C2M_DEPENDENCIES
     HighFive
@@ -52,8 +53,13 @@ if(${C2M_PARALLEL})
     endif()
 endif()
 
+if (${C2M_PROB_QUADRICS})
+    message("Setting up using probabilistic quadrics!")
+    add_compile_definitions(C2M_PROB_QUADRICS)
+endif()
+
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
-target_compile_options(${PROJECT_NAME} PRIVATE ${ERR_WARN_FLAGS})
+target_compile_options(${PROJECT_NAME} PRIVATE ${C2M_COMPILE_FLAGS})
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
 target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${PROJECT_SOURCE_DIR}/extern/HighFive/include)

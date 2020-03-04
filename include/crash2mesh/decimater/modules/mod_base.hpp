@@ -103,7 +103,20 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
      * @param frame frame to consider
      * @return float weight of specified point (>= 0.0)
      */
-    float dist2epicenter_f(Point pt, uint frame);
+    float ModBase::dist2epicenter_f(const OMVec3& pt, uint frame) const
+    {
+        return dist2epicenter_f(Vec3(pt[0], pt[1], pt[2]), frame);
+    }
+
+    /**
+     * @brief Base function to get weight of a points distance
+     *        to the deformation epicenter of a specific frame.
+     *
+     * @param pt point for which a weight is returned
+     * @param frame frame to consider
+     * @return float weight of specified point (>= 0.0)
+     */
+    float ModBase::dist2epicenter_f(const Vec3& pt, uint frame) const;
 
   protected:
     /**
@@ -114,7 +127,7 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
      * @param meanDist mean distance to epicenter
      * @return float weighting factor of \p p
      */
-    virtual float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float meanDist) = 0;
+    virtual float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float meanDist) const = 0;
 
     Mesh& mesh_;
 

@@ -125,6 +125,7 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
             VHandle vs = smesh.add_vertex(pmesh.point(v));
             old2new[v] = vs;
             smesh.data(vs).node = pmesh.data(v).node;
+            smesh.data(vs).quadrics = pmesh.data(v).quadrics;
             smesh.data(vs).duplicate = VHandle();
             smesh.data(vs).fixed = false;
         }

@@ -403,6 +403,91 @@ void MeshAnalyzer::getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists)
     Logger::lout(Logger::INFO) << "Finished calculating epicenter of crash" << std::endl;
 }
 
+void MeshAnalyzer::getEpicenter(std::vector<Part::Ptr>& parts, MatX3& epicenters, VecX& meanDists)
+{
+    if (parts.size() == 0)
+        return;
+
+    Logger::lout(Logger::INFO) << "Calculating epicenter of crash" << std::endl;
+
+    // Get number of frames
+    uint numFrames = 0;
+    for (Part::Ptr& partptr: parts)
+    {
+        CMesh& mesh = partptr->mesh;
+        if (mesh.n_vertices() == 0)
+            continue;
+        numFrames = mesh.data(*(mesh.vertices_begin())).node->positions.rows();
+        break;
+    }
+
+    // Calc epicenter of crash
+    VecX sumOfWeights = VecX::Zero(numFrames);
+    epicenters = MatX3::Zero(numFrames, 3);
+    for (Part::Ptr& partptr: parts)
+    {
+        CMesh& mesh = partptr->mesh;
+        if (mesh.n_vertices() == 0)
+            continue;
+        for (VHandle v : mesh.vertices())
+        {
+            const MatX3& positions = mesh.data(v).node->positions;
+            MatX3 relativeDisplacements(MatX3::Zero(numFrames, 3));
+            VecX sumOfInverseEdgeLengths(VecX::Zero(numFrames));
+            for (VHandle vNeighbor : mesh.vv_range(v))
+            {
+                const MatX3& positionsNeighbor = mesh.data(vNeighbor).node->positions;
+                VecX edgeLengths = (positions - positionsNeighbor).rowwise().norm();
+                sumOfInverseEdgeLengths += edgeLengths.cwiseInverse();
+                const MatX3 displacementsNeighbor = (positionsNeighbor.rowwise() - positionsNeighbor.row(0)).array().colwise() / edgeLengths.array();
+                relativeDisplacements -= displacementsNeighbor;
+            }
+            relativeDisplacements.array().colwise() /= sumOfInverseEdgeLengths.array();
+            relativeDisplacements += positions.rowwise() - positions.row(0);
+            VecX weights = relativeDisplacements.rowwise().norm();
+            epicenters += MatX3(positions.array().colwise() * weights.array());
+            sumOfWeights += weights;
+        }
+    }
+    // for (FHandle f : mesh.faces())
+    // {
+    //     MatX3 positions = mesh.data(*(mesh.fv_begin(f))).node->positions;
+    //     VecX strains = mesh.data(f).element->plasticStrains * mesh.calc_face_area(f);
+    //     for (uint frame = 0; frame < numFrames; frame++)
+    //     {
+    //         epicenters.row(frame) += strains(frame) * positions.row(frame);
+    //         sumOfWeights(frame) += strains(frame);
+    //     }
+    // }
+    for (long frame = numFrames-1; frame >= 0; frame--)
+    {
+        // TODO more sensible value here
+        if (sumOfWeights(frame) > 20.0)
+            epicenters.row(frame) /= sumOfWeights(frame);
+        else if (static_cast<uint>(frame + 1) < numFrames)
+            epicenters.row(frame) = epicenters.row(frame+1);
+    }
+    meanDists = VecX::Zero(numFrames);
+    long nVertices = 0;
+    for (Part::Ptr& partptr: parts)
+    {
+        CMesh& mesh = partptr->mesh;
+        if (mesh.n_vertices() == 0)
+            continue;
+        nVertices += mesh.n_vertices();
+        for (VHandle v : mesh.vertices())
+        {
+            MatX3 position = mesh.data(v).node->positions;
+            for (uint frame = 0; frame < numFrames; frame++)
+            {
+                meanDists(frame) += (position.row(frame) - epicenters.row(frame)).norm();
+            }
+        }
+    }
+    meanDists /= static_cast<float>(nVertices);
+    Logger::lout(Logger::INFO) << "Finished calculating epicenter of crash" << std::endl;
+}
+
 std::vector<VHandle> MeshAnalyzer::dupes(const CMesh& mesh, const VHandle& vh)
 {
     std::vector<VHandle> vDupes;

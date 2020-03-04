@@ -4,6 +4,7 @@
 #include <crash2mesh/core/structure_elements.hpp>
 #include <OpenMesh/Core/Mesh/TriMeshT.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
+#include <OpenMesh/Core/Geometry/QuadricT.hh>
 
 namespace c2m
 {
@@ -20,6 +21,7 @@ struct MeshTraits : public OpenMesh::DefaultTraits
         Node::Ptr node; //< Finite Element node belonging to a vertex
         bool fixed; //< Whether this vertex is a fixated fixed non-manifold vertex
         typename Refs::VertexHandle duplicate; //< Cyclic fixed non-manifold vertex list
+        std::vector<Quadric> quadrics; //< Error quadrics accumulated in QuadricDecimationModule
     };
 
     FaceTraits

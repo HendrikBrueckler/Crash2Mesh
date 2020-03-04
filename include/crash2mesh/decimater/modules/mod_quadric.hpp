@@ -2,8 +2,8 @@
 #define C2M_MOD_QUADRIC_HPP
 
 #include <crash2mesh/algorithm/mesh_analyzer.hpp>
-#include <crash2mesh/decimater/modules/mod_base.hpp>
 #include <crash2mesh/core/types.hpp>
+#include <crash2mesh/decimater/modules/mod_base.hpp>
 
 #include <OpenMesh/Core/Geometry/QuadricT.hh>
 #include <OpenMesh/Core/Utils/Property.hh>
@@ -34,7 +34,6 @@ class ModQuadric : public ModBase
      * Weight by distance to epicenter.
      * Include feature edge quadrics for high strain deviation.
      * Include boundary edge quadrics.
-     * TODO currently face area weighting disabled permanently
      */
     virtual void initialize(void) override;
 
@@ -92,17 +91,100 @@ class ModQuadric : public ModBase
         return max_err_;
     }
 
-    // TODO
-    bool optimal_position(OpenMesh::Geometry::Quadricf& q, Vec3& optimalPos);
+    /**
+     * @brief Enable or disable the weighting of quadrics with face area
+     */
+    void set_area_weighting(bool _area_weighting)
+    {
+        area_weighting_ = _area_weighting;
+    }
+
+    /**
+     * @brief Enable or disable the weighting of quadrics with face area
+     */
+    void set_optimize_position(bool _optimize_position)
+    {
+        optimize_position_ = _optimize_position;
+    }
+
+    /**
+     * @brief Calculate the optimal position from solving A * x = b (A, b from quadric)
+     *
+     * @param q Quadric
+     * @param optimalPos optimal position will be returned in this parameter.
+     *      initialize with reference point for least-distance solution wrt that point.
+     * @return true if system could be solved
+     * @return false else
+     */
+    bool optimal_position(Quadric& q, Vec3& optimalPos) const;
 
   protected:
-    float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) override;
+    float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const override;
+
+    /**
+     * @brief Calculate the quadric of a triangle (p, q, r) at a certain frame
+     *
+     * @param frame
+     * @param p first corner
+     * @param q second corner
+     * @param r third corner
+     * @return Quadric quadric of (p, q, r)
+     */
+    Quadric calc_face_quadric(uint frame, const Vec3& p, const Vec3& q, const Vec3& r) const;
+
+    /**
+     * @brief Calculate the quadric of a halfedge (p, q) at a certain frame.
+     *        r is the opposing vertex of the triangle.
+     *
+     * @param he halfedge
+     * @param frame
+     * @param p first edge vertex
+     * @param q second edge vertex
+     * @param r opposing triangle vertex
+     * @return Quadric plane quadric through (p, q), perpendicular to (p, q, r)
+     */
+    Quadric calc_edge_quadric(HEHandle he, uint frame, const Vec3& p, const Vec3& q, const Vec3& r) const;
 
   private:
     double max_err_;
+    bool area_weighting_;
+    bool optimize_position_;
 
-    // this vertex property stores a quadric for each frame for each vertex
-    OpenMesh::VPropHandleT<std::vector<OpenMesh::Geometry::Quadricf>> quadrics_;
+#ifdef C2M_PROB_QUADRICS
+    /**
+     * @brief Utility method to get the crossproduct matrix of vector v
+     */
+    Mat3 crossProductMatrix(const Vec3& v) const;
+
+    /**
+     * @brief Utility method to ge the crossinterference matrix of two covariance matrices
+     */
+    Mat3 crossInterferenceMatrix(const Mat3& A, const Mat3& B) const;
+
+    /**
+     * @brief Calculates the gaussian probabilistic quadric of a triangle (p, q, r)
+     * Values for Covariances are hardcoded.
+     */
+    Quadric probabilisticTriQuadric(const Vec3& p, const Vec3& q, const Vec3& r) const;
+
+    /**
+     * @brief Calculates the gaussian probabilistic quadric of a triangle (p, q, r)
+     * Values for Covariances are hardcoded.
+     */
+    Quadric probabilisticTriQuadric(const OMVec3& p, const OMVec3& q, const OMVec3& r) const;
+
+    /**
+     * @brief Calculates the gaussian probabilistic quadric of a plane through (p, q, r)
+     * Values for Covariances are hardcoded.
+     */
+    Quadric probabilisticPlaneQuadric(const Vec3& p, const Vec3& q, const Vec3& r) const;
+
+    /**
+     * @brief Calculates the gaussian probabilistic quadric of a plane through (p, q, r)
+     * Values for Covariances are hardcoded.
+     */
+    Quadric probabilisticPlaneQuadric(const OMVec3& p, const OMVec3& q, const OMVec3& r) const;
+#endif
 }; // namespace c2m
 
 } // namespace c2m

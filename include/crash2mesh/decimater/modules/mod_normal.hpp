@@ -77,7 +77,7 @@ class ModNormal : public ModBase
      */
     static OMVec3 face_normal(Vec3 p0, Vec3 p1, Vec3 p2);
 
-    float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) override;
+    float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const override;
 
   private:
     float max_normal_deviation_;

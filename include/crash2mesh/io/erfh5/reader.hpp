@@ -27,7 +27,13 @@ class Reader
 
     size_t getNumStates() const;
 
-    // TODO
+    /**
+     * @brief Reads all parts separately
+     *
+     * @param parts read parts
+     * @return true if successful
+     * @return false else
+     */
     bool readParts(std::vector<Part::Ptr>& parts) const;
 
     /**
@@ -75,7 +81,14 @@ class Reader
     bool read3DElements(const std::map<nodeid_t, Node::Ptr>& nodeID2Node,
                         std::map<partid_t, std::vector<Element3D::Ptr>>& partIDTo3DElements) const;
 
-    // TODO
+    /**
+     * @brief Read the mapping from internal entity id to predefined user id for a generic finite element type
+     *
+     * @param feGenType generic finite element type
+     * @param id2userid mapping from internal entity id to predefined user id
+     * @return true if successful
+     * @return false else
+     */
     bool readIdentifiers(const FEGenericType& feGenType, std::map<entid_t, entid_t>& id2userid) const;
 
   private:

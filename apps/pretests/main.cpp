@@ -57,12 +57,15 @@ int main(int argc, char** argv)
                 return -1;
             }
             MeshDecimater deci;
+            MeshAnalyzer::getEpicenter(parts, deci.epicenters, deci.meanDistsFromEpicenters);
             deci.useQuadric = true;
-            deci.framesQuadric = 20;
-            deci.maxQuadricError = 20;
+            deci.framesQuadric = 1000;
+            deci.maxQuadricError = 100;
+            deci.quadricAreaWeighting = false;
+            deci.quadricPositionOptimization = false;
             deci.useNormalDeviation = true;
             deci.framesNormalDeviation = 20;
-            deci.maxNormalDeviation = 2;
+            deci.maxNormalDeviation = 5;
             deci.useBoundaryDeviation = true;
             deci.framesBoundaryDeviation = 5;
             deci.maxBoundaryDeviation = 5;
@@ -84,13 +87,14 @@ int main(int argc, char** argv)
                 Logger::lout(Logger::ERROR) << "\t\ttesting scene merging failed!" << endl;
                 return -1;
             }
-            MeshAnalyzer::getEpicenter(scene->mesh, deci.epicenters, deci.meanDistsFromEpicenters);
             deci.useQuadric = true;
             deci.framesQuadric = 10;
             deci.maxQuadricError = FLT_MAX;
+            deci.quadricAreaWeighting = false; // this has no effect, as quadrics are used from previous decimation
+            deci.quadricPositionOptimization = false;
             deci.useNormalDeviation = true;
             deci.framesNormalDeviation = 5;
-            deci.maxNormalDeviation = 15;
+            deci.maxNormalDeviation = 30;
             deci.useBoundaryDeviation = true;
             deci.framesBoundaryDeviation = 3;
             deci.maxBoundaryDeviation = 15;

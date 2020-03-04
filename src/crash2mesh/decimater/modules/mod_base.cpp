@@ -37,13 +37,13 @@ void ModBase::set_num_frames(uint frames)
     }
 }
 
-float ModBase::dist2epicenter_f(Point pt, uint frame)
+float ModBase::dist2epicenter_f(const Vec3& pt, uint frame) const
 {
     if (epicenters_.size() == 0 || mean_dists_.size() == 0 || epicenters_.row(frame).squaredNorm() == 0.0)
         return 1.0;
 
     float factor
-        = factor_dist_to_epicenter(Vec3(pt[0], pt[1], pt[2]), epicenters_.row(frame).transpose(), mean_dists_[frame]);
+        = factor_dist_to_epicenter(pt, epicenters_.row(frame).transpose(), mean_dists_[frame]);
     assert(factor >= 0.0);
 #if 0
     static float avg = 1.0;

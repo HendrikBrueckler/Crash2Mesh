@@ -83,6 +83,7 @@ bool MeshDecimater::decimateParts(std::vector<Part::Ptr>& parts) const
     size_t f_after = 0;
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
     std::mutex mutVars;
+    Eigen::initParallel();
 #endif
 
     auto decimatePart = [&](Part::Ptr& partptr) {
@@ -180,6 +181,8 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
         decimater.module(hModFWQuadric).set_max_err(maxQuadricError, false);
         decimater.module(hModFWQuadric).set_num_frames(framesQuadric);
         decimater.module(hModFWQuadric).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
+        decimater.module(hModFWQuadric).set_area_weighting(quadricAreaWeighting);
+        decimater.module(hModFWQuadric).set_optimize_position(quadricPositionOptimization);
     }
     if (useNormalDeviation)
     {

@@ -74,7 +74,7 @@ void ModBoundary::set_error_tolerance_factor(double _factor)
     }
 }
 
-float ModBoundary::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist)
+float ModBoundary::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const
 {
     // TODO implement a proper function here
     float factor = 0.2f + 0.8f * ((pt - epicenter).norm() / mean_dist);

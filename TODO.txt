@@ -23,15 +23,21 @@ In order of importance/urgency:
 [x] optimize runtime of reading
 [PARTIALLY] optimize memory consumption
 [PARTIALLY] implement proper distance-to-epicenter weighting functions for each module
-[NOT FEASIBLE] transfer quadrics from first decimation step over to global decimation
-[DOES NOT SEEM FEASIBLE] postprocess decimation by moving all vertices to optimal position for each frame
+[x] transfer quadrics from first decimation step over to global decimation
+[x] optionally allow for position optimization on each collapse
+[x] probabilistic plane matrix
+[ ] Initialisierung von MatX/VecX überprüfen!
+[ ] check why mesh assembling is not deterministic
+[ ] postprocess decimation by moving all vertices to optimal position for each frame, compare to other pos optimization
+[ ] transfer normalcones from first decimation step over to global decimation
+[ ] combine continuous normalcones with quadrics
 [ ] HOW 2 HANDLE DAMPFWALZE
 [ ] HOW 2 HANDLE FAILURE VECTOR
-[ ] combine continuous normalcones with quadrics
 [ ] optimize performance of decimation algorithm
 [ ] optimize runtime of decimation algorithm
 [ ] find a way to judge results (Hausdorff-distance will be baaad for parts away from epicenter)
 [ ] implement output function that uses file format usable in MeshLab
 [ ] use MeshLab to judge single-frame approximation errors
+[ ] implement UI
 [ ] clean up code
 [ ] comment all header code

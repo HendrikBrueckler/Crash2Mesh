@@ -2,6 +2,7 @@
 #define C2M_TYPES_HPP
 
 #include <OpenMesh/Core/Geometry/VectorT.hh>
+#include <OpenMesh/Core/Geometry/QuadricT.hh>
 
 #include <Eigen/Dense>
 
@@ -51,6 +52,12 @@ using Mat3 = Eigen::Matrix3f;
 using Mat3X = Eigen::Matrix3Xf;
 using MatX3 = Eigen::MatrixX3f;
 using MatX = Eigen::MatrixXf;
+
+#ifdef C2M_PROB_QUADRICS
+    using Quadric = Mat4;
+#else
+    using Quadric = OpenMesh::Geometry::Quadricf;
+#endif
 
 } // namespace c2m
 
