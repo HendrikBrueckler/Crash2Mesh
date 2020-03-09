@@ -95,7 +95,7 @@ bool MeshDecimater::decimateParts(std::vector<Part::Ptr>& parts) const
         for (VHandle v : mesh.vertices())
         {
             mesh.status(v).set_locked(parts.size() > 1 && mesh.data(v).node->referencingParts > 1
-                                      || mesh.data(v).node->referencingParts == std::numeric_limits<uint>::max());
+                                        || mesh.data(v).node->referencingParts == std::numeric_limits<uint>::max());
         }
 
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
@@ -108,7 +108,7 @@ bool MeshDecimater::decimateParts(std::vector<Part::Ptr>& parts) const
 #endif
         bool logged = log(mesh, true, false, partptr->ID, partptr->userID);
         bool rendered = render(mesh, true, false);
-        decimate(mesh, 0, 0);
+        decimate(mesh, 0, 0, partptr->userID);
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutVars.lock();
 #endif
@@ -169,7 +169,7 @@ bool MeshDecimater::decimateScene(Scene::Ptr scene, uint nFaces, uint nVertices)
     return true;
 }
 
-void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t /*pid*/) const
+void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t puid) const
 {
     // Create decimater and decimation modules
     RobustDecimater decimater(mesh);
@@ -182,6 +182,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
     if (useQuadric || true) // Currently no alternative for a continuous module
     {
         decimater.add(hModFWQuadric);
+        // TODO collect these magic numbers in collectors.hpp as static vars
         decimater.module(hModFWQuadric).set_max_err(maxQuadricError, false);
         decimater.module(hModFWQuadric).set_num_frames(framesQuadric);
         decimater.module(hModFWQuadric).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
@@ -191,18 +192,21 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
     if (useNormalDeviation)
     {
         decimater.add(hModFWNormal);
-        decimater.module(hModFWNormal).set_max_normal_deviation(maxNormalDeviation);
+        if (puid >= 9600000 && puid < 9980000)
+            decimater.module(hModFWNormal).set_max_normal_deviation(FLT_MAX);
+        else
+            decimater.module(hModFWNormal).set_max_normal_deviation(maxNormalDeviation);
         decimater.module(hModFWNormal).set_num_frames(framesNormalDeviation);
         decimater.module(hModFWNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }
-    if (useBoundaryDeviation)
+    if (useBoundaryDeviation && (puid <= 9600000 || puid > 9980000))
     {
         decimater.add(hModFWBoundary);
         decimater.module(hModFWBoundary).set_max_boundary_angle(maxBoundaryDeviation);
         decimater.module(hModFWBoundary).set_num_frames(framesBoundaryDeviation);
         decimater.module(hModFWBoundary).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }
-    if (useAspectRatio)
+    if (useAspectRatio && (puid <= 9600000 || puid > 9980000))
     {
         decimater.add(hModAspectRatio);
         decimater.module(hModAspectRatio).set_binary(true);
@@ -232,6 +236,17 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
             }
         }
 #endif
+    }
+
+    if (useQuadric && puid >= 9600000 && puid < 9980000)
+    {
+        for (VHandle v: mesh.vertices())
+        {
+            for (Quadric& q : mesh.data(v).quadrics)
+            {
+                q *= 1.0f/1000.0f;
+            }
+        }
     }
 
     // Prepare garbage collection

@@ -38,6 +38,12 @@ class NormalCone
         return max_angle_;
     }
 
+    //! returns max allowed size of cone (radius in radians)
+    inline float& max_angle()
+    {
+        return max_angle_;
+    }
+
   private:
     OMVec3 center_normal_;
     float max_angle_; //< As a way to specify for each normal cone a maximum tolerance at creation time

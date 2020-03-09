@@ -173,6 +173,7 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
                 }
                 FHandle fs = smesh.add_face(vertices);
                 smesh.data(fs).element = pmesh.data(f).element;
+                smesh.data(fs).normalCones = pmesh.data(f).normalCones;
                 nodes2face[nodes] = fs;
             }
         }

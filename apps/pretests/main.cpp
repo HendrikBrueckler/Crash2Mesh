@@ -60,7 +60,7 @@ int main(int argc, char** argv)
             MeshAnalyzer::getEpicenter(parts, deci.epicenters, deci.meanDistsFromEpicenters);
             deci.useQuadric = true;
             deci.framesQuadric = 15;
-            deci.maxQuadricError = 1000;
+            deci.maxQuadricError = 100;
             deci.quadricAreaWeighting = false;
             deci.quadricPositionOptimization = false;
             deci.quadricPostProcessOptimize = false;
@@ -88,6 +88,13 @@ int main(int argc, char** argv)
                 Logger::lout(Logger::ERROR) << "\t\ttesting scene merging failed!" << endl;
                 return -1;
             }
+            for (FHandle f: scene->mesh.faces())
+            {
+                for (NormalCone& nc : scene->mesh.data(f).normalCones)
+                {
+                    nc.max_angle() *= 20;
+                }
+            }
             deci.useQuadric = true;
             deci.framesQuadric = 15;
             deci.maxQuadricError = FLT_MAX;
@@ -96,7 +103,7 @@ int main(int argc, char** argv)
             deci.quadricPostProcessOptimize = false;
             deci.useNormalDeviation = true;
             deci.framesNormalDeviation = 5;
-            deci.maxNormalDeviation = 90;
+            deci.maxNormalDeviation = 90; // this has no effect, as normalCones are used from previous decimation
             deci.useBoundaryDeviation = true;
             deci.framesBoundaryDeviation = 3;
             deci.maxBoundaryDeviation = 90;

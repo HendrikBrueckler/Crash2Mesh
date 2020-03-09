@@ -109,10 +109,6 @@ bool Reader::readParts(vector<Part::Ptr>& parts) const
 
     for (auto [partID, elements] : partIDToElements1D)
     {
-        // TODO don't completely remove parts but handle differently in decimation!
-        // TODO collect these magic numbers in collectors.hpp as static vars
-        // if (partIDToPartUID[partID] >= 9600000 && partIDToPartUID[partID] < 9980000)
-        //     continue;
         createIfNotExists(partID);
         growingParts[partID]->elements1D = elements;
         for (const Element1D::Ptr& elem : elements)
@@ -120,10 +116,6 @@ bool Reader::readParts(vector<Part::Ptr>& parts) const
     }
     for (auto [partID, elements] : partIDToElements2D)
     {
-        // TODO don't completely remove parts but handle differently in decimation!
-        // TODO collect these magic numbers in collectors.hpp as static vars
-        // if (partIDToPartUID[partID] >= 9600000 && partIDToPartUID[partID] < 9980000)
-        //     continue;
         createIfNotExists(partID);
         growingParts[partID]->elements2D = elements;
         for (const Element2D::Ptr& elem : elements)
@@ -131,10 +123,6 @@ bool Reader::readParts(vector<Part::Ptr>& parts) const
     }
     for (auto [partID, elements] : partIDToElements3D)
     {
-        // TODO don't completely remove parts but handle differently in decimation!
-        // TODO collect these magic numbers in collectors.hpp as static vars
-        // if (partIDToPartUID[partID] >= 9600000 && partIDToPartUID[partID] < 9980000)
-        //     continue;
         createIfNotExists(partID);
         growingParts[partID]->elements3D = elements;
         for (const Element3D::Ptr& elem : elements)

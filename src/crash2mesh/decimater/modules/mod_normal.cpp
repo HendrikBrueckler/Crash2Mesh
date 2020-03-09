@@ -10,31 +10,54 @@ namespace c2m
 ModNormal::ModNormal(CMesh& _mesh, float _max_dev) : ModBase(_mesh, true)
 {
     set_max_normal_deviation(_max_dev);
-    mesh_.add_property(normal_cones_);
 }
 
 /// Destructor
 ModNormal::~ModNormal()
 {
-    mesh_.remove_property(normal_cones_);
 }
 
 void ModNormal::initialize()
 {
-    if (!normal_cones_.is_valid())
-        mesh_.add_property(normal_cones_);
+    // alloc quadrics if not already there
+    bool preDefined = false;
+    bool preEmpty = false;
+    for (FHandle f : mesh_.faces())
+    {
+        if (mesh_.data(f).normalCones.empty())
+        {
+            preEmpty = true;
+            if (preDefined)
+            {
+                throw std::logic_error("Some normalCones allocated, others aren't, can't handle this.");
+            }
+        }
+        else
+        {
+            if (mesh_.data(f).normalCones.size() != num_frames())
+            {
+                throw std::logic_error("Unexpected number of normalCones per vertex (!= number of frames).");
+            }
+            preDefined = true;
+            if (preEmpty)
+            {
+                throw std::logic_error("Some normalCones allocated, others aren't, can't handle this.");
+            }
+        }
+    }
+    if (preDefined)
+        return;
 
-    Mesh::FaceIter f_it = mesh_.faces_begin(), f_end = mesh_.faces_end();
     Mesh::FaceVertexCCWIter fv_it;
 
-    for (; f_it != f_end; ++f_it)
+    for (FHandle f : mesh_.all_faces())
     {
-        fv_it = mesh_.fv_ccwbegin(*f_it);
+        fv_it = mesh_.fv_ccwbegin(f);
         const MatX3& positions0 = mesh_.data(*(fv_it++)).node->positions;
         const MatX3& positions1 = mesh_.data(*(fv_it++)).node->positions;
         const MatX3& positions2 = mesh_.data(*fv_it).node->positions;
         std::vector<NormalCone> normalCones;
-        for (uint frame : frame_seq())
+        for (uint frame = 0; frame < num_frames(); frame++)
         {
             Vec3 p0(positions0.row(frame).transpose());
             Vec3 p1(positions1.row(frame).transpose());
@@ -46,7 +69,7 @@ void ModNormal::initialize()
             normalCones.emplace_back(
                 NormalCone(n, max_normal_deviation_ * dist2epicenter_f((pt0 + pt1 + pt2) / 3.0, frame)));
         }
-        mesh_.property(normal_cones_, *f_it) = normalCones;
+        mesh_.data(f).normalCones = normalCones;
     }
 }
 
@@ -67,7 +90,7 @@ float ModNormal::collapse_priority(const CollapseInfo& _ci)
         if (fh == _ci.fl || fh == _ci.fr)
             continue;
 
-        std::vector<NormalCone> nc = mesh_.property(normal_cones_, fh);
+        std::vector<NormalCone> nc = mesh_.data(fh).normalCones;
         Mesh::FaceVertexCCWIter fv_it = mesh_.fv_ccwbegin(fh);
         // simulate position change
         const MatX3& positions0
@@ -86,16 +109,16 @@ float ModNormal::collapse_priority(const CollapseInfo& _ci)
             OMVec3 n = face_normal(positions0.row(frame).transpose(),
                                    positions1.row(frame).transpose(),
                                    positions2.row(frame).transpose());
-            nc[i].merge(NormalCone(n, nc[i].max_angle()));
+            nc[frame].merge(NormalCone(n, nc[frame].max_angle()));
             if (fh == fhl)
-                nc[i].merge(mesh_.property(normal_cones_, _ci.fl)[i]);
+                nc[frame].merge(mesh_.data(_ci.fl).normalCones[frame]);
             if (fh == fhr)
-                nc[i].merge(mesh_.property(normal_cones_, _ci.fr)[i]);
+                nc[frame].merge(mesh_.data(_ci.fr).normalCones[frame]);
 
-            if (nc[i].angle() > max_angle)
+            if (nc[frame].angle() > max_angle)
             {
-                max_angle = nc[i].angle();
-                if (max_angle > 0.5 * nc[i].max_angle())
+                max_angle = nc[frame].angle();
+                if (max_angle > 0.5 * nc[frame].max_angle())
                     return float(Base::ILLEGAL_COLLAPSE);
             }
         }
@@ -135,22 +158,21 @@ void ModNormal::postprocess_collapse(const CollapseInfo& _ci)
         if (fh == _ci.fl || fh == _ci.fr)
             continue;
 
-        std::vector<NormalCone>& ncs = mesh_.property(normal_cones_, fh);
+        std::vector<NormalCone>& ncs = mesh_.data(fh).normalCones;
         Mesh::FaceVertexCCWIter fv_it = mesh_.fv_ccwbegin(fh);
         const MatX3& positions0 = mesh_.data(*(fv_it++)).node->positions;
         const MatX3& positions1 = mesh_.data(*(fv_it++)).node->positions;
         const MatX3& positions2 = mesh_.data(*fv_it).node->positions;
-        int i = 0;
-        for (uint frame : frame_seq())
+        for (uint frame = 0; frame < num_frames(); frame++)
         {
             OMVec3 n = face_normal(positions0.row(frame).transpose(),
                                    positions1.row(frame).transpose(),
                                    positions2.row(frame).transpose());
-            ncs[i].merge(NormalCone(n, ncs[i].max_angle()));
+            ncs[frame].merge(NormalCone(n, ncs[frame].max_angle()));
             if (fh == fhl)
-                ncs[i].merge(mesh_.property(normal_cones_, _ci.fl)[i]);
+                ncs[frame].merge(mesh_.data(_ci.fl).normalCones[frame]);
             if (fh == fhr)
-                ncs[i].merge(mesh_.property(normal_cones_, _ci.fr)[i]);
+                ncs[frame].merge(mesh_.data(_ci.fl).normalCones[frame]);
         }
     }
 }

@@ -2,6 +2,7 @@
 #define C2M_MESH_HPP
 
 #include <crash2mesh/core/structure_elements.hpp>
+#include <crash2mesh/decimater/modules/normal_cone.hpp>
 #include <OpenMesh/Core/Mesh/TriMeshT.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 #include <OpenMesh/Core/Geometry/QuadricT.hh>
@@ -30,6 +31,7 @@ struct MeshTraits : public OpenMesh::DefaultTraits
     {
         Element2D::Ptr element;
         std::list<Element2D::Ptr> additionalElements;
+        std::vector<NormalCone> normalCones; //< Error quadrics accumulated in QuadricDecimationModule
     };
 };
 

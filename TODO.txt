@@ -28,8 +28,10 @@ In order of importance/urgency:
 [x] probabilistic plane matrix
 [x] check why mesh assembling is not deterministic
 [THIS SUCKS] postprocess decimation by moving all vertices to optimal position for each frame, compare to other pos optimization
-[ ] HOW 2 HANDLE DAMPFWALZE (other than just throwing it out completely)
+[could be improved] HOW 2 HANDLE DAMPFWALZE (other than just throwing it out completely)
+[ ] find better seed faces for floodFlip
 [ ] HOW 2 HANDLE FAILURE VECTOR
+[ ] update to newest easy3d version
 [ ] implement GUI for selecting important parts
 [ ] transfer normalcones from first decimation step over to global decimation
 [ ] combine continuous normalcones with quadrics
