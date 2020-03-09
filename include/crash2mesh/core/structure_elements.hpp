@@ -67,9 +67,9 @@ class Node : public FiniteElement
      * @param positions 3D positions
      */
     Node(nodeid_t _ID, const MatX3& positions);
-    const nodeid_t ID;         ///< A node's ID (not the same as FiniteElement::entityID)
-    MatX3 positions;           ///< A node's positions
-    uint referencingParts;     ///< Number of parts referencing this vertex
+    const nodeid_t ID;     ///< A node's ID (not the same as FiniteElement::entityID)
+    MatX3 positions;       ///< A node's positions
+    uint referencingParts; ///< Number of parts referencing this vertex
 };
 
 /**
@@ -137,7 +137,8 @@ class Element2D : public ConnectedElement
     }
     const static std::vector<const erfh5::FEType*> allTypes; ///< Contains all valid types for Element2D
     const elemid_t elem2dID;                                 ///< Identifier (unique among Element2Ds)
-    const VecX plasticStrains;                 ///< Plastic strain timeseries
+    const VecX plasticStrains;                               ///< Plastic strain timeseries
+    const float plasticStrain0;                              ///< Initial Plastic strain
 
     /**
      * @brief Construct a new Element2D given its identifier, type, containing part, connected nodes
@@ -147,12 +148,14 @@ class Element2D : public ConnectedElement
      * @param _type type
      * @param _partID containing part identifier
      * @param _nodes connected nodes
+     * @param _plasticStrain0 initial plastic strain
      * @param _plasticStrains plastic strain time series
      */
     Element2D(elemid_t _ID,
               const erfh5::FEType& _type,
               partid_t _partID,
               const std::vector<Node::Ptr>& _nodes,
+              float _plasticStrain0,
               const VecX& _plasticStrains);
 };
 
@@ -171,7 +174,8 @@ class Element3D : public ConnectedElement
     }
     const static std::vector<const erfh5::FEType*> allTypes; ///< Contains all valid types for Element3D
     const elemid_t elem3dID;                                 ///< Identifier (unique among Element3Ds)
-    const VecX ePlasticStrains;                ///< equivalent plastic strain timeseries
+    const VecX ePlasticStrains;                              ///< equivalent plastic strain timeseries
+    const float ePlasticStrain0;                             ///< Initial Plastic strain
 
     /**
      * @brief Construct a new Element3D given its identifier, type, containing part, connected nodes
@@ -181,12 +185,14 @@ class Element3D : public ConnectedElement
      * @param _type type
      * @param _partID containing part identifier
      * @param _nodes connected nodes
+     * @param _ePlasticStrain0 initial plastic strain
      * @param _ePlasticStrains equivalent plastic strain time series
      */
     Element3D(elemid_t _ID,
               const erfh5::FEType& _type,
               partid_t _partID,
               const std::vector<Node::Ptr>& _nodes,
+              float _ePlasticStrain0,
               const VecX& _ePlasticStrains);
 };
 

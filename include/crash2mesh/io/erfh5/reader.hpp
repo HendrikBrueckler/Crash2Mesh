@@ -155,6 +155,67 @@ class Reader
 
         return true;
     }
+    
+    template <typename ID_T, typename Scalar, int DIM>
+    bool readPerStateResultsSAFE(const FEType& elemType,
+                                 const ResultType& resultType,
+                                 std::map<ID_T, Mat<Scalar, Dynamic, DIM>>& entityIDToAllResults) const
+    {
+        std::vector<std::string> states = {};
+        if (m_file.exist(Group::SINGLESTATE.path()))
+        {
+            HighFive::Group singlestateGroup = m_file.getGroup(Group::SINGLESTATE.path());
+            states = singlestateGroup.listObjectNames();
+        }
+
+        std::vector<std::vector<ID_T>> perStateEntityIDs(states.size());
+        std::vector<Mat<Scalar, Dynamic, DIM>> perStateResults(states.size());
+        std::set<ID_T> allEntityIDs;
+        
+        for (size_t stateIndex = 0; stateIndex < states.size(); stateIndex++)
+        {
+            std::string state = states[stateIndex];
+            std::string entityIDPath(elemType.pathToPerStateResults(state, resultType, DataType::ENTITY_IDS));
+
+            if (!readData(entityIDPath, perStateEntityIDs[stateIndex]))
+            {
+                logFileInfo(Logger::ERROR,
+                            "Could not read per-state entity IDs",
+                            elemType.pathToPerStateResults(state, resultType));
+                return false;
+            }
+            std::copy(perStateEntityIDs[stateIndex].begin(), perStateEntityIDs[stateIndex].end(), std::inserter(allEntityIDs, allEntityIDs.end()));
+        }
+
+        for (size_t stateIndex = 0; stateIndex < states.size(); stateIndex++)
+        {
+            std::string state = states[stateIndex];
+            std::string resultPath(elemType.pathToPerStateResults(state, resultType, DataType::RESULTS));
+
+            if (!readData(resultPath, perStateResults[stateIndex]) || perStateResults[stateIndex].rows() != static_cast<long>(perStateEntityIDs[stateIndex].size()))
+            {
+                logFileInfo(Logger::ERROR,
+                            "Could not read per-state results",
+                            elemType.pathToPerStateResults(state, resultType));
+                return false;
+            }
+        }
+
+        for (ID_T entityID: allEntityIDs)
+        {
+            entityIDToAllResults[entityID] = Mat<Scalar, Dynamic, DIM>::Zero(states.size(), DIM);
+        }
+
+        for (size_t stateIndex = 0; stateIndex < states.size(); stateIndex++)
+        {
+            for (uint i = 0; i < perStateEntityIDs[stateIndex].size(); i++)
+            {
+                entityIDToAllResults[perStateEntityIDs[stateIndex][i]].row(stateIndex) = perStateResults[stateIndex].row(i);
+            }
+        }
+
+        return true;
+    }
 
     /**
      * @brief Auxiliary function for exception-safe simple reading of any data from

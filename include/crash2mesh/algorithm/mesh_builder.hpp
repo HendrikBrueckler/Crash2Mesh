@@ -56,9 +56,9 @@ class MeshBuilder
      * @brief Simple edge representation for internal detection of connected faces,
      *        non-manifold connections, detection of flipped triangles etc.
      */
-    struct Edge
+    struct C2MEdge
     {
-        Edge(Node::Ptr _from, Node::Ptr _to) : from(_from), to(_to)
+        C2MEdge(Node::Ptr _from, Node::Ptr _to) : from(_from), to(_to)
         {
         }
 
@@ -66,7 +66,7 @@ class MeshBuilder
         Node::Ptr to;
 
         // Direct comparison
-        bool operator==(const Edge& other)
+        bool operator==(const C2MEdge& other)
         {
             return (from->ID == other.from->ID && to->ID == other.to->ID)
                    || (from->ID == other.to->ID && to->ID == other.from->ID);
@@ -75,7 +75,7 @@ class MeshBuilder
         // Compare for use in std::set / std::map, lexicographical comparison of sorted vertex indices
         struct Less
         {
-            bool operator()(const Edge& lhs, const Edge& rhs) const
+            bool operator()(const C2MEdge& lhs, const C2MEdge& rhs) const
             {
                 nodeid_t lhsfromID = lhs.from->ID;
                 nodeid_t lhstoID = lhs.to->ID;
@@ -104,7 +104,7 @@ class MeshBuilder
         {
         }
         bool mark;
-        std::vector<Edge> edges;
+        std::vector<C2MEdge> edges;
         Element2D::Ptr elem;
     };
 
@@ -121,7 +121,7 @@ class MeshBuilder
      */
     static void floodFlip(size_t fi,
                           std::vector<Triangle>& allTriangles,
-                          std::map<Edge, std::vector<size_t>, Edge::Less>& edgeTriangleIndices,
+                          std::map<C2MEdge, std::vector<size_t>, C2MEdge::Less>& edgeTriangleIndices,
                           std::vector<size_t>& sortedTriangles);
 
     /**
@@ -134,7 +134,7 @@ class MeshBuilder
      */
     static size_t triangulate(const Element2D::Ptr& elem,
                               std::vector<Triangle>& allTriangles,
-                              std::map<Edge, std::vector<size_t>, Edge::Less>& edgeTriangleIndices);
+                              std::map<C2MEdge, std::vector<size_t>, C2MEdge::Less>& edgeTriangleIndices);
 
     /**
      * @brief Triangulates all faces contained in Elements2D/SurfaceElements of \p partptr
@@ -148,7 +148,7 @@ class MeshBuilder
      */
     static size_t triangulateAll(Part::Ptr& partptr,
                                  std::vector<Triangle>& allTriangles,
-                                 std::map<Edge, std::vector<size_t>, Edge::Less>& edgeTriangleIndices,
+                                 std::map<C2MEdge, std::vector<size_t>, C2MEdge::Less>& edgeTriangleIndices,
                                  bool deleteMeshedElements);
 
     /**
@@ -186,9 +186,9 @@ class MeshBuilder
    *        non-manifold edge paths will be split into arbitrary branches (depending on search startedge).
    *
    * @param edgeTriangleIndices mapping from edge to connected triangles
-   * @return std::vector<std::list<Edge>> connected non-manifold edge paths
+   * @return std::vector<std::list<C2MEdge>> connected non-manifold edge paths
    */
-  std::vector<std::list<Edge>> nonManifoldPaths(std::map<Edge, std::vector<size_t>, Edge::Less>& edgeTriangleIndices);
+  std::vector<std::list<C2MEdge>> nonManifoldPaths(std::map<C2MEdge, std::vector<size_t>, C2MEdge::Less>& edgeTriangleIndices);
 
   /**
    * @brief Attempt to sort triangles adjacent to non-manifold paths in a way that keeps plane surfaces connected,
@@ -201,9 +201,9 @@ class MeshBuilder
    * @param allTriangles all triangles. will contain sorted triangles after function call
    * @param edgeTriangleIndices mapping from edge to connected triangles
    */
-  void sortFromNonManifoldPaths(std::vector<std::list<Edge>>& nMfPaths,
+  void sortFromNonManifoldPaths(std::vector<std::list<C2MEdge>>& nMfPaths,
                                              std::vector<Triangle>& allTriangles,
-                                             std::map<Edge, std::vector<size_t>, Edge::Less>& edgeTriangleIndices);
+                                             std::map<C2MEdge, std::vector<size_t>, C2MEdge::Less>& edgeTriangleIndices);
 #endif
 };
 

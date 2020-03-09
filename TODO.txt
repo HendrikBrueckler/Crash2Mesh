@@ -26,18 +26,17 @@ In order of importance/urgency:
 [x] transfer quadrics from first decimation step over to global decimation
 [x] optionally allow for position optimization on each collapse
 [x] probabilistic plane matrix
-[ ] Initialisierung von MatX/VecX überprüfen!
-[ ] check why mesh assembling is not deterministic
+[ ] check why mesh assembling is not deterministic (Initialisierung von MatX/VecX überprüfen!)
 [ ] postprocess decimation by moving all vertices to optimal position for each frame, compare to other pos optimization
+[ ] HOW 2 HANDLE DAMPFWALZE (other than just throwing it out completely)
+[ ] HOW 2 HANDLE FAILURE VECTOR 
+[ ] implement GUI for selecting important parts
 [ ] transfer normalcones from first decimation step over to global decimation
 [ ] combine continuous normalcones with quadrics
-[ ] HOW 2 HANDLE DAMPFWALZE
-[ ] HOW 2 HANDLE FAILURE VECTOR
 [ ] optimize performance of decimation algorithm
 [ ] optimize runtime of decimation algorithm
 [ ] find a way to judge results (Hausdorff-distance will be baaad for parts away from epicenter)
 [ ] implement output function that uses file format usable in MeshLab
 [ ] use MeshLab to judge single-frame approximation errors
-[ ] implement UI
 [ ] clean up code
 [ ] comment all header code

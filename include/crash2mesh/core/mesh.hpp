@@ -6,6 +6,8 @@
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 #include <OpenMesh/Core/Geometry/QuadricT.hh>
 
+#include <list>
+
 namespace c2m
 {
 
@@ -27,6 +29,7 @@ struct MeshTraits : public OpenMesh::DefaultTraits
     FaceTraits
     {
         Element2D::Ptr element;
+        std::list<Element2D::Ptr> additionalElements;
     };
 };
 

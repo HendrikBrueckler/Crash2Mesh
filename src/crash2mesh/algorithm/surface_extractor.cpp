@@ -74,8 +74,9 @@ bool SurfaceExtractor::extract(std::vector<Part::Ptr>& parts, bool deleteVolumes
                 faceToReferencingVolumes[face].emplace_back(volume);
             }
         }
-        for (auto [faceNodes, referencingVolumes] : faceToReferencingVolumes)
+        for (auto [faceNodesConst, referencingVolumes] : faceToReferencingVolumes)
         {
+            vector<Node::Ptr> faceNodes = faceNodesConst;
             if (referencingVolumes.size() == 1)
             {
                 const Element3D::Ptr& volumeElement = referencingVolumes[0];
@@ -86,15 +87,30 @@ bool SurfaceExtractor::extract(std::vector<Part::Ptr>& parts, bool deleteVolumes
                 }
                 else if (faceNodes.size() == 4)
                 {
-                    elemType = &erfh5::FEType::SURFACE4;
+                    if (faceNodes[3] == ID_NULL || faceNodes[3] == faceNodes[2])
+                    {
+                        faceNodes.erase(faceNodes.end() - 1);
+                        elemType = &erfh5::FEType::SURFACE3;
+                    }
+                    else
+                    {
+                        elemType = &erfh5::FEType::SURFACE4;
+                    }
                 }
                 else
                 {
                     throw std::logic_error("Unexpected size of 3D element face");
                 }
-                partptr->surfaceElements.emplace(
-                    std::make_shared<SurfaceElement>(++maxSurfaceID, *elemType, partptr->ID, faceNodes, volumeElement));
-                facesExtracted++;
+                if (faceNodes[0] == faceNodes[1] || faceNodes[0] == faceNodes[2] || faceNodes[1] == faceNodes[2])
+                {
+                    facesDiscarded++;
+                }
+                else
+                {
+                    partptr->surfaceElements.emplace(
+                        std::make_shared<SurfaceElement>(++maxSurfaceID, *elemType, partptr->ID, faceNodes, volumeElement));
+                    facesExtracted++;
+                }
             }
             else
             {

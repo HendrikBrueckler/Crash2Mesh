@@ -113,6 +113,10 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
         nodeid_t n2 = mesh.data(v2).node->ID;
         nodeid_t n3 = mesh.data(v3).node->ID;
         partID2TriangleIDs[element->partID].emplace(f.idx());
+        for (const Element2D::Ptr& elemptr: mesh.data(f).additionalElements)
+        {
+            partID2TriangleIDs[elemptr->partID].emplace(f.idx());
+        }
         triangles.emplace_back(static_cast<uint>(f.idx()), element->elem2dID, n1, n2, n3);
     }
 
@@ -148,7 +152,7 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
             out << elem2Dptr->elem2dID << "\n";
             for (uint i = 0; i < nFrames; i++)
             {
-                out << "    " << elem2Dptr->plasticStrains.row(i) << "\n";
+                out << "    " << static_cast<float>(elem2Dptr->plasticStrains.coeff(i)) + elem2Dptr->plasticStrain0 << "\n";
             }
         }
         out << "$$ENDSECTION FACESTRAINS$$" << std::endl;
@@ -231,7 +235,7 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
             out.write(reinterpret_cast<char*>(&id), sizeof(uint));
             for (uint i = 0; i < nFrames; i++)
             {
-                strain = elem2Dptr->plasticStrains.coeff(i);
+                strain = elem2Dptr->plasticStrains.coeff(i) + elem2Dptr->plasticStrain0;
                 out.write(reinterpret_cast<char*>(&strain), sizeof(float));
             }
         }

@@ -35,7 +35,7 @@ Mat3 ModQuadric::crossInterferenceMatrix(const Mat3& A, const Mat3& B) const
 
 Mat4 ModQuadric::probabilisticTriQuadric(const Vec3& p, const Vec3& q, const Vec3& r) const
 {
-    float sigma = 0.3;
+    float sigma = 1;
     if (!area_weighting_)
     {
         sigma = 0.5; // TODO test and find good value
@@ -120,11 +120,11 @@ Mat4 ModQuadric::probabilisticTriQuadric(const OMVec3& ppp, const OMVec3& qqq, c
 Mat4 ModQuadric::probabilisticPlaneQuadric(const Vec3& p, const Vec3& q, const Vec3& r) const
 {
     float sigma = 0.05;
+    float sigmaSq = sigma * sigma;
     if (area_weighting_)
     {
-        sigma = 0.05; // TODO test and find good value
+        sigmaSq *= 1e4/((q-p).cross(r - p)).norm(); // TODO test and find good value
     }
-    float sigmaSq = sigma * sigma;
 
     Mat3 varianceN(Mat3::Zero()), variancePt(Mat3::Zero());
     varianceN << 3*sigmaSq/50, 0,       0,
@@ -134,7 +134,7 @@ Mat4 ModQuadric::probabilisticPlaneQuadric(const Vec3& p, const Vec3& q, const V
                  0,       sigmaSq, 0,
                  0,       0,       sigmaSq;
 
-    Vec3 pt = (q + p + r) / 3.0f;
+    Vec3 pt = (p + q + r) / 3.0f;
     Vec3 n = (q-p).cross(r - p);
     float area = n.norm();
     n /= n.norm();
@@ -353,7 +353,11 @@ bool ModQuadric::optimal_position(Quadric& q, Vec3& optimalPos) const
 
     Vec3 reference = optimalPos;
 
-    float tolerance = 1e-3; // TODO make this independent of area weighting and stuff
+    float tolerance = 1e-2;
+    if (area_weighting_)
+    {
+        tolerance = 1e-2 * A.trace() / 20;
+    }
     auto svd = A.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
 
     const auto &singularValues = svd.singularValues();
@@ -385,7 +389,15 @@ float ModQuadric::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_d
 Quadric ModQuadric::calc_face_quadric(uint frame, const Vec3& p, const Vec3& q, const Vec3& r) const
 {
 #ifdef C2M_PROB_QUADRICS
-    Quadric qFace = probabilisticPlaneQuadric(p, q, r);
+    Quadric qFace;
+    if (area_weighting_)
+    {
+        qFace = probabilisticTriQuadric(p, q, r);
+    }
+    else
+    {
+        qFace = probabilisticPlaneQuadric(p, q, r);
+    }
 #else
     Vec3 faceNormal = (q - p).cross(r - p);
     double area = faceNormal.norm();
@@ -424,7 +436,7 @@ Quadric ModQuadric::calc_edge_quadric(HEHandle he, uint frame, const Vec3& p, co
         if (MeshAnalyzer::dupes(mesh_, he).size() != 1)
             return qEdge;
         // preserve boundary contours
-        weightFactor = 1.0;
+        weightFactor = 2.0;
     }
     else
     {
@@ -438,10 +450,18 @@ Quadric ModQuadric::calc_edge_quadric(HEHandle he, uint frame, const Vec3& p, co
 
     // Plane quadric for plane passing through edge, perpendicular to triangle
     Vec3 faceNormal = (q - p).cross(r - p);
+    faceNormal /= faceNormal.norm();
     Vec3 edgeNormal = (q - p).cross(faceNormal);
     double edgePlaneArea = edgeNormal.squaredNorm(); // n is length 1 so square the influence of boundary
 #ifdef C2M_PROB_QUADRICS
-    qEdge = probabilisticPlaneQuadric(p, q, p + faceNormal * sqrt(edgePlaneArea));
+    if (area_weighting_)
+    {
+        qEdge = probabilisticTriQuadric(p, q, p + faceNormal * sqrt(edgePlaneArea));
+    }
+    else
+    {
+        qEdge = probabilisticPlaneQuadric(p, q, p + faceNormal * sqrt(edgePlaneArea));
+    }
 #else
     if (edgePlaneArea > FLT_MIN)
     {

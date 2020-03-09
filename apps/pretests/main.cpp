@@ -59,9 +59,9 @@ int main(int argc, char** argv)
             MeshDecimater deci;
             MeshAnalyzer::getEpicenter(parts, deci.epicenters, deci.meanDistsFromEpicenters);
             deci.useQuadric = true;
-            deci.framesQuadric = 1000;
-            deci.maxQuadricError = 100;
-            deci.quadricAreaWeighting = false;
+            deci.framesQuadric = 15;
+            deci.maxQuadricError = 1000;
+            deci.quadricAreaWeighting = true;
             deci.quadricPositionOptimization = false;
             deci.useNormalDeviation = true;
             deci.framesNormalDeviation = 20;
@@ -88,18 +88,18 @@ int main(int argc, char** argv)
                 return -1;
             }
             deci.useQuadric = true;
-            deci.framesQuadric = 10;
+            deci.framesQuadric = 15; // frames HAVE to be a subset of the first decimation step!
             deci.maxQuadricError = FLT_MAX;
-            deci.quadricAreaWeighting = false; // this has no effect, as quadrics are used from previous decimation
+            deci.quadricAreaWeighting = true; // this has no effect, as quadrics are used from previous decimation
             deci.quadricPositionOptimization = false;
             deci.useNormalDeviation = true;
             deci.framesNormalDeviation = 5;
-            deci.maxNormalDeviation = 30;
+            deci.maxNormalDeviation = 180;
             deci.useBoundaryDeviation = true;
             deci.framesBoundaryDeviation = 3;
-            deci.maxBoundaryDeviation = 15;
+            deci.maxBoundaryDeviation = 90;
             deci.useAspectRatio = true;
-            deci.maxAspectRatio = 20;
+            deci.maxAspectRatio = 100;
             deci.minVLog = 1000000000;
             deci.minVRender = 1000000000;
             deci.maxVLog = 10000000;

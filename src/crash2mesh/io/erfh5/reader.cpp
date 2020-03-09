@@ -27,12 +27,12 @@ Reader::Reader(const std::string& filename) : m_file(filename)
 
 void Reader::logFileInfo(Logger::Level severity, const string& msg, const string& path) const
 {
-    Logger::lout(severity) << msg << " (path \"" << path << "\" of file " << m_file.getName() << ")" << endl;
+    Logger::lout(severity) << msg << " (path \"" << path << "\")" << endl;
 }
 
 void Reader::logFileInfo(Logger::Level severity, const string& msg) const
 {
-    Logger::lout(severity) << msg << " (file " << m_file.getName() << ")" << endl;
+    Logger::lout(severity) << msg << endl;
 }
 
 size_t Reader::getNumStates() const
@@ -193,6 +193,7 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
     for (uint i = 0; i < nodeIDs.size(); i++)
     {
         MatX3 positions = nodeDisplacements[nodeIDs[i]].rowwise() + nodeCoordinates.row(i);
+        nodeDisplacements.erase(nodeIDs[i]);
         nodeIDToNode[nodeIDs[i]] = std::make_shared<Node>(nodeIDs[i], positions);
     }
 
@@ -273,7 +274,7 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
         if (genTypeToPlasticStrains.find(genericType) == genTypeToPlasticStrains.end())
         {
             if (numStates > 0
-                && !readPerStateResults(*elemType, ResultType::PLASTIC_STRAIN, genTypeToPlasticStrains[genericType]))
+                && !readPerStateResultsSAFE(*elemType, ResultType::PLASTIC_STRAIN, genTypeToPlasticStrains[genericType]))
             {
                 logFileInfo(Logger::ERROR,
                             "Could not read 2D element plastic strains",
@@ -305,6 +306,11 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             int numCorners = actualElemType->family.numCorners;
             nodeIDs[i].erase(nodeIDs[i].begin() + numCorners, nodeIDs[i].end());
 
+            if (nodeIDs.size() < 3 || nodeIDs[i][0] == nodeIDs[i][1] || nodeIDs[i][0] == nodeIDs[i][2] || nodeIDs[i][1] == nodeIDs[i][2])
+            {
+                continue;
+            }
+
             vector<Node::Ptr> nodes;
             for (nodeid_t nodeID : nodeIDs[i])
             {
@@ -318,7 +324,7 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
                 plasticStrains = VecX::Zero(numStates);
             }
             partIDTo2DElements[partIDs[i]].emplace_back(
-                std::make_shared<Element2D>(elementIDs[i], *actualElemType, partIDs[i], nodes, plasticStrains));
+                std::make_shared<Element2D>(elementIDs[i], *actualElemType, partIDs[i], nodes, plasticStrains(0), plasticStrains.array() - plasticStrains(0)));
         }
 
         if (missingStrains != 0)
@@ -370,7 +376,7 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
         if (genTypeToPlasticStrains.find(genericType) == genTypeToPlasticStrains.end())
         {
             if (numStates > 0
-                && !readPerStateResults(
+                && !readPerStateResultsSAFE(
                        *elemType, ResultType::EQUIVALENT_PLASTIC_STRAIN, genTypeToPlasticStrains[genericType]))
             {
                 logFileInfo(Logger::ERROR,
@@ -395,7 +401,7 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
                 plasticStrains = VecX::Zero(numStates);
             }
             partIDTo3DElements[partIDs[i]].emplace_back(
-                std::make_shared<Element3D>(elementIDs[i], *elemType, partIDs[i], nodes, plasticStrains));
+                std::make_shared<Element3D>(elementIDs[i], *elemType, partIDs[i], nodes, plasticStrains(0), plasticStrains.array() - plasticStrains(0)));
         }
 
         if (missingStrains != 0)

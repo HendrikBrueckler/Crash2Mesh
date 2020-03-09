@@ -66,8 +66,9 @@ Element2D::Element2D(elemid_t _ID,
                      const erfh5::FEType& _type,
                      partid_t _partID,
                      const std::vector<Node::Ptr>& _nodes,
+                     float _plasticStrain0,
                      const VecX& _plasticStrains)
-    : ConnectedElement(_type, _partID, _nodes), elem2dID(_ID), plasticStrains(_plasticStrains)
+    : ConnectedElement(_type, _partID, _nodes), elem2dID(_ID), plasticStrains(_plasticStrains), plasticStrain0(_plasticStrain0)
 {
 }
 
@@ -82,8 +83,9 @@ Element3D::Element3D(elemid_t _ID,
                      const erfh5::FEType& _type,
                      partid_t _partID,
                      const std::vector<Node::Ptr>& _nodes,
+                     float _ePlasticStrain0,
                      const VecX& _ePlasticStrains)
-    : ConnectedElement(_type, _partID, _nodes), elem3dID(_ID), ePlasticStrains(_ePlasticStrains)
+    : ConnectedElement(_type, _partID, _nodes), elem3dID(_ID), ePlasticStrains(_ePlasticStrains), ePlasticStrain0(_ePlasticStrain0)
 {
 }
 
@@ -100,7 +102,7 @@ SurfaceElement::SurfaceElement(elemid_t _ID,
                                partid_t _partID,
                                const std::vector<Node::Ptr>& _nodes,
                                Element3D::Ptr _volume)
-    : Element2D(_ID, _type, _partID, _nodes, _volume->ePlasticStrains), surfaceElemID(_ID), volume(_volume)
+    : Element2D(_ID, _type, _partID, _nodes, _volume->ePlasticStrain0, _volume->ePlasticStrains), surfaceElemID(_ID), volume(_volume)
 {
 }
 
