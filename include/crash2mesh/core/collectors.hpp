@@ -23,10 +23,10 @@ class Collector
     bool operator<(const Collector& other) const;
     bool operator>(const Collector& other) const;
 
-    std::set<Element1D::Ptr> elements1D;           ///< All contained 1D elements
-    std::set<Element2D::Ptr> elements2D;           ///< All contained 2D elements
-    std::set<SurfaceElement::Ptr> surfaceElements; ///< All contained surface elements
-    std::set<Element3D::Ptr> elements3D;           ///< All contained 3D elements
+    std::vector<Element1D::Ptr> elements1D;           ///< All contained 1D elements
+    std::vector<Element2D::Ptr> elements2D;           ///< All contained 2D elements
+    std::vector<SurfaceElement::Ptr> surfaceElements; ///< All contained surface elements
+    std::vector<Element3D::Ptr> elements3D;           ///< All contained 3D elements
     const entid_t entityID;                        ///< The unique ID identifying this collector
 
     void markElement1DNodes();

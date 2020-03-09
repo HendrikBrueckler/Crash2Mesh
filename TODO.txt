@@ -26,13 +26,14 @@ In order of importance/urgency:
 [x] transfer quadrics from first decimation step over to global decimation
 [x] optionally allow for position optimization on each collapse
 [x] probabilistic plane matrix
-[ ] check why mesh assembling is not deterministic (Initialisierung von MatX/VecX überprüfen!)
-[ ] postprocess decimation by moving all vertices to optimal position for each frame, compare to other pos optimization
+[x] check why mesh assembling is not deterministic
+[THIS SUCKS] postprocess decimation by moving all vertices to optimal position for each frame, compare to other pos optimization
 [ ] HOW 2 HANDLE DAMPFWALZE (other than just throwing it out completely)
-[ ] HOW 2 HANDLE FAILURE VECTOR 
+[ ] HOW 2 HANDLE FAILURE VECTOR
 [ ] implement GUI for selecting important parts
 [ ] transfer normalcones from first decimation step over to global decimation
 [ ] combine continuous normalcones with quadrics
+[ ] adapt distance weighting to area_weighting_
 [ ] optimize performance of decimation algorithm
 [ ] optimize runtime of decimation algorithm
 [ ] find a way to judge results (Hausdorff-distance will be baaad for parts away from epicenter)

@@ -1,10 +1,10 @@
 #include <crash2mesh/algorithm/mesh_decimater.hpp>
 
-#include <crash2mesh/decimater/robust_decimater.hpp>
 #include <crash2mesh/algorithm/mesh_analyzer.hpp>
 #include <crash2mesh/decimater/modules/mod_boundary.hpp>
 #include <crash2mesh/decimater/modules/mod_normal.hpp>
 #include <crash2mesh/decimater/modules/mod_quadric.hpp>
+#include <crash2mesh/decimater/robust_decimater.hpp>
 #include <crash2mesh/util/logger.hpp>
 
 #include <OpenMesh/Tools/Decimater/DecimaterT.hh>
@@ -174,9 +174,13 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
     // Create decimater and decimation modules
     RobustDecimater decimater(mesh);
 
+    ModQuadric::Handle hModFWQuadric;
+    ModNormal::Handle hModFWNormal;
+    ModBoundary::Handle hModFWBoundary;
+    ModAspectRatio::Handle hModAspectRatio;
+
     if (useQuadric || true) // Currently no alternative for a continuous module
     {
-        ModQuadric::Handle hModFWQuadric;
         decimater.add(hModFWQuadric);
         decimater.module(hModFWQuadric).set_max_err(maxQuadricError, false);
         decimater.module(hModFWQuadric).set_num_frames(framesQuadric);
@@ -186,7 +190,6 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
     }
     if (useNormalDeviation)
     {
-        ModNormal::Handle hModFWNormal;
         decimater.add(hModFWNormal);
         decimater.module(hModFWNormal).set_max_normal_deviation(maxNormalDeviation);
         decimater.module(hModFWNormal).set_num_frames(framesNormalDeviation);
@@ -194,7 +197,6 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
     }
     if (useBoundaryDeviation)
     {
-        ModBoundary::Handle hModFWBoundary;
         decimater.add(hModFWBoundary);
         decimater.module(hModFWBoundary).set_max_boundary_angle(maxBoundaryDeviation);
         decimater.module(hModFWBoundary).set_num_frames(framesBoundaryDeviation);
@@ -202,7 +204,6 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
     }
     if (useAspectRatio)
     {
-        ModAspectRatio::Handle hModAspectRatio;
         decimater.add(hModAspectRatio);
         decimater.module(hModAspectRatio).set_binary(true);
         decimater.module(hModAspectRatio).set_aspect_ratio(maxAspectRatio);
@@ -211,6 +212,27 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, partid_t 
     // Init and decimate
     decimater.initialize();
     decimater.decimate_to_faces(nVertices, nFaces);
+
+    if (useQuadric && !quadricPositionOptimization && quadricPostProcessOptimize)
+    {
+        // This produces insane flickering, DONT USE
+#if 0
+        for (VHandle v : mesh.vertices())
+        {
+            if (!mesh.status(v).locked() && !mesh.data(v).duplicate.is_valid())
+            {
+                const auto& module = decimater.module(hModFWQuadric);
+                uint numFrames = module.num_frames();
+                for (size_t frame = 0; frame < numFrames; frame++)
+                {
+                    Vec3 optPos = mesh.data(v).node->positions.row(frame).transpose();
+                    module.optimal_position(mesh.data(v).quadrics[frame], optPos);
+                    mesh.data(v).node->positions.row(frame) = optPos.transpose();
+                }
+            }
+        }
+#endif
+    }
 
     // Prepare garbage collection
     std::vector<VHandle> vs;

@@ -107,7 +107,7 @@ bool SurfaceExtractor::extract(std::vector<Part::Ptr>& parts, bool deleteVolumes
                 }
                 else
                 {
-                    partptr->surfaceElements.emplace(
+                    partptr->surfaceElements.emplace_back(
                         std::make_shared<SurfaceElement>(++maxSurfaceID, *elemType, partptr->ID, faceNodes, volumeElement));
                     facesExtracted++;
                 }

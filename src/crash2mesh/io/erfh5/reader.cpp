@@ -114,7 +114,7 @@ bool Reader::readParts(vector<Part::Ptr>& parts) const
         // if (partIDToPartUID[partID] >= 9600000 && partIDToPartUID[partID] < 9980000)
         //     continue;
         createIfNotExists(partID);
-        growingParts[partID]->elements1D = std::set<Element1D::Ptr>(elements.begin(), elements.end());
+        growingParts[partID]->elements1D = elements;
         for (const Element1D::Ptr& elem : elements)
             partToNodes[partID].insert(elem->nodes.begin(), elem->nodes.end());
     }
@@ -125,7 +125,7 @@ bool Reader::readParts(vector<Part::Ptr>& parts) const
         // if (partIDToPartUID[partID] >= 9600000 && partIDToPartUID[partID] < 9980000)
         //     continue;
         createIfNotExists(partID);
-        growingParts[partID]->elements2D = std::set<Element2D::Ptr>(elements.begin(), elements.end());
+        growingParts[partID]->elements2D = elements;
         for (const Element2D::Ptr& elem : elements)
             partToNodes[partID].insert(elem->nodes.begin(), elem->nodes.end());
     }
@@ -136,7 +136,7 @@ bool Reader::readParts(vector<Part::Ptr>& parts) const
         // if (partIDToPartUID[partID] >= 9600000 && partIDToPartUID[partID] < 9980000)
         //     continue;
         createIfNotExists(partID);
-        growingParts[partID]->elements3D = std::set<Element3D::Ptr>(elements.begin(), elements.end());
+        growingParts[partID]->elements3D = elements;
         for (const Element3D::Ptr& elem : elements)
             partToNodes[partID].insert(elem->nodes.begin(), elem->nodes.end());
     }

@@ -119,7 +119,7 @@ Mat4 ModQuadric::probabilisticTriQuadric(const OMVec3& ppp, const OMVec3& qqq, c
 
 Mat4 ModQuadric::probabilisticPlaneQuadric(const Vec3& p, const Vec3& q, const Vec3& r) const
 {
-    float sigma = 0.05;
+    float sigma = 0.15;
     float sigmaSq = sigma * sigma;
     if (area_weighting_)
     {
@@ -127,9 +127,9 @@ Mat4 ModQuadric::probabilisticPlaneQuadric(const Vec3& p, const Vec3& q, const V
     }
 
     Mat3 varianceN(Mat3::Zero()), variancePt(Mat3::Zero());
-    varianceN << 3*sigmaSq/50, 0,       0,
-                 0,       3*sigmaSq/50, 0,
-                 0,       0,       3*sigmaSq/50;
+    varianceN << 5*sigmaSq/50, 0,       0,
+                 0,       5*sigmaSq/50, 0,
+                 0,       0,       5*sigmaSq/50;
     variancePt << sigmaSq, 0,       0,
                  0,       sigmaSq, 0,
                  0,       0,       sigmaSq;
@@ -238,9 +238,9 @@ void ModQuadric::initialize(void)
         vh[2] = mesh_.from_vertex_handle(*fh_it);
 
         vector<uint> frames(frame_seq());
-        for (size_t i = 0; i < frames.size(); i++)
+        for (size_t i = 0; i < (optimize_position_ ? num_frames() : frames.size()); i++)
         {
-            uint frame = frames[i];
+            uint frame = (optimize_position_ ? i : frames[i]);
             for (uint j = 0; j < 3; j++)
             {
                 points[j] = mesh_.data(vh[j]).node->positions.row(frame).transpose();
@@ -353,10 +353,10 @@ bool ModQuadric::optimal_position(Quadric& q, Vec3& optimalPos) const
 
     Vec3 reference = optimalPos;
 
-    float tolerance = 1e-2;
+    float tolerance = 0.15;
     if (area_weighting_)
     {
-        tolerance = 1e-2 * A.trace() / 20;
+        tolerance = 0.15 * A.trace() / 20;
     }
     auto svd = A.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
 
@@ -382,8 +382,8 @@ bool ModQuadric::optimal_position(Quadric& q, Vec3& optimalPos) const
 float ModQuadric::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const
 {
     // TODO implement a proper function here
-    float factor = 0.2f + 0.8f * ((pt - epicenter).norm() / mean_dist);
-    return factor * factor;
+    float factor = 0.1f + 0.9f * ((pt - epicenter).norm() / mean_dist);
+    return factor;
 }
 
 Quadric ModQuadric::calc_face_quadric(uint frame, const Vec3& p, const Vec3& q, const Vec3& r) const

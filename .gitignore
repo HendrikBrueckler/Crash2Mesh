@@ -1,6 +1,7 @@
 /.vscode
 /build
 /Debug
+/RelWithDebInfo
 /Release
 /bin
 /lib

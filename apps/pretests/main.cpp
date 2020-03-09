@@ -61,8 +61,9 @@ int main(int argc, char** argv)
             deci.useQuadric = true;
             deci.framesQuadric = 15;
             deci.maxQuadricError = 1000;
-            deci.quadricAreaWeighting = true;
+            deci.quadricAreaWeighting = false;
             deci.quadricPositionOptimization = false;
+            deci.quadricPostProcessOptimize = false;
             deci.useNormalDeviation = true;
             deci.framesNormalDeviation = 20;
             deci.maxNormalDeviation = 5;
@@ -88,13 +89,14 @@ int main(int argc, char** argv)
                 return -1;
             }
             deci.useQuadric = true;
-            deci.framesQuadric = 15; // frames HAVE to be a subset of the first decimation step!
+            deci.framesQuadric = 15;
             deci.maxQuadricError = FLT_MAX;
-            deci.quadricAreaWeighting = true; // this has no effect, as quadrics are used from previous decimation
+            deci.quadricAreaWeighting = false; // this has no effect, as quadrics are used from previous decimation
             deci.quadricPositionOptimization = false;
+            deci.quadricPostProcessOptimize = false;
             deci.useNormalDeviation = true;
             deci.framesNormalDeviation = 5;
-            deci.maxNormalDeviation = 180;
+            deci.maxNormalDeviation = 90;
             deci.useBoundaryDeviation = true;
             deci.framesBoundaryDeviation = 3;
             deci.maxBoundaryDeviation = 90;
