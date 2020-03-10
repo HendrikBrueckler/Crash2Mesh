@@ -305,6 +305,11 @@ void ModQuadric::postprocess_collapse(const CollapseInfo& _ci)
     for (size_t frame = 0; frame < num_frames(); frame++)
     {
         quadricsRemaining[frame] += quadricsRemoved[frame];
+        // TODO check usefulness
+        // if (!area_weighting_)
+        // {
+        //     quadricsRemaining[frame] *= 0.5f;
+        // }
     }
 
     if (optimize_position_ && !mesh_.status(_ci.v1).locked() && !mesh_.data(_ci.v0).duplicate.is_valid()

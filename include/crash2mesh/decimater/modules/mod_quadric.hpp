@@ -17,7 +17,7 @@ namespace c2m
  *
  *  This module can be used as a binary and non-binary module.
  */
-class ModQuadric : public ModBase
+class ModQuadric : virtual public ModBase
 {
   public:
     using Self = ModQuadric;
@@ -97,6 +97,14 @@ class ModQuadric : public ModBase
     void set_area_weighting(bool _area_weighting)
     {
         area_weighting_ = _area_weighting;
+    }
+
+    /**
+     * @brief Query the weighting of quadrics with face area
+     */
+    bool area_weighting()
+    {
+        return area_weighting_;
     }
 
     /**

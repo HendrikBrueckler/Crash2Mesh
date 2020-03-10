@@ -29,17 +29,20 @@ In order of importance/urgency:
 [x] check why mesh assembling is not deterministic
 [THIS SUCKS] postprocess decimation by moving all vertices to optimal position for each frame, compare to other pos optimization
 [could be improved] HOW 2 HANDLE DAMPFWALZE (other than just throwing it out completely)
+[x] transfer normalcones from first decimation step over to global decimation
+[x] combine continuous normalcones with quadrics
 [ ] find better seed faces for floodFlip
 [ ] HOW 2 HANDLE FAILURE VECTOR
-[ ] update to newest easy3d version
+
+[ ] update to newest easy3d version OR switch to OpenFlipper
 [ ] implement GUI for selecting important parts
-[ ] transfer normalcones from first decimation step over to global decimation
-[ ] combine continuous normalcones with quadrics
-[ ] adapt distance weighting to area_weighting_
+
 [ ] optimize performance of decimation algorithm
 [ ] optimize runtime of decimation algorithm
+
 [ ] find a way to judge results (Hausdorff-distance will be baaad for parts away from epicenter)
 [ ] implement output function that uses file format usable in MeshLab
 [ ] use MeshLab to judge single-frame approximation errors
+
 [ ] clean up code
 [ ] comment all header code

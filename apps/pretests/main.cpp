@@ -60,13 +60,14 @@ int main(int argc, char** argv)
             MeshAnalyzer::getEpicenter(parts, deci.epicenters, deci.meanDistsFromEpicenters);
             deci.useQuadric = true;
             deci.framesQuadric = 15;
-            deci.maxQuadricError = 100;
+            deci.maxQuadricError = 10;
             deci.quadricAreaWeighting = false;
             deci.quadricPositionOptimization = false;
             deci.quadricPostProcessOptimize = false;
             deci.useNormalDeviation = true;
-            deci.framesNormalDeviation = 20;
+            deci.framesNormalDeviation = deci.framesQuadric;
             deci.maxNormalDeviation = 5;
+            deci.combineQuadricNormal = true;
             deci.useBoundaryDeviation = true;
             deci.framesBoundaryDeviation = 5;
             deci.maxBoundaryDeviation = 5;
@@ -96,14 +97,15 @@ int main(int argc, char** argv)
                 }
             }
             deci.useQuadric = true;
-            deci.framesQuadric = 15;
+            deci.framesQuadric = 10;
             deci.maxQuadricError = FLT_MAX;
             deci.quadricAreaWeighting = false; // this has no effect, as quadrics are used from previous decimation
             deci.quadricPositionOptimization = false;
             deci.quadricPostProcessOptimize = false;
             deci.useNormalDeviation = true;
-            deci.framesNormalDeviation = 5;
+            deci.framesNormalDeviation = deci.framesQuadric;
             deci.maxNormalDeviation = 90; // this has no effect, as normalCones are used from previous decimation
+            deci.combineQuadricNormal = true;
             deci.useBoundaryDeviation = true;
             deci.framesBoundaryDeviation = 3;
             deci.maxBoundaryDeviation = 90;

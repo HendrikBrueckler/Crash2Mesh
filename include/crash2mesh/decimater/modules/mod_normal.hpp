@@ -9,7 +9,7 @@
 namespace c2m
 {
 
-class ModNormal : public ModBase
+class ModNormal : virtual public ModBase
 {
   public:
     using Self = ModNormal;
@@ -81,7 +81,6 @@ class ModNormal : public ModBase
 
   private:
     float max_normal_deviation_;
-    OpenMesh::FPropHandleT<std::vector<NormalCone>> normal_cones_;
 };
 
 } // namespace c2m

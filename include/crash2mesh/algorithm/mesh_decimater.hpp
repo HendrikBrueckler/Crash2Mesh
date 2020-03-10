@@ -22,10 +22,10 @@ class MeshDecimater
   public:
     MeshDecimater()
         : useQuadric(true), useNormalDeviation(true), useBoundaryDeviation(true), useAspectRatio(true),
-          maxQuadricError(2000), maxNormalDeviation(10), maxBoundaryDeviation(10), maxAspectRatio(10),
-          quadricAreaWeighting(false), quadricPositionOptimization(false), quadricPostProcessOptimize(false),
-          framesQuadric(10), framesNormalDeviation(10), framesBoundaryDeviation(3),
-          minVLog(1000), minVRender(1000), maxVLog(10000000), maxVRender(500000)
+          combineQuadricNormal(false), quadricAreaWeighting(false), quadricPositionOptimization(false),
+          quadricPostProcessOptimize(false), maxQuadricError(2000), maxNormalDeviation(10), maxBoundaryDeviation(10),
+          maxAspectRatio(10), framesQuadric(10), framesNormalDeviation(10), framesBoundaryDeviation(3), minVLog(1000),
+          minVRender(1000), maxVLog(10000000), maxVRender(500000)
     {
     }
 
@@ -71,30 +71,32 @@ class MeshDecimater
     bool decimateScene(Scene::Ptr scene, uint nFaces, uint nVertices = 0) const;
 
   public:
-    MatX3 epicenters; //< deformation/impact epicenter positions. see MeshAnalyzer::getEpicenter
+    MatX3 epicenters;             //< deformation/impact epicenter positions. see MeshAnalyzer::getEpicenter
     VecX meanDistsFromEpicenters; //< mean distances from epicenters. see MeshAnalyzer::getEpicenter
 
-    bool useQuadric; //< Whether to use quadric module
-    bool useNormalDeviation; //< Whether to use normal deviation module
+    bool useQuadric;           //< Whether to use quadric module
+    bool useNormalDeviation;   //< Whether to use normal deviation module
     bool useBoundaryDeviation; //< Whether to use boundary deviation module
-    bool useAspectRatio; //< Whether to use aspect ratio module
+    bool useAspectRatio;       //< Whether to use aspect ratio module
 
-    bool quadricAreaWeighting; //< Whether to weight quadrics with the face area
+    bool combineQuadricNormal; //< Whether to combine quadrics and normals to one joint continuous module
+
+    bool quadricAreaWeighting;        //< Whether to weight quadrics with the face area
     bool quadricPositionOptimization; //< Whether to optimize positions wrt quadrics during decimation
-    bool quadricPostProcessOptimize; //< Whether to optimize positions wrt quadrics AFTER decimation
+    bool quadricPostProcessOptimize;  //< Whether to optimize positions wrt quadrics AFTER decimation
 
-    float maxQuadricError; //< Maximum tolerable error of quadric module
-    float maxNormalDeviation; //< Maximum tolerable normal change of normal module
+    float maxQuadricError;      //< Maximum tolerable error of quadric module
+    float maxNormalDeviation;   //< Maximum tolerable normal change of normal module
     float maxBoundaryDeviation; //< Maximum tolerable angular difference of boundary module
-    float maxAspectRatio; //< Maximum tolerable aspect ratio of aspect ratio module
+    float maxAspectRatio;       //< Maximum tolerable aspect ratio of aspect ratio module
 
-    uint framesQuadric; //< How many linearly spaced frames to consider for quadric module
-    uint framesNormalDeviation; //< How many linearly spaced frames to consider for normal module
+    uint framesQuadric;           //< How many linearly spaced frames to consider for quadric module
+    uint framesNormalDeviation;   //< How many linearly spaced frames to consider for normal module
     uint framesBoundaryDeviation; //< How many linearly spaced frames to consider for boundary module
 
-    uint minVLog; //< Min number of mesh vertices to log meshinfo on console
+    uint minVLog;    //< Min number of mesh vertices to log meshinfo on console
     uint minVRender; //< Min number of mesh vertices to render mesh in own window
-    uint maxVLog; //< Max number of mesh vertices to log meshinfo on console
+    uint maxVLog;    //< Max number of mesh vertices to log meshinfo on console
     uint maxVRender; //< Max number of mesh vertices to render mesh in own window
 
   private:

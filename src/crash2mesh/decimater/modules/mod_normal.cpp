@@ -67,7 +67,8 @@ void ModNormal::initialize()
             OMVec3 pt2(p2[0], p2[1], p2[2]);
             OMVec3 n = face_normal(p0, p1, p2);
             normalCones.emplace_back(
-                NormalCone(n, max_normal_deviation_ * dist2epicenter_f((pt0 + pt1 + pt2) / 3.0, frame)));
+                NormalCone(n, max_normal_deviation_ * std::min(1.0f, dist2epicenter_f((pt0 + pt1 + pt2) / 3.0, frame))));
+            // TODO do we need min(1.0f, ...) here?
         }
         mesh_.data(f).normalCones = normalCones;
     }
@@ -76,6 +77,7 @@ void ModNormal::initialize()
 float ModNormal::collapse_priority(const CollapseInfo& _ci)
 {
     float max_angle(0.0f);
+    float priority(0.0f);
     Mesh::ConstVertexFaceIter vf_it(mesh_, _ci.v0);
     Mesh::FaceHandle fh, fhl, fhr;
 
@@ -115,16 +117,23 @@ float ModNormal::collapse_priority(const CollapseInfo& _ci)
             if (fh == fhr)
                 nc[frame].merge(mesh_.data(_ci.fr).normalCones[frame]);
 
+            // Legality
             if (nc[frame].angle() > max_angle)
             {
                 max_angle = nc[frame].angle();
                 if (max_angle > 0.5 * nc[frame].max_angle())
                     return float(Base::ILLEGAL_COLLAPSE);
             }
+            // Priority (weighted by distance 2 epicenter factor)
+            float dist2epifactor = nc[frame].max_angle() / max_normal_deviation_;
+            if (nc[frame].angle() / dist2epifactor > priority)
+            {
+                priority = nc[frame].angle() / dist2epifactor;
+            }
         }
     }
 
-    return max_angle;
+    return priority;
 }
 
 void ModNormal::set_error_tolerance_factor(double _factor)
@@ -191,7 +200,7 @@ float ModNormal::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_di
 {
     // TODO implement a proper function here
     float factor = 0.1f + 0.9 * ((pt - epicenter).norm() / mean_dist);
-    return std::max(factor, 1.0f);
+    return factor;
 }
 
 } // namespace c2m

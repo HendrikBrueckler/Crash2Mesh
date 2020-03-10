@@ -4,6 +4,7 @@
 #include <crash2mesh/decimater/modules/mod_boundary.hpp>
 #include <crash2mesh/decimater/modules/mod_normal.hpp>
 #include <crash2mesh/decimater/modules/mod_quadric.hpp>
+#include <crash2mesh/decimater/modules/mod_quadric_normal.hpp>
 #include <crash2mesh/decimater/robust_decimater.hpp>
 #include <crash2mesh/util/logger.hpp>
 
@@ -174,31 +175,53 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
     // Create decimater and decimation modules
     RobustDecimater decimater(mesh);
 
+    ModQuadricNormal::Handle hModFWQuadricNormal;
     ModQuadric::Handle hModFWQuadric;
     ModNormal::Handle hModFWNormal;
     ModBoundary::Handle hModFWBoundary;
     ModAspectRatio::Handle hModAspectRatio;
 
-    if (useQuadric || true) // Currently no alternative for a continuous module
+    if (useQuadric && useNormalDeviation && combineQuadricNormal)
     {
-        decimater.add(hModFWQuadric);
-        // TODO collect these magic numbers in collectors.hpp as static vars
-        decimater.module(hModFWQuadric).set_max_err(maxQuadricError, false);
-        decimater.module(hModFWQuadric).set_num_frames(framesQuadric);
-        decimater.module(hModFWQuadric).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
-        decimater.module(hModFWQuadric).set_area_weighting(quadricAreaWeighting);
-        decimater.module(hModFWQuadric).set_optimize_position(quadricPositionOptimization);
-    }
-    if (useNormalDeviation)
-    {
-        decimater.add(hModFWNormal);
+        decimater.add(hModFWQuadricNormal);
+        // Shared stuff
+        decimater.module(hModFWQuadricNormal).set_num_frames((framesQuadric + framesNormalDeviation) / 2u);
+        decimater.module(hModFWQuadricNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
+        // Quadric stuff
+        decimater.module(hModFWQuadricNormal).set_max_err(maxQuadricError, false);
+        decimater.module(hModFWQuadricNormal).set_area_weighting(quadricAreaWeighting);
+        decimater.module(hModFWQuadricNormal).set_optimize_position(quadricPositionOptimization);
+        // Normal stuff
         if (puid >= 9600000 && puid < 9980000)
-            decimater.module(hModFWNormal).set_max_normal_deviation(FLT_MAX);
+            decimater.module(hModFWQuadricNormal).set_max_normal_deviation(FLT_MAX);
         else
-            decimater.module(hModFWNormal).set_max_normal_deviation(maxNormalDeviation);
-        decimater.module(hModFWNormal).set_num_frames(framesNormalDeviation);
-        decimater.module(hModFWNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
+            decimater.module(hModFWQuadricNormal).set_max_normal_deviation(maxNormalDeviation);
+        decimater.module(hModFWQuadricNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }
+    else
+    {
+        if (useQuadric || true) // Currently no alternative for a continuous module
+        {
+            decimater.add(hModFWQuadric);
+            decimater.module(hModFWQuadric).set_max_err(maxQuadricError, false);
+            decimater.module(hModFWQuadric).set_num_frames(framesQuadric);
+            decimater.module(hModFWQuadric).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
+            decimater.module(hModFWQuadric).set_area_weighting(quadricAreaWeighting);
+            decimater.module(hModFWQuadric).set_optimize_position(quadricPositionOptimization);
+        }
+        if (useNormalDeviation)
+        {
+            decimater.add(hModFWNormal);
+            // TODO collect these magic numbers in collectors.hpp as static vars
+            if (puid >= 9600000 && puid < 9980000)
+                decimater.module(hModFWNormal).set_max_normal_deviation(FLT_MAX);
+            else
+                decimater.module(hModFWNormal).set_max_normal_deviation(maxNormalDeviation);
+            decimater.module(hModFWNormal).set_num_frames(framesNormalDeviation);
+            decimater.module(hModFWNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
+        }
+    }
+
     if (useBoundaryDeviation && (puid <= 9600000 || puid > 9980000))
     {
         decimater.add(hModFWBoundary);

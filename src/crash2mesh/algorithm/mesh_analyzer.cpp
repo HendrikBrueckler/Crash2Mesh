@@ -353,35 +353,35 @@ void MeshAnalyzer::getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists)
     // Calc epicenter of crash
     VecX sumOfWeights = VecX::Zero(numFrames);
     epicenters = MatX3::Zero(numFrames, 3);
-    for (VHandle v : mesh.vertices())
-    {
-        const MatX3& positions = mesh.data(v).node->positions;
-        MatX3 relativeDisplacements(MatX3::Zero(numFrames, 3));
-        VecX sumOfInverseEdgeLengths(VecX::Zero(numFrames));
-        for (VHandle vNeighbor : mesh.vv_range(v))
-        {
-            const MatX3& positionsNeighbor = mesh.data(vNeighbor).node->positions;
-            VecX edgeLengths = (positions - positionsNeighbor).rowwise().norm();
-            sumOfInverseEdgeLengths += edgeLengths.cwiseInverse();
-            const MatX3 displacementsNeighbor = (positionsNeighbor.rowwise() - positionsNeighbor.row(0)).array().colwise() / edgeLengths.array();
-            relativeDisplacements -= displacementsNeighbor;
-        }
-        relativeDisplacements.array().colwise() /= sumOfInverseEdgeLengths.array();
-        relativeDisplacements += positions.rowwise() - positions.row(0);
-        VecX weights = relativeDisplacements.rowwise().norm();
-        epicenters += MatX3(positions.array().colwise() * weights.array());
-        sumOfWeights += weights;
-    }
-    // for (FHandle f : mesh.faces())
+    // for (VHandle v : mesh.vertices())
     // {
-    //     MatX3 positions = mesh.data(*(mesh.fv_begin(f))).node->positions;
-    //     VecX strains = mesh.data(f).element->plasticStrains * mesh.calc_face_area(f);
-    //     for (uint frame = 0; frame < numFrames; frame++)
+    //     const MatX3& positions = mesh.data(v).node->positions;
+    //     MatX3 relativeDisplacements(MatX3::Zero(numFrames, 3));
+    //     VecX sumOfInverseEdgeLengths(VecX::Zero(numFrames));
+    //     for (VHandle vNeighbor : mesh.vv_range(v))
     //     {
-    //         epicenters.row(frame) += strains(frame) * positions.row(frame);
-    //         sumOfWeights(frame) += strains(frame);
+    //         const MatX3& positionsNeighbor = mesh.data(vNeighbor).node->positions;
+    //         VecX edgeLengths = (positions - positionsNeighbor).rowwise().norm();
+    //         sumOfInverseEdgeLengths += edgeLengths.cwiseInverse();
+    //         const MatX3 displacementsNeighbor = (positionsNeighbor.rowwise() - positionsNeighbor.row(0)).array().colwise() / edgeLengths.array();
+    //         relativeDisplacements -= displacementsNeighbor;
     //     }
+    //     relativeDisplacements.array().colwise() /= sumOfInverseEdgeLengths.array();
+    //     relativeDisplacements += positions.rowwise() - positions.row(0);
+    //     VecX weights = relativeDisplacements.rowwise().norm();
+    //     epicenters += MatX3(positions.array().colwise() * weights.array());
+    //     sumOfWeights += weights;
     // }
+    for (FHandle f : mesh.faces())
+    {
+        MatX3 positions = mesh.data(*(mesh.fv_begin(f))).node->positions;
+        VecX strains = mesh.data(f).element->plasticStrains * mesh.calc_face_area(f);
+        for (uint frame = 0; frame < numFrames; frame++)
+        {
+            epicenters.row(frame) += strains(frame) * positions.row(frame);
+            sumOfWeights(frame) += strains(frame);
+        }
+    }
     for (long frame = numFrames-1; frame >= 0; frame--)
     {
         // TODO more sensible value here
