@@ -13,26 +13,27 @@ using namespace erfh5;
 
 int main(int argc, char** argv)
 {
-    if (argc < 2)
+    if (argc < 3)
         return -1;
 
     vector<Part::Ptr> parts;
     std::string filename = argv[1];
-    Reader reader(filename);
+    uint maxFrames = atoi(argv[2]);
+    Reader reader(filename, maxFrames);
 
     if (!reader.readParts(parts))
     {
         Logger::lout(Logger::ERROR) << "\t\ttesting readParts() failed!" << endl;
         return -1;
     }
-    if (!SurfaceExtractor::extract(parts))
-    {
-        Logger::lout(Logger::ERROR) << "\t\ttesting SurfaceExtractor::extract() failed!" << endl;
-    }
-    if (argc == 3)
+    // if (!SurfaceExtractor::extract(parts))
+    // {
+    //     Logger::lout(Logger::ERROR) << "\t\ttesting SurfaceExtractor::extract() failed!" << endl;
+    // }
+    if (argc == 4)
     {
         int nFaces = 0;
-        if (argv[2][0] == 'e')
+        if (argv[3][0] == 'e')
         {
             Part::Ptr merged = std::make_shared<Part>(0, 0);
             merged->mesh = MeshBuilder::buildSingle(parts);
@@ -49,7 +50,7 @@ int main(int argc, char** argv)
         }
         else
         {
-            nFaces = atoi(argv[2]);
+            nFaces = atoi(argv[3]);
 
             if (!MeshBuilder::build(parts))
             {
@@ -97,7 +98,7 @@ int main(int argc, char** argv)
                 }
             }
             deci.useQuadric = true;
-            deci.framesQuadric = 10;
+            deci.framesQuadric = 15;
             deci.maxQuadricError = FLT_MAX;
             deci.quadricAreaWeighting = false; // this has no effect, as quadrics are used from previous decimation
             deci.quadricPositionOptimization = false;

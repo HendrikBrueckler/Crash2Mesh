@@ -31,12 +31,13 @@ In order of importance/urgency:
 [could be improved] HOW 2 HANDLE DAMPFWALZE (other than just throwing it out completely)
 [x] transfer normalcones from first decimation step over to global decimation
 [x] combine continuous normalcones with quadrics
-[ ] find better seed faces for floodFlip
-[ ] HOW 2 HANDLE FAILURE VECTOR
+[x] HOW 2 HANDLE FAILURE VECTOR
 
 [ ] update to newest easy3d version OR switch to OpenFlipper
 [ ] implement GUI for selecting important parts
 
+[ ] find better seed faces for floodFlip
+[ ] IMPROVE SPLITTING/DECIMATION OF NON-MANIFOLD ELEMENTS
 [ ] optimize performance of decimation algorithm
 [ ] optimize runtime of decimation algorithm
 

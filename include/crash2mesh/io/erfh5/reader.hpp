@@ -23,7 +23,7 @@ class Reader
      *
      * @param filename name of file to read from
      */
-    Reader(const std::string& filename);
+    Reader(const std::string& filename, uint _maxFrames = 100);
 
     size_t getNumStates() const;
 
@@ -91,6 +91,44 @@ class Reader
      */
     bool readIdentifiers(const FEGenericType& feGenType, std::map<entid_t, entid_t>& id2userid) const;
 
+    // TODO
+    std::vector<std::string> getStates() const;
+
+    // TODO
+    template <typename ID_T>
+    bool readPerStateActivFlags(const FEType& elemType,
+                                std::map<ID_T, std::vector<bool>>& entityIDToActivFlags) const
+    {
+        std::vector<std::string> states = getStates();
+
+        std::vector<std::vector<ID_T>> perStateEntityIDs(states.size());
+        std::set<ID_T> allInactiveElements;
+        size_t numInactive = allInactiveElements.size();
+        for (size_t stateIndex = 0; stateIndex < states.size(); stateIndex++)
+        {
+            std::string state = states[stateIndex];
+            std::string inactiveIDPath(elemType.pathToPerStateActivFlags(state));
+
+            if (readData(inactiveIDPath, perStateEntityIDs[stateIndex]))
+            {
+                std::copy(perStateEntityIDs[stateIndex].begin(), perStateEntityIDs[stateIndex].end(), std::inserter(allInactiveElements, allInactiveElements.end()));
+            }
+        }
+
+        for (ID_T entityID: allInactiveElements)
+        {
+            entityIDToActivFlags[entityID] = std::vector<bool>(states.size(), true);
+        }
+
+        for (size_t stateIndex = 0; stateIndex < states.size(); stateIndex++)
+        {
+            for (uint i = 0; i < perStateEntityIDs[stateIndex].size(); i++)
+            {
+                entityIDToActivFlags[perStateEntityIDs[stateIndex][i]][stateIndex] = false;
+            }
+        }
+    }
+
   private:
     /**
      * @brief Auxiliary function to read all state-dependent results for a given finite element type and result type
@@ -108,12 +146,7 @@ class Reader
                              const ResultType& resultType,
                              std::map<ID_T, Mat<Scalar, Dynamic, DIM>>& entityIDToAllResults) const
     {
-        std::vector<std::string> states = {};
-        if (m_file.exist(Group::SINGLESTATE.path()))
-        {
-            HighFive::Group singlestateGroup = m_file.getGroup(Group::SINGLESTATE.path());
-            states = singlestateGroup.listObjectNames();
-        }
+        std::vector<std::string> states = getStates();
 
         std::vector<ID_T> entityIDs;
         Mat<Scalar, Dynamic, DIM> results = Mat<Scalar, Dynamic, DIM>::Zero(entityIDs.size(), DIM);
@@ -128,7 +161,7 @@ class Reader
             if ((entityIDs.empty() && !readData(entityIDPath, entityIDs)) || !readData(resultPath, results)
                 || entityIDs.empty() || results.rows() != static_cast<long>(entityIDs.size()))
             {
-                logFileInfo(Logger::ERROR,
+                logFileInfo(Logger::WARN,
                             "Could not read per-state results",
                             elemType.pathToPerStateResults(state, resultType));
                 return false;
@@ -161,12 +194,7 @@ class Reader
                                  const ResultType& resultType,
                                  std::map<ID_T, Mat<Scalar, Dynamic, DIM>>& entityIDToAllResults) const
     {
-        std::vector<std::string> states = {};
-        if (m_file.exist(Group::SINGLESTATE.path()))
-        {
-            HighFive::Group singlestateGroup = m_file.getGroup(Group::SINGLESTATE.path());
-            states = singlestateGroup.listObjectNames();
-        }
+        std::vector<std::string> states = getStates();
 
         std::vector<std::vector<ID_T>> perStateEntityIDs(states.size());
         std::vector<Mat<Scalar, Dynamic, DIM>> perStateResults(states.size());
@@ -179,13 +207,26 @@ class Reader
 
             if (!readData(entityIDPath, perStateEntityIDs[stateIndex]))
             {
-                logFileInfo(Logger::ERROR,
+                logFileInfo(Logger::WARN,
                             "Could not read per-state entity IDs",
                             elemType.pathToPerStateResults(state, resultType));
                 return false;
             }
             std::copy(perStateEntityIDs[stateIndex].begin(), perStateEntityIDs[stateIndex].end(), std::inserter(allEntityIDs, allEntityIDs.end()));
         }
+        
+        // std::vector<ID_T> inactiveElements;
+        // std::set<ID_T> allInactiveElements;
+        // size_t numInactive = allEntityIDs.size();
+        // for (size_t stateIndex = 0; stateIndex < states.size(); stateIndex++)
+        // {
+        //     std::string state = states[stateIndex];
+        //     std::string inactiveIDPath(elemType.pathToPerStateActivFlags(state));
+
+        //     readData(inactiveIDPath, inactiveElements);
+        //     std::copy(inactiveElements.begin(), inactiveElements.end(), std::inserter(allInactiveElements, allInactiveElements.end()));
+        //     inactiveElements.clear();
+        // }
 
         for (size_t stateIndex = 0; stateIndex < states.size(); stateIndex++)
         {
@@ -194,7 +235,7 @@ class Reader
 
             if (!readData(resultPath, perStateResults[stateIndex]) || perStateResults[stateIndex].rows() != static_cast<long>(perStateEntityIDs[stateIndex].size()))
             {
-                logFileInfo(Logger::ERROR,
+                logFileInfo(Logger::WARN,
                             "Could not read per-state results",
                             elemType.pathToPerStateResults(state, resultType));
                 return false;
@@ -213,6 +254,19 @@ class Reader
                 entityIDToAllResults[perStateEntityIDs[stateIndex][i]].row(stateIndex) = perStateResults[stateIndex].row(i);
             }
         }
+
+        // // TODO handle this properly
+        // for (ID_T entityID: allInactiveElements)
+        // {
+        //     entityIDToAllResults.erase(entityID);
+        // }
+
+        // if (!allInactiveElements.empty())
+        // {
+        //     logFileInfo(Logger::WARN,
+        //                 "Discarded " + std::to_string(allInactiveElements.size()) + " (partly) deactivated elements of generic type " + elemType.genericType.name,
+        //                 elemType.pathToPerStateActivFlags("stateXXX"));
+        // }
 
         return true;
     }
@@ -281,6 +335,7 @@ class Reader
     void logFileInfo(Logger::Level severity, const std::string& msg) const;
 
     H5File m_file; //!< ERF-HDF5 file handle
+    uint m_maxFrames;
 };
 
 } // namespace erfh5

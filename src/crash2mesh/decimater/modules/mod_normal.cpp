@@ -34,7 +34,7 @@ void ModNormal::initialize()
         }
         else
         {
-            if (mesh_.data(f).normalCones.size() != num_frames())
+            if (mesh_.data(f).normalCones.size() != frame_seq().size())
             {
                 throw std::logic_error("Unexpected number of normalCones per vertex (!= number of frames).");
             }
@@ -57,8 +57,10 @@ void ModNormal::initialize()
         const MatX3& positions1 = mesh_.data(*(fv_it++)).node->positions;
         const MatX3& positions2 = mesh_.data(*fv_it).node->positions;
         std::vector<NormalCone> normalCones;
-        for (uint frame = 0; frame < num_frames(); frame++)
+        std::vector<uint> frames(frame_seq());
+        for (size_t i = 0; i < frames.size(); i++)
         {
+            uint frame = frames[i];
             Vec3 p0(positions0.row(frame).transpose());
             Vec3 p1(positions1.row(frame).transpose());
             Vec3 p2(positions2.row(frame).transpose());
@@ -80,55 +82,58 @@ float ModNormal::collapse_priority(const CollapseInfo& _ci)
     float priority(0.0f);
     Mesh::ConstVertexFaceIter vf_it(mesh_, _ci.v0);
     Mesh::FaceHandle fh, fhl, fhr;
+    Mesh::FaceVertexCCWIter fv_it;
 
     if (_ci.v0vl.is_valid())
         fhl = mesh_.face_handle(_ci.v0vl);
     if (_ci.vrv0.is_valid())
         fhr = mesh_.face_handle(_ci.vrv0);
 
+    std::vector<uint> frames(frame_seq());
+    std::vector<NormalCone> nc;
+    const MatX3 *positions0, *positions1, *positions2;
     for (; vf_it.is_valid(); ++vf_it)
     {
         fh = *vf_it;
         if (fh == _ci.fl || fh == _ci.fr)
             continue;
 
-        std::vector<NormalCone> nc = mesh_.data(fh).normalCones;
-        Mesh::FaceVertexCCWIter fv_it = mesh_.fv_ccwbegin(fh);
+        nc = mesh_.data(fh).normalCones;
+        fv_it = mesh_.fv_ccwbegin(fh);
         // simulate position change
-        const MatX3& positions0
-            = (*fv_it == _ci.v0) ? mesh_.data(_ci.v1).node->positions : mesh_.data(*fv_it).node->positions;
+        positions0
+            = (*fv_it == _ci.v0) ? &mesh_.data(_ci.v1).node->positions : &mesh_.data(*fv_it).node->positions;
         fv_it++;
-        const MatX3& positions1
-            = (*fv_it == _ci.v0) ? mesh_.data(_ci.v1).node->positions : mesh_.data(*fv_it).node->positions;
+        positions1
+            = (*fv_it == _ci.v0) ? &mesh_.data(_ci.v1).node->positions : &mesh_.data(*fv_it).node->positions;
         fv_it++;
-        const MatX3& positions2
-            = (*fv_it == _ci.v0) ? mesh_.data(_ci.v1).node->positions : mesh_.data(*fv_it).node->positions;
+        positions2
+            = (*fv_it == _ci.v0) ? &mesh_.data(_ci.v1).node->positions : &mesh_.data(*fv_it).node->positions;
         fv_it++;
-        std::vector<uint> frames(frame_seq());
         for (size_t i = 0; i < frames.size(); i++)
         {
             uint frame = frames[i];
-            OMVec3 n = face_normal(positions0.row(frame).transpose(),
-                                   positions1.row(frame).transpose(),
-                                   positions2.row(frame).transpose());
-            nc[frame].merge(NormalCone(n, nc[frame].max_angle()));
+            OMVec3 n = face_normal(positions0->row(frame).transpose(),
+                                   positions1->row(frame).transpose(),
+                                   positions2->row(frame).transpose());
+            nc[i].merge(NormalCone(n, nc[i].max_angle()));
             if (fh == fhl)
-                nc[frame].merge(mesh_.data(_ci.fl).normalCones[frame]);
+                nc[i].merge(mesh_.data(_ci.fl).normalCones[i]);
             if (fh == fhr)
-                nc[frame].merge(mesh_.data(_ci.fr).normalCones[frame]);
+                nc[i].merge(mesh_.data(_ci.fr).normalCones[i]);
 
             // Legality
-            if (nc[frame].angle() > max_angle)
+            if (nc[i].angle() > max_angle)
             {
-                max_angle = nc[frame].angle();
-                if (max_angle > 0.5 * nc[frame].max_angle())
+                max_angle = nc[i].angle();
+                if (max_angle > 0.5 * nc[i].max_angle())
                     return float(Base::ILLEGAL_COLLAPSE);
             }
             // Priority (weighted by distance 2 epicenter factor)
-            float dist2epifactor = nc[frame].max_angle() / max_normal_deviation_;
-            if (nc[frame].angle() / dist2epifactor > priority)
+            float dist2epifactor = nc[i].max_angle() / max_normal_deviation_;
+            if (nc[i].angle() / dist2epifactor > priority)
             {
-                priority = nc[frame].angle() / dist2epifactor;
+                priority = nc[i].angle() / dist2epifactor;
             }
         }
     }

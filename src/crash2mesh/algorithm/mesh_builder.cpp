@@ -50,8 +50,8 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
         // sortFromNonManifoldPaths(nMfPaths, allTriangles, edgeTriangleIndices);
 
         CMesh& mesh = partptr->mesh;
-
         assembleMeshFromTriangles(mesh, allTriangles, sortedTriangles, validTriangles, invalidTriangles);
+        despike(mesh);
 
         meshes++;
     }
@@ -110,6 +110,7 @@ CMesh MeshBuilder::buildSingle(vector<Part::Ptr>& parts, bool deleteMeshedElemen
 
     CMesh mesh;
     assembleMeshFromTriangles(mesh, allTriangles, sortedTriangles, validTriangles, invalidTriangles);
+    despike(mesh);
 
     Logger::lout(Logger::INFO) << "Non-manifold triangles: " << invalidTriangles
                                << ", valid triangles: " << validTriangles << std::endl;
@@ -142,6 +143,7 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
             smesh.data(vs).node = pmesh.data(v).node;
             smesh.data(vs).quadrics = pmesh.data(v).quadrics;
             smesh.data(vs).duplicate = VHandle();
+            smesh.data(vs).mustRemove = pmesh.data(v).mustRemove;
             smesh.data(vs).fixed = false;
         }
 
@@ -188,25 +190,27 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
     smesh.delete_isolated_vertices();
     smesh.garbage_collection();
 
-    map<Node::Ptr, vector<VHandle>> node2duplicates;
-    for (const VHandle& v : smesh.vertices())
-    {
-        node2duplicates[smesh.data(v).node].emplace_back(v);
-    }
-    for (const auto kv : node2duplicates)
-    {
-        const vector<VHandle>& duplicates = kv.second;
-        if (duplicates.size() < 2)
-        {
-            continue;
-        }
-        for (uint i = 0; i < duplicates.size(); i++)
-        {
-            smesh.data(duplicates[i]).duplicate = duplicates[(i + 1) % duplicates.size()];
-            smesh.data(duplicates[i]).fixed = true;
-        }
-        smesh.data(duplicates.front()).fixed = false;
-    }
+    relink(smesh);
+
+    // map<Node::Ptr, vector<VHandle>> node2duplicates;
+    // for (const VHandle& v : smesh.vertices())
+    // {
+    //     node2duplicates[smesh.data(v).node].emplace_back(v);
+    // }
+    // for (const auto kv : node2duplicates)
+    // {
+    //     const vector<VHandle>& duplicates = kv.second;
+    //     if (duplicates.size() < 2)
+    //     {
+    //         continue;
+    //     }
+    //     for (uint i = 0; i < duplicates.size(); i++)
+    //     {
+    //         smesh.data(duplicates[i]).duplicate = duplicates[(i + 1) % duplicates.size()];
+    //         smesh.data(duplicates[i]).fixed = true;
+    //     }
+    //     smesh.data(duplicates.front()).fixed = false;
+    // }
 
     return scene;
 
@@ -438,6 +442,7 @@ VHandle MeshBuilder::getDuplicate(VHandle& v, map<VHandle, VHandle>& orig2dupe, 
         mesh.data(duplicate).node = mesh.data(v).node;
         mesh.data(duplicate).quadrics = mesh.data(v).quadrics;
         mesh.data(duplicate).duplicate = mesh.data(v).duplicate;
+        mesh.data(duplicate).mustRemove = mesh.data(v).mustRemove;
         mesh.data(duplicate).fixed = true;
         mesh.status(duplicate).set_fixed_nonmanifold(true);
         orig2dupe[v] = duplicate;
@@ -485,6 +490,7 @@ void MeshBuilder::assembleMeshFromTriangles(CMesh& mesh,
                 nodeToVertex[nodeptr->ID] = v;
                 mesh.data(v).node = nodeptr;
                 mesh.data(v).fixed = false;
+                mesh.data(v).mustRemove = false;
                 mesh.data(v).duplicate = VHandle();
                 vertices.emplace_back(v);
             }
@@ -557,28 +563,42 @@ void MeshBuilder::assembleMeshFromTriangles(CMesh& mesh,
     mesh.delete_isolated_vertices();
     mesh.garbage_collection();
 
+    relink(mesh);
+}
+
+void MeshBuilder::despike(CMesh& mesh)
+{
+    // TODO do this properly
+}
+
+
+void MeshBuilder::relink(CMesh& mesh)
+{
     map<Node::Ptr, vector<VHandle>> node2duplicates;
     for (const VHandle& v : mesh.vertices())
     {
-        if (mesh.data(v).fixed)
-        {
+        // if (mesh.data(v).fixed || mesh.data(v).node->referencingParts > 1 ||  mesh.data(v).duplicate.is_valid())
+        // {
             node2duplicates[mesh.data(v).node].emplace_back(v);
-        }
+        // }
     }
     for (const auto kv : node2duplicates)
     {
         const vector<VHandle>& duplicates = kv.second;
-        if (duplicates.size() < 2)
+        if (duplicates.size() == 1)
         {
-            throw std::logic_error("Incomplete duplicate chain!");
+            mesh.data(duplicates.front()).duplicate = VHandle();
+            mesh.data(duplicates.front()).fixed = false;
+            continue;
         }
         for (uint i = 0; i < duplicates.size(); i++)
         {
             mesh.data(duplicates[i]).duplicate = duplicates[(i + 1) % duplicates.size()];
+            mesh.data(duplicates[i]).fixed = true;
         }
         mesh.data(duplicates.front()).fixed = false;
     }
-#ifndef NDEBUG
+#if 1
     for (VHandle v : mesh.vertices())
     {
         VHandle dupe = mesh.data(v).duplicate;

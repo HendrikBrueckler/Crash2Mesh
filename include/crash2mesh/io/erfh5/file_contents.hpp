@@ -24,6 +24,7 @@ class Group
     const static Group SINGLESTATE;             ///< subfolder containing time-variant variables/results
     const static Group STATE_TEMPLATE;          ///< subsubfolder template for each state of the time-series
     const static Group ENTITYRESULTS_PER_STATE; ///< subsubsubfolder template containing float-type results of one state
+    const static Group ACTIVFLAGS_PER_STATE;    ///< subsubsubfolder template containing float-type results of one state
 
     const Group* const parent; ///< the parent directory
     const std::string name;    ///< the directories name
@@ -57,6 +58,7 @@ class ResultType
     const static ResultType SPACE_DOMAIN;               ///< Subdomain of space a finite element belongs to
     const static ResultType COORDINATE;                 ///< Coordinate of a finite element
     const static ResultType DISPLACEMENT;               ///< Displacement of a finite element
+    const static ResultType FAILSTATE;                  ///< Failure state of a node
     const static ResultType PLASTIC_STRAIN;             ///< plastic strain of a finite element
     const static ResultType MIN_PLASTIC_STRAIN;         ///< minimum plastic strain of a finite element
     const static ResultType MAX_PLASTIC_STRAIN;         ///< maximum plastic strain of a finite element
@@ -296,6 +298,14 @@ class FEType
      */
     std::string
     pathToPerStateResults(const std::string& state, const ResultType& resultType, const DataType& dataType) const;
+
+    /**
+     * @brief Returns the path within an ERF-HDF5 file containing the state-dependant (variant) activity flags
+     *
+     * @param state The name of the state to query
+     * @return std::string path to results
+     */
+    std::string pathToPerStateActivFlags(const std::string& state) const;
 
   private:
     /**

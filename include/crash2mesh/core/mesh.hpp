@@ -23,6 +23,7 @@ struct MeshTraits : public OpenMesh::DefaultTraits
     {
         Node::Ptr node; //< Finite Element node belonging to a vertex
         bool fixed; //< Whether this vertex is a fixated fixed non-manifold vertex
+        bool mustRemove; //< Whether this is a noise/spike vertex that must be removed
         typename Refs::VertexHandle duplicate; //< Cyclic fixed non-manifold vertex list
         std::vector<Quadric> quadrics; //< Error quadrics accumulated in QuadricDecimationModule
     };

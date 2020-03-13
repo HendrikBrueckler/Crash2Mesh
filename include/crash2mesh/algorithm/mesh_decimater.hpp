@@ -113,8 +113,9 @@ class MeshDecimater
      * @param nFaces the number of faces to achieve
      * @param nVertices the number of vertices to achieve
      * @param puid part user id of part to be decimated
+     * @param forceRemove whether force removal of faces connected to vertices that need to be forcibly removed
      */
-    void decimate(CMesh& mesh, uint nFaces, uint nVertices = 0, entid_t puid = 0) const;
+    void decimate(CMesh& mesh, uint nFaces, uint nVertices = 0, entid_t puid = 0, bool forceRemove = false) const;
 
     /**
      * @brief Logs the mesh info if number of vertices satisfies the internal bounds.

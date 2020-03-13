@@ -194,14 +194,14 @@ void ModQuadric::initialize(void)
                 throw std::logic_error("Some quadrics allocated, others aren't, can't handle this.");
             }
 #ifdef C2M_PROB_QUADRICS
-            mesh_.data(v).quadrics = vector<Quadric>(num_frames(), Mat4::Zero());
+            mesh_.data(v).quadrics = vector<Quadric>((optimize_position_ ? num_frames() : frame_seq().size()), Mat4::Zero());
 #else
-            mesh_.data(v).quadrics = vector<Quadric>(num_frames(), Quadric());
+            mesh_.data(v).quadrics = vector<Quadric>(optimize_position_ ? num_frames() : frame_seq().size(), Quadric());
 #endif
         }
         else
         {
-            if (mesh_.data(v).quadrics.size() != num_frames())
+            if (mesh_.data(v).quadrics.size() != (optimize_position_ ? num_frames() : frame_seq().size()))
             {
                 throw std::logic_error("Unexpected number of quadrices per vertex (!= number of frames).");
             }
@@ -238,6 +238,21 @@ void ModQuadric::initialize(void)
         vh[2] = mesh_.from_vertex_handle(*fh_it);
 
         vector<uint> frames(frame_seq());
+
+        // DO NOT INCLUDE FAILED FACES
+        bool skip = false;
+        for (size_t frame = 0; frame < mesh_.data(*f_it).element->active.size(); frame++)
+        {
+            // TODO do this properly
+            if (!mesh_.data(*f_it).element->active[frame])
+            {
+                skip = true;
+                break;
+            }
+        }
+        if (skip)
+            continue;
+
         for (size_t i = 0; i < (optimize_position_ ? num_frames() : frames.size()); i++)
         {
             uint frame = (optimize_position_ ? i : frames[i]);
@@ -248,16 +263,16 @@ void ModQuadric::initialize(void)
 
             // Sum face quadrices up at each corner vertex
             for (uint j = 0; j < 3; j++)
-            {
-                mesh_.data(vh[j]).quadrics[frame] += calc_face_quadric(frame, points[0], points[1], points[2]);
+            {                
+                mesh_.data(vh[j]).quadrics[i] += calc_face_quadric(frame, points[0], points[1], points[2]);
             }
 
             // Sum edge quadrices up at both edge vertices
             for (uint j = 0; j < 3; j++)
             {
                 Quadric qEdge = calc_edge_quadric(heh[j], frame, points[j], points[(j + 1) % 3], points[(j + 2) % 3]);
-                mesh_.data(vh[j]).quadrics[frame] += qEdge;
-                mesh_.data(vh[(j + 1) % 3]).quadrics[frame] += qEdge;
+                mesh_.data(vh[j]).quadrics[i] += qEdge;
+                mesh_.data(vh[(j + 1) % 3]).quadrics[i] += qEdge;
             }
         }
     }
@@ -275,7 +290,7 @@ float ModQuadric::collapse_priority(const CollapseInfo& _ci)
     for (size_t i = 0; i < frames.size(); i++)
     {
         uint frame = frames[i];
-        Quadric q = quadricsRemaining[frame] + quadricsRemoved[frame];
+        Quadric q = quadricsRemaining[(optimize_position_ ? frame : i)] + quadricsRemoved[(optimize_position_ ? frame : i)];
         Vec3 optPos = positions.row(frame).transpose();
         if (optimize_position_ && !mesh_.status(_ci.v1).locked() && !mesh_.data(_ci.v0).duplicate.is_valid()
             && !mesh_.data(_ci.v1).duplicate.is_valid())
@@ -302,7 +317,7 @@ void ModQuadric::postprocess_collapse(const CollapseInfo& _ci)
     const vector<Quadric>& quadricsRemoved = mesh_.data(_ci.v0).quadrics;
     vector<Quadric>& quadricsRemaining = mesh_.data(_ci.v1).quadrics;
     vector<uint> frames(frame_seq());
-    for (size_t frame = 0; frame < num_frames(); frame++)
+    for (size_t frame = 0; frame < quadricsRemoved.size(); frame++)
     {
         quadricsRemaining[frame] += quadricsRemoved[frame];
         // TODO check usefulness

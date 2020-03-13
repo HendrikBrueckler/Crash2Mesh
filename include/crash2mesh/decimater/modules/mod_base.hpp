@@ -32,7 +32,7 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
     }
 
     /**
-     * @brief How many frames will be evaluated by the module
+     * @brief How many frames exist in the model
      */
     uint num_frames() const
     {

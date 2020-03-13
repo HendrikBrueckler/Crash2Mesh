@@ -66,7 +66,7 @@ class Node : public FiniteElement
      * @param _ID node identifier
      * @param positions 3D positions
      */
-    Node(nodeid_t _ID, const MatX3& positions);
+    Node(nodeid_t _ID, const MatX3& _positions);
     const nodeid_t ID;     ///< A node's ID (not the same as FiniteElement::entityID)
     MatX3 positions;       ///< A node's positions
     uint referencingParts; ///< Number of parts referencing this vertex
@@ -82,6 +82,7 @@ class ConnectedElement : public FiniteElement
     using Ptr = std::shared_ptr<ConnectedElement>;
     virtual int dim() = 0;
     std::vector<Node::Ptr> nodes; ///< This elements connected nodes
+    std::vector<bool> active;     ///< Whether the element is active or inactive
 
   protected:
     /**
@@ -92,7 +93,7 @@ class ConnectedElement : public FiniteElement
      * @param _partID part identifier
      * @param _nodes connected nodes
      */
-    ConnectedElement(const erfh5::FEType& _type, partid_t _partID, const std::vector<Node::Ptr>& _nodes);
+    ConnectedElement(const erfh5::FEType& _type, partid_t _partID, const std::vector<Node::Ptr>& _nodes, const std::vector<bool>& _active);
 };
 
 /**
@@ -119,7 +120,7 @@ class Element1D : public ConnectedElement
      * @param _partID containing part identifier
      * @param _nodes connected nodes
      */
-    Element1D(elemid_t _ID, const erfh5::FEType& _type, partid_t _partID, const std::vector<Node::Ptr>& _nodes);
+    Element1D(elemid_t _ID, const erfh5::FEType& _type, partid_t _partID, const std::vector<Node::Ptr>& _nodes, const std::vector<bool>& _active);
 };
 
 /**
@@ -155,6 +156,7 @@ class Element2D : public ConnectedElement
               const erfh5::FEType& _type,
               partid_t _partID,
               const std::vector<Node::Ptr>& _nodes,
+              const std::vector<bool>& _active,
               float _plasticStrain0,
               const VecX& _plasticStrains);
 };
@@ -192,6 +194,7 @@ class Element3D : public ConnectedElement
               const erfh5::FEType& _type,
               partid_t _partID,
               const std::vector<Node::Ptr>& _nodes,
+              const std::vector<bool>& _active,
               float _ePlasticStrain0,
               const VecX& _ePlasticStrains);
 };

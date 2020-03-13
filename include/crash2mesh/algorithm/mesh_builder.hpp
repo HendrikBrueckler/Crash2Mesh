@@ -51,6 +51,12 @@ class MeshBuilder
      */
     static Scene::Ptr merge(std::vector<Part::Ptr>& parts, bool deleteMeshedElements = true);
 
+    // TODO
+    static void despike(CMesh& mesh);
+
+    // TODO
+    static void relink(CMesh& mesh);
+    
   private:
     /**
      * @brief Simple edge representation for internal detection of connected faces,

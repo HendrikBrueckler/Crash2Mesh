@@ -21,7 +21,7 @@ using std::set;
 using std::string;
 using std::vector;
 
-Reader::Reader(const std::string& filename) : m_file(filename)
+Reader::Reader(const std::string& filename, uint _maxFrames) : m_file(filename), m_maxFrames(_maxFrames)
 {
 }
 
@@ -39,7 +39,8 @@ size_t Reader::getNumStates() const
 {
     if (m_file.exist(Group::SINGLESTATE.path()))
     {
-        return m_file.getGroup(Group::SINGLESTATE.path()).getNumberObjects();
+        return std::min(static_cast<size_t>(m_maxFrames),
+                        m_file.getGroup(Group::SINGLESTATE.path()).getNumberObjects());
     }
     return 0;
 }
@@ -170,18 +171,33 @@ bool Reader::readNodes(map<nodeid_t, Node::Ptr>& nodeIDToNode) const
     map<nodeid_t, MatX3> nodeDisplacements;
     if (numStates > 0 && !readPerStateResults(FEType::NODE, ResultType::DISPLACEMENT, nodeDisplacements))
     {
-        logFileInfo(Logger::ERROR,
+        logFileInfo(Logger::WARN,
                     "Could not read node displacements, aborting reading of nodes",
                     FEType::NODE.pathToPerStateResults("stateXXX", ResultType::DISPLACEMENT));
-        return false;
     }
 
-    Logger::lout(Logger::DEBUG) << "Finished reading displacements, now generating c2m::Nodes from data..." << std::endl;
+    // map<nodeid_t, VecX> nodeFailstates;
+    // if (numStates > 0)
+    // {
+    //     readPerStateResults(FEType::NODE, ResultType::FAILSTATE, nodeFailstates);
+    // }
+
+    Logger::lout(Logger::DEBUG) << "Finished reading displacements, now generating c2m::Nodes from data..."
+                                << std::endl;
 
     for (uint i = 0; i < nodeIDs.size(); i++)
     {
-        MatX3 positions = nodeDisplacements[nodeIDs[i]].rowwise() + nodeCoordinates.row(i);
-        nodeDisplacements.erase(nodeIDs[i]);
+        auto itDisp = nodeDisplacements.find(nodeIDs[i]);
+        MatX3 positions;
+        if (itDisp->second.rows() < 1)
+        {
+            positions = MatX3::Zero(numStates == 0 ? 1 : numStates, 3);
+        }
+        else
+        {
+            positions = itDisp->second.rowwise() + nodeCoordinates.row(i);
+            nodeDisplacements.erase(itDisp);
+        }
         nodeIDToNode[nodeIDs[i]] = std::make_shared<Node>(nodeIDs[i], positions);
     }
 
@@ -200,6 +216,9 @@ bool Reader::read1DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
         return false;
     }
 
+    size_t numStates = getNumStates();
+
+    map<const FEGenericType*, map<elemid_t, std::vector<bool>>> genTypeToActivFlags;
     for (const FEType* elemType : Element1D::allTypes)
     {
         vector<elemid_t> elementIDs;
@@ -211,14 +230,28 @@ bool Reader::read1DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             continue;
         }
 
+        const FEGenericType* genericType(&elemType->genericType);
+        if (genTypeToActivFlags.find(genericType) == genTypeToActivFlags.end())
+        {
+            if (numStates > 0)
+            {
+                readPerStateActivFlags(*elemType, genTypeToActivFlags[genericType]);
+            }
+        }
+
         for (uint i = 0; i < elementIDs.size(); i++)
         {
             vector<Node::Ptr> nodes;
+            std::vector<bool> activFlags(genTypeToActivFlags[genericType][elementIDs[i]]);
             for (nodeid_t nodeID : nodeIDs[i])
-                nodes.emplace_back(nodeIDToNode.at(nodeID));
+            {
+                Node::Ptr& node = nodes.emplace_back(nodeIDToNode.at(nodeID));
+            }
+
+            // TODO clear right here ?
 
             partIDTo1DElements[partIDs[i]].emplace_back(
-                std::make_shared<Element1D>(elementIDs[i], *elemType, partIDs[i], nodes));
+                std::make_shared<Element1D>(elementIDs[i], *elemType, partIDs[i], nodes, activFlags));
         }
 
         logFileInfo(Logger::INFO,
@@ -247,6 +280,7 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
     size_t numStates = getNumStates();
 
     map<const FEGenericType*, map<elemid_t, VecX>> genTypeToPlasticStrains;
+    map<const FEGenericType*, map<elemid_t, std::vector<bool>>> genTypeToActivFlags;
     for (const FEType* elemType : Element2D::allTypes)
     {
         vector<elemid_t> elementIDs;
@@ -262,13 +296,20 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
         if (genTypeToPlasticStrains.find(genericType) == genTypeToPlasticStrains.end())
         {
             if (numStates > 0
-                && !readPerStateResultsSAFE(*elemType, ResultType::PLASTIC_STRAIN, genTypeToPlasticStrains[genericType]))
+                && !readPerStateResultsSAFE(
+                       *elemType, ResultType::PLASTIC_STRAIN, genTypeToPlasticStrains[genericType]))
             {
-                logFileInfo(Logger::ERROR,
+                logFileInfo(Logger::WARN,
                             "Could not read 2D element plastic strains",
                             elemType->pathToPerStateResults("stateXXX", ResultType::PLASTIC_STRAIN));
-                partIDTo2DElements.clear();
-                return false;
+            }
+        }
+
+        if (genTypeToActivFlags.find(genericType) == genTypeToActivFlags.end())
+        {
+            if (numStates > 0)
+            {
+                readPerStateActivFlags(*elemType, genTypeToActivFlags[genericType]);
             }
         }
 
@@ -294,25 +335,35 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             int numCorners = actualElemType->family.numCorners;
             nodeIDs[i].erase(nodeIDs[i].begin() + numCorners, nodeIDs[i].end());
 
-            if (nodeIDs.size() < 3 || nodeIDs[i][0] == nodeIDs[i][1] || nodeIDs[i][0] == nodeIDs[i][2] || nodeIDs[i][1] == nodeIDs[i][2])
+            if (nodeIDs.size() < 3 || nodeIDs[i][0] == nodeIDs[i][1] || nodeIDs[i][0] == nodeIDs[i][2]
+                || nodeIDs[i][1] == nodeIDs[i][2])
             {
                 continue;
             }
 
+            std::vector<bool> activFlags(genTypeToActivFlags[genericType][elementIDs[i]]);
             vector<Node::Ptr> nodes;
             for (nodeid_t nodeID : nodeIDs[i])
             {
-                nodes.emplace_back(nodeIDToNode.at(nodeID));
+                Node::Ptr& node = nodes.emplace_back(nodeIDToNode.at(nodeID));
             }
+            // TODO clear right here ?
+
 
             VecX& plasticStrains(genTypeToPlasticStrains[genericType][elementIDs[i]]);
             if (plasticStrains.size() == 0)
             {
                 missingStrains++;
-                plasticStrains = VecX::Zero(numStates);
+                plasticStrains = VecX::Zero(numStates == 0 ? 1 : numStates);
             }
             partIDTo2DElements[partIDs[i]].emplace_back(
-                std::make_shared<Element2D>(elementIDs[i], *actualElemType, partIDs[i], nodes, plasticStrains(0), plasticStrains.array() - plasticStrains(0)));
+                std::make_shared<Element2D>(elementIDs[i],
+                                            *actualElemType,
+                                            partIDs[i],
+                                            nodes,
+                                            activFlags,
+                                            plasticStrains(0),
+                                            plasticStrains.array() - plasticStrains(0)));
         }
 
         if (missingStrains != 0)
@@ -349,6 +400,7 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
     uint numStates = getNumStates();
 
     map<const FEGenericType*, map<elemid_t, VecX>> genTypeToPlasticStrains;
+    map<const FEGenericType*, map<elemid_t, std::vector<bool>>> genTypeToActivFlags;
     for (const FEType* elemType : Element3D::allTypes)
     {
         vector<elemid_t> elementIDs;
@@ -367,11 +419,17 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
                 && !readPerStateResultsSAFE(
                        *elemType, ResultType::EQUIVALENT_PLASTIC_STRAIN, genTypeToPlasticStrains[genericType]))
             {
-                logFileInfo(Logger::ERROR,
+                logFileInfo(Logger::WARN,
                             "Could not read 3D element equivalent plastic strains",
                             elemType->pathToPerStateResults("stateXXX", ResultType::EQUIVALENT_PLASTIC_STRAIN));
-                partIDTo3DElements.clear();
-                return false;
+            }
+        }
+
+        if (genTypeToActivFlags.find(genericType) == genTypeToActivFlags.end())
+        {
+            if (numStates > 0)
+            {
+                readPerStateActivFlags(*elemType, genTypeToActivFlags[genericType]);
             }
         }
 
@@ -379,17 +437,27 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
         for (uint i = 0; i < elementIDs.size(); i++)
         {
             vector<Node::Ptr> nodes;
+            std::vector<bool> activFlags(genTypeToActivFlags[genericType][elementIDs[i]]);
             for (nodeid_t nodeID : nodeIDs[i])
-                nodes.emplace_back(nodeIDToNode.at(nodeID));
+            {
+                Node::Ptr& node = nodes.emplace_back(nodeIDToNode.at(nodeID));
+            }
+            // TODO clear right here ?
 
             VecX& plasticStrains(genTypeToPlasticStrains[genericType][elementIDs[i]]);
             if (plasticStrains.size() == 0)
             {
                 missingStrains++;
-                plasticStrains = VecX::Zero(numStates);
+                plasticStrains = VecX::Zero(numStates == 0 ? 1 : numStates);
             }
             partIDTo3DElements[partIDs[i]].emplace_back(
-                std::make_shared<Element3D>(elementIDs[i], *elemType, partIDs[i], nodes, plasticStrains(0), plasticStrains.array() - plasticStrains(0)));
+                std::make_shared<Element3D>(elementIDs[i],
+                                            *elemType,
+                                            partIDs[i],
+                                            nodes,
+                                            activFlags,
+                                            plasticStrains(0),
+                                            plasticStrains.array() - plasticStrains(0)));
         }
 
         if (missingStrains != 0)
@@ -441,7 +509,7 @@ bool Reader::readIdentifiers(const FEGenericType& feGenType, std::map<entid_t, e
     if (!readData(entityIDPath, entityIDs) || !readData(userIDPath, userIDs) || entityIDs.size() == 0
         || userIDs.size() != entityIDs.size())
     {
-        logFileInfo(Logger::ERROR, "Could not read identifiers", feGenType.pathToIdentifiers());
+        logFileInfo(Logger::WARN, "Could not read identifiers", feGenType.pathToIdentifiers());
         return false;
     }
 
@@ -451,6 +519,31 @@ bool Reader::readIdentifiers(const FEGenericType& feGenType, std::map<entid_t, e
     }
 
     return true;
+}
+
+std::vector<std::string> Reader::getStates() const
+{
+    std::vector<std::string> allStates = {};
+    if (m_file.exist(Group::SINGLESTATE.path()))
+    {
+        HighFive::Group singlestateGroup = m_file.getGroup(Group::SINGLESTATE.path());
+        allStates = singlestateGroup.listObjectNames();
+    }
+
+    float frameSkip = 0.0f;
+    if (m_maxFrames <= 1)
+    {
+        frameSkip = allStates.size();
+    }
+    else
+    {
+        frameSkip = std::max(1.0f, 1.0f / (m_maxFrames - 1) * (allStates.size() - 1));
+    }
+    std::vector<std::string> states;
+    for (float frameF = 0; frameF < allStates.size(); frameF += frameSkip)
+        states.emplace_back(allStates[std::floor(frameF)]);
+
+    return states;
 }
 
 } // namespace erfh5

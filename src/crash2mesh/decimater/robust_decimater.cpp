@@ -220,6 +220,20 @@ void RobustDecimater::heap_vertex(VHandle _vh)
         if (!this->is_multi_collapse_legal(v0Dupes, v1Dupes, ciDupes, true))
             continue;
 
+        bool skip = false;
+        for (VHandle v0Dupe: v0Dupes)
+        {
+            if (mesh_.data(v0Dupe).mustRemove)
+            {
+                best_prio = 0.0f;
+                collapse_target = heh;
+                skip = true;
+                break;
+            }
+        }
+        if (skip)
+            break;
+
         sumPrio = 0.0;
         for (const CollapseInfo& ciDupe : ciDupes)
         {

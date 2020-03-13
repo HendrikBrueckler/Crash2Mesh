@@ -1,6 +1,7 @@
 #include <crash2mesh/algorithm/mesh_decimater.hpp>
 
 #include <crash2mesh/algorithm/mesh_analyzer.hpp>
+#include <crash2mesh/algorithm/mesh_builder.hpp>
 #include <crash2mesh/decimater/modules/mod_boundary.hpp>
 #include <crash2mesh/decimater/modules/mod_normal.hpp>
 #include <crash2mesh/decimater/modules/mod_quadric.hpp>
@@ -155,7 +156,7 @@ bool MeshDecimater::decimateScene(Scene::Ptr scene, uint nFaces, uint nVertices)
     bool logged = log(mesh, true, false);
     bool rendered = render(mesh, true, false);
 
-    decimate(mesh, nFaces, nVertices);
+    decimate(mesh, nFaces, nVertices, 0, true);
 
     v_after += mesh.n_vertices();
     f_after += mesh.n_faces();
@@ -170,7 +171,7 @@ bool MeshDecimater::decimateScene(Scene::Ptr scene, uint nFaces, uint nVertices)
     return true;
 }
 
-void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t puid) const
+void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t puid, bool forceRemove) const
 {
     // Create decimater and decimation modules
     RobustDecimater decimater(mesh);
@@ -272,29 +273,36 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
         }
     }
 
-    // Prepare garbage collection
-    std::vector<VHandle> vs;
-    std::vector<VHandle*> vPtrs;
-    std::map<int, VHandle*> oldIdx2ptr;
-    std::vector<HEHandle*> trash1;
-    std::vector<FHandle*> trash2;
-
-    for (const VHandle& vh : mesh.vertices())
-        if (mesh.data(vh).duplicate.is_valid())
-            vs.emplace_back(vh);
-
-    for (VHandle& vh : vs)
+    // TODO FIX THIS
+    if (forceRemove)
     {
-        vPtrs.emplace_back(&vh);
-        oldIdx2ptr[vh.idx()] = &vh;
+        CMesh::FaceVertexIter fv_it;
+        VHandle v0, v1, v2;
+        for (FHandle f: mesh.faces())
+        {
+            if (mesh.status(f).deleted())
+                continue;
+            CMesh::FaceVertexIter fv_it = mesh.fv_begin(f);
+            v0 = *(fv_it++);
+            v1 = *(fv_it++);
+            v2 = *fv_it;
+            for (size_t frame = 0; frame < mesh.data(f).element->active.size(); frame++)
+            {
+                // TODO do this properly
+                if (!mesh.data(f).element->active[frame])
+                {
+                    mesh.delete_face(f, true);
+                    break;
+                }
+            }
+        }
     }
 
     // Do garbage collection
-    mesh.garbage_collection(vPtrs, trash1, trash2);
+    mesh.garbage_collection();
 
-    // Fix duplicate vertex handles, they lose validity when garbagecollecting
-    for (const VHandle& vh : vs)
-        mesh.data(vh).duplicate = *oldIdx2ptr[mesh.data(vh).duplicate.idx()];
+    // Relink duplicate chains
+    MeshBuilder::relink(mesh);
 }
 
 bool MeshDecimater::log(const CMesh& mesh, bool preDecimation, bool force, partid_t pid, entid_t uid) const
@@ -306,9 +314,13 @@ bool MeshDecimater::log(const CMesh& mesh, bool preDecimation, bool force, parti
 #endif
         Logger& lout = Logger::lout(Logger::INFO);
         if (preDecimation)
+        {
             lout << "Part " << pid << " (" << uid << ") Meshinfo before decimation:" << std::endl;
+        }
         else
+        {
             lout << "Part " << pid << " (" << uid << ") Meshinfo after decimation:" << std::endl;
+        }
         lout << MeshAnalyzer::getInfo(mesh).print();
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutLog.unlock();

@@ -20,7 +20,7 @@ std::string Group::path() const
     return m_path;
 }
 
-const Group Group::CSMEXPL(nullptr, "CSMEXPL");
+const Group Group::CSMEXPL(nullptr, "post");
 const Group Group::CONSTANT(&Group::CSMEXPL, "constant");
 const Group Group::CONNECTIVITIES(&Group::CONSTANT, "connectivities");
 const Group Group::ENTITYRESULTS_CONSTANT(&Group::CONSTANT, "entityresults");
@@ -28,6 +28,7 @@ const Group Group::IDENTIFIERS(&Group::CONSTANT, "identifiers");
 const Group Group::SINGLESTATE(&Group::CSMEXPL, "singlestate");
 const Group Group::STATE_TEMPLATE(&Group::SINGLESTATE, STATE_TEMPLATE_STRING);
 const Group Group::ENTITYRESULTS_PER_STATE(&Group::STATE_TEMPLATE, "entityresults");
+const Group Group::ACTIVFLAGS_PER_STATE(&Group::STATE_TEMPLATE, "activflags");
 
 ResultType::ResultType(const std::string& _name) : name(_name)
 {
@@ -36,6 +37,7 @@ ResultType::ResultType(const std::string& _name) : name(_name)
 const ResultType ResultType::SPACE_DOMAIN("Domain");
 const ResultType ResultType::COORDINATE("COORDINATE");
 const ResultType ResultType::DISPLACEMENT("Translational_Displacement");
+const ResultType ResultType::FAILSTATE("CRUP");
 const ResultType ResultType::PLASTIC_STRAIN("Membrane_Plastic_Strain");
 const ResultType ResultType::MIN_PLASTIC_STRAIN("Min_Plastic_Strain");
 const ResultType ResultType::MAX_PLASTIC_STRAIN("Max_Plastic_Strain");
@@ -150,6 +152,12 @@ FEType::pathToPerStateResults(const std::string& state, const ResultType& result
     std::string templatedPath = Group::ENTITYRESULTS_PER_STATE.path() + "/" + genericType.name + "/" + resultType.name
                                 + "/ZONE1_set1/erfblock/" + dataType.name;
     return pathToPerStateResults(state, resultType) + "/ZONE1_set1/erfblock/" + dataType.name;
+}
+
+std::string FEType::pathToPerStateActivFlags(const std::string& state) const
+{
+    std::string templatedPath = Group::ACTIVFLAGS_PER_STATE.path() + "/" + genericType.name + "/erfblock/" + DataType::ENTITY_IDS.name;
+    return std::regex_replace(templatedPath, std::regex(STATE_TEMPLATE_STRING), state);
 }
 
 // 0D
