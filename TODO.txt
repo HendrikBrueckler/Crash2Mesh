@@ -32,12 +32,12 @@ In order of importance/urgency:
 [x] transfer normalcones from first decimation step over to global decimation
 [x] combine continuous normalcones with quadrics
 [x] HOW 2 HANDLE FAILURE VECTOR
+[x] find better seed faces for floodFlip
+[x] IMPROVE SPLITTING/DECIMATION OF NON-MANIFOLD ELEMENTS
 
 [ ] update to newest easy3d version OR switch to OpenFlipper
 [ ] implement GUI for selecting important parts
 
-[ ] find better seed faces for floodFlip
-[ ] IMPROVE SPLITTING/DECIMATION OF NON-MANIFOLD ELEMENTS
 [ ] optimize performance of decimation algorithm
 [ ] optimize runtime of decimation algorithm
 

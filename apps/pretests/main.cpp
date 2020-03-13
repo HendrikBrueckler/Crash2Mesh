@@ -33,99 +33,80 @@ int main(int argc, char** argv)
     if (argc == 4)
     {
         int nFaces = 0;
-        if (argv[3][0] == 'e')
+        nFaces = atoi(argv[3]);
+
+        if (!MeshBuilder::build(parts))
         {
-            Part::Ptr merged = std::make_shared<Part>(0, 0);
-            merged->mesh = MeshBuilder::buildSingle(parts);
-
-            for (Part::Ptr& partptr : parts)
-                partptr->markElement1DNodes();
-
-            vector<Part::Ptr> dummyParts({merged});
-            if (!MeshDecimater::decimateSimple(dummyParts))
+            Logger::lout(Logger::ERROR) << "\t\ttesting mesh building failed!" << endl;
+            return -1;
+        }
+        MeshDecimater deci;
+        MeshAnalyzer::getEpicenter(parts, deci.epicenters, deci.meanDistsFromEpicenters);
+        deci.useQuadric = true;
+        deci.framesQuadric = 15;
+        deci.maxQuadricError = 10;
+        deci.quadricAreaWeighting = false;
+        deci.quadricPositionOptimization = false;
+        deci.quadricPostProcessOptimize = false;
+        deci.useNormalDeviation = true;
+        deci.framesNormalDeviation = deci.framesQuadric;
+        deci.maxNormalDeviation = 5;
+        deci.combineQuadricNormal = true;
+        deci.useBoundaryDeviation = true;
+        deci.framesBoundaryDeviation = 5;
+        deci.maxBoundaryDeviation = 5;
+        deci.useAspectRatio = true;
+        deci.maxAspectRatio = 20;
+        deci.maxVLog = 10000000;
+        deci.maxVRender = 100000;
+        deci.minVLog = 1000000000;
+        deci.minVRender = 1000000000;
+        deci.queryLogParts();
+        if (!deci.decimateParts(parts))
+        {
+            Logger::lout(Logger::ERROR) << "\t\ttesting errorbound part decimation failed!" << endl;
+            return -1;
+        }
+        Scene::Ptr scene = MeshBuilder::merge(parts);
+        if (!scene)
+        {
+            Logger::lout(Logger::ERROR) << "\t\ttesting scene merging failed!" << endl;
+            return -1;
+        }
+        for (FHandle f: scene->mesh.faces())
+        {
+            for (NormalCone& nc : scene->mesh.data(f).normalCones)
             {
-                Logger::lout(Logger::ERROR) << "\t\ttesting mesh decimation failed!" << endl;
-                return -1;
+                nc.max_angle() *= 20;
             }
         }
-        else
+        deci.useQuadric = true;
+        deci.framesQuadric = 15;
+        deci.maxQuadricError = FLT_MAX;
+        deci.quadricAreaWeighting = false; // this has no effect, as quadrics are used from previous decimation
+        deci.quadricPositionOptimization = false;
+        deci.quadricPostProcessOptimize = false;
+        deci.useNormalDeviation = true;
+        deci.framesNormalDeviation = deci.framesQuadric;
+        deci.maxNormalDeviation = 90; // this has no effect, as normalCones are used from previous decimation
+        deci.combineQuadricNormal = true;
+        deci.useBoundaryDeviation = true;
+        deci.framesBoundaryDeviation = 3;
+        deci.maxBoundaryDeviation = 90;
+        deci.useAspectRatio = true;
+        deci.maxAspectRatio = 100;
+        deci.minVLog = 1000000000;
+        deci.minVRender = 1000000000;
+        deci.maxVLog = 10000000;
+        deci.maxVRender = 200000;
+        deci.queryLogParts();
+        if (!deci.decimateScene(scene, nFaces))
         {
-            nFaces = atoi(argv[3]);
-
-            if (!MeshBuilder::build(parts))
-            {
-                Logger::lout(Logger::ERROR) << "\t\ttesting mesh building failed!" << endl;
-                return -1;
-            }
-            MeshDecimater deci;
-            MeshAnalyzer::getEpicenter(parts, deci.epicenters, deci.meanDistsFromEpicenters);
-            deci.useQuadric = true;
-            deci.framesQuadric = 15;
-            deci.maxQuadricError = 10;
-            deci.quadricAreaWeighting = false;
-            deci.quadricPositionOptimization = false;
-            deci.quadricPostProcessOptimize = false;
-            deci.useNormalDeviation = true;
-            deci.framesNormalDeviation = deci.framesQuadric;
-            deci.maxNormalDeviation = 5;
-            deci.combineQuadricNormal = true;
-            deci.useBoundaryDeviation = true;
-            deci.framesBoundaryDeviation = 5;
-            deci.maxBoundaryDeviation = 5;
-            deci.useAspectRatio = true;
-            deci.maxAspectRatio = 20;
-            deci.maxVLog = 10000000;
-            deci.maxVRender = 100000;
-            deci.minVLog = 1000000000;
-            deci.minVRender = 1000000000;
-            deci.queryLogParts();
-            if (!deci.decimateParts(parts))
-            {
-                Logger::lout(Logger::ERROR) << "\t\ttesting errorbound part decimation failed!" << endl;
-                return -1;
-            }
-            Scene::Ptr scene = MeshBuilder::merge(parts);
-            if (!scene)
-            {
-                Logger::lout(Logger::ERROR) << "\t\ttesting scene merging failed!" << endl;
-                return -1;
-            }
-            for (FHandle f: scene->mesh.faces())
-            {
-                for (NormalCone& nc : scene->mesh.data(f).normalCones)
-                {
-                    nc.max_angle() *= 20;
-                }
-            }
-            deci.useQuadric = true;
-            deci.framesQuadric = 15;
-            deci.maxQuadricError = FLT_MAX;
-            deci.quadricAreaWeighting = false; // this has no effect, as quadrics are used from previous decimation
-            deci.quadricPositionOptimization = false;
-            deci.quadricPostProcessOptimize = false;
-            deci.useNormalDeviation = true;
-            deci.framesNormalDeviation = deci.framesQuadric;
-            deci.maxNormalDeviation = 90; // this has no effect, as normalCones are used from previous decimation
-            deci.combineQuadricNormal = true;
-            deci.useBoundaryDeviation = true;
-            deci.framesBoundaryDeviation = 3;
-            deci.maxBoundaryDeviation = 90;
-            deci.useAspectRatio = true;
-            deci.maxAspectRatio = 100;
-            deci.minVLog = 1000000000;
-            deci.minVRender = 1000000000;
-            deci.maxVLog = 10000000;
-            deci.maxVRender = 200000;
-            deci.queryLogParts();
-            if (!deci.decimateScene(scene, nFaces))
-            {
-                Logger::lout(Logger::ERROR) << "\t\ttesting scene decimation failed!" << endl;
-                return -1;
-            }
-
-            C2MWriter::write(filename + ".c2m", scene, true);
+            Logger::lout(Logger::ERROR) << "\t\ttesting scene decimation failed!" << endl;
+            return -1;
         }
 
+        C2MWriter::write(filename + ".c2m", scene, true);
     }
     else
     {

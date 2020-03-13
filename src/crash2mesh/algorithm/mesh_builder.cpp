@@ -33,16 +33,27 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
 
     for (Part::Ptr& partptr : sortedParts)
     {
-        vector<Triangle> allTriangles;
+        std::set<Triangle, Triangle::Less> uniqueTriangles;
         map<C2MEdge, vector<size_t>, C2MEdge::Less> edgeTriangleIndices;
-        triangulateAll(partptr, allTriangles, edgeTriangleIndices, deleteMeshedElements);
+        triangulateAll(partptr, uniqueTriangles, deleteMeshedElements);
 
-        vector<size_t> sortedTriangles;
+        vector<Triangle> allTriangles(uniqueTriangles.begin(), uniqueTriangles.end());
+
+        for (uint triangleIndex = 0; triangleIndex < allTriangles.size(); triangleIndex++)
+        {
+            const Triangle& f = allTriangles[triangleIndex];
+            for (uint edgeNumber = 0; edgeNumber < f.edges.size(); edgeNumber++)
+            {
+                edgeTriangleIndices[f.edges[edgeNumber]].emplace_back(triangleIndex);
+            }
+        }
+
+        vector<vector<size_t>> submeshes;
         for (uint i = 0; i < allTriangles.size(); i++)
         {
             if (!allTriangles[i].mark)
             {
-                floodFlip(i, allTriangles, edgeTriangleIndices, sortedTriangles);
+                floodFlip(i, allTriangles, edgeTriangleIndices, submeshes);
             }
         }
 
@@ -50,7 +61,7 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
         // sortFromNonManifoldPaths(nMfPaths, allTriangles, edgeTriangleIndices);
 
         CMesh& mesh = partptr->mesh;
-        assembleMeshFromTriangles(mesh, allTriangles, sortedTriangles, validTriangles, invalidTriangles);
+        assembleMeshFromTriangles(mesh, allTriangles, submeshes, validTriangles, invalidTriangles);
         despike(mesh);
 
         meshes++;
@@ -63,61 +74,6 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
                                << " parts, rest didnt contain faces" << std::endl;
 
     return true;
-}
-
-CMesh MeshBuilder::buildSingle(vector<Part::Ptr>& parts, bool deleteMeshedElements)
-{
-    int validTriangles = 0;
-    int invalidTriangles = 0;
-    vector<Triangle> allTriangles;
-    map<C2MEdge, vector<size_t>, C2MEdge::Less> edgeTriangleIndices;
-    vector<size_t> sortedTriangles;
-    uint ffIndex = 0;
-
-    std::vector<Part::Ptr> sortedParts(parts);
-    std::stable_sort(sortedParts.begin(), sortedParts.end(), [](const Part::Ptr& a, const Part::Ptr& b) -> bool {
-        return a->elements2D.size() + a->surfaceElements.size() > b->elements2D.size() + b->surfaceElements.size();
-    });
-
-    for (Part::Ptr& partptr : sortedParts)
-    {
-        triangulateAll(partptr, allTriangles, edgeTriangleIndices, deleteMeshedElements);
-
-        for (; ffIndex < allTriangles.size(); ffIndex++)
-        {
-            if (!allTriangles[ffIndex].mark)
-            {
-                floodFlip(ffIndex, allTriangles, edgeTriangleIndices, sortedTriangles);
-            }
-        }
-    }
-
-    vector<size_t> sortedTrianglesTrash;
-    for (uint i = 0; i < allTriangles.size(); i++)
-    {
-        allTriangles[i].mark = false;
-    }
-    for (uint i = 0; i < allTriangles.size(); i++)
-    {
-        if (!allTriangles[i].mark)
-        {
-            floodFlip(i, allTriangles, edgeTriangleIndices, sortedTrianglesTrash);
-        }
-    }
-
-    // vector<list<C2MEdge>> nMfPaths(nonManifoldPaths(edgeTriangleIndices));
-    // sortFromNonManifoldPaths(nMfPaths, allTriangles, edgeTriangleIndices);
-
-    CMesh mesh;
-    assembleMeshFromTriangles(mesh, allTriangles, sortedTriangles, validTriangles, invalidTriangles);
-    despike(mesh);
-
-    Logger::lout(Logger::INFO) << "Non-manifold triangles: " << invalidTriangles
-                               << ", valid triangles: " << validTriangles << std::endl;
-
-    Logger::lout(Logger::INFO) << "Built a single mesh from " << parts.size() << " parts" << std::endl;
-
-    return mesh;
 }
 
 Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedElements)
@@ -213,82 +169,6 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
     // }
 
     return scene;
-
-#if 0
-    int validTriangles = 0;
-    int invalidTriangles = 0;
-    vector<Triangle> allTriangles;
-    map<C2MEdge, vector<size_t>, C2MEdge::Less> edgeTriangleIndices;
-    vector<size_t> sortedTriangles;
-    uint ffIndex = 0;
-
-    std::vector<Part::Ptr> sortedParts(parts);
-    std::stable_sort(sortedParts.begin(), sortedParts.end(), [](const Part::Ptr& a, const Part::Ptr& b) -> bool {
-        return a->elements2D.size() + a->surfaceElements.size() > b->elements2D.size() + b->surfaceElements.size();
-    });
-
-    for (Part::Ptr& partptr : sortedParts)
-    {
-        vector<vector<Node::Ptr>> triangles;
-        vector<Element2D::Ptr> elements;
-        for (FHandle f : partptr->mesh.faces())
-        {
-            triangles.emplace_back(vector<Node::Ptr>());
-            elements.emplace_back(partptr->mesh.data(f).element);
-            for (VHandle v : partptr->mesh.fv_range(f))
-            {
-                triangles.back().emplace_back(partptr->mesh.data(v).node);
-            }
-        }
-        for (uint triangle = 0; triangle < triangles.size(); triangle++)
-        {
-            Triangle& f = allTriangles.emplace_back(Triangle());
-            f.elem = elements[triangle];
-            for (uint vertex = 0; vertex < 3; vertex++)
-            {
-                C2MEdge e(triangles[triangle][vertex], triangles[triangle][(vertex + 1) % 3]);
-                f.edges.emplace_back(e);
-                edgeTriangleIndices[e].emplace_back(allTriangles.size() - 1);
-            }
-        }
-
-        for (; ffIndex < allTriangles.size(); ffIndex++)
-        {
-            if (!allTriangles[ffIndex].mark)
-            {
-                floodFlip(ffIndex, allTriangles, edgeTriangleIndices, sortedTriangles);
-            }
-        }
-        if (deleteMeshedElements)
-            partptr->mesh.clear();
-    }
-
-    vector<size_t> sortedTrianglesTrash;
-    for (uint i = 0; i < allTriangles.size(); i++)
-    {
-        allTriangles[i].mark = false;
-    }
-    for (uint i = 0; i < allTriangles.size(); i++)
-    {
-        if (!allTriangles[i].mark)
-        {
-            floodFlip(i, allTriangles, edgeTriangleIndices, sortedTrianglesTrash);
-        }
-    }
-
-    // vector<list<C2MEdge>> nMfPaths(nonManifoldPaths(edgeTriangleIndices));
-    // sortFromNonManifoldPaths(nMfPaths, allTriangles, edgeTriangleIndices);
-
-    Scene::Ptr scene = std::make_shared<Scene>(parts);
-    assembleMeshFromTriangles(scene->mesh, allTriangles, sortedTriangles, validTriangles, invalidTriangles);
-
-    Logger::lout(Logger::INFO) << "Non-manifold triangles: " << invalidTriangles
-                               << ", valid triangles: " << validTriangles << std::endl;
-
-    Logger::lout(Logger::INFO) << "Built a single mesh from " << parts.size() << " parts" << std::endl;
-
-    return scene;
-#endif
 }
 
 // -------------------------------------------------------------------------------------------
@@ -299,72 +179,86 @@ Scene::Ptr MeshBuilder::merge(std::vector<Part::Ptr>& parts, bool deleteMeshedEl
 // -------------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------------
 
-void MeshBuilder::floodFlip(size_t fi,
+static Vec3 nodes2normal(std::vector<Node::Ptr>& nodes)
+{
+    Vec3 p, q, r;
+    p = nodes[0]->positions.row(0).transpose();
+    q = nodes[1]->positions.row(0).transpose();
+    r = nodes[2]->positions.row(0).transpose();
+
+    Vec3 normal = ((q-p).cross(r-p));
+    float norm = normal.norm();
+    return norm < FLT_MIN ? normal * 0.0f : normal * (1.0f / norm);
+}
+
+void MeshBuilder::floodFlip(size_t seedIndex,
                             vector<Triangle>& allTriangles,
                             map<C2MEdge, vector<size_t>, C2MEdge::Less>& edgeTriangleIndices,
-                            vector<size_t>& sortedTriangles)
+                            vector<vector<size_t>>& submeshes)
 {
-    if (allTriangles[fi].mark)
+    if (allTriangles[seedIndex].mark)
         return;
 
-    allTriangles[fi].mark = true;
     std::list<size_t> triangleIndices;
-    triangleIndices.emplace_back(fi);
+    size_t nextSeedIndex = seedIndex;
 
-// This is detrimental for some reason
-#if 0
-    for (C2MEdge& e : allTriangles[fi].edges)
+    while (allTriangles[nextSeedIndex].mark == false)
     {
-        bool flipped = false;
-        for (size_t f2i : edgeTriangleIndices[e])
-        {
-            if (f2i != fi && allTriangles[f2i].mark)
-            {
-                auto e2it = std::find(allTriangles[f2i].edges.begin(), allTriangles[f2i].edges.end(), e);
-                if (e2it != allTriangles[f2i].edges.end() && e2it->from->ID == e.from->ID)
-                {
-                    for (C2MEdge& e2 : allTriangles[fi].edges)
-                    {
-                        std::swap(e2.from, e2.to);
-                    }
-                    std::reverse(allTriangles[fi].edges.begin(), allTriangles[fi].edges.end());
-                }
-                flipped = true;
-                break;
-            }
-        }
-        if (flipped)
-            break;
-    }
-#endif
+        vector<size_t>& sortedTriangles = submeshes.emplace_back(vector<size_t>());
+        allTriangles[nextSeedIndex].mark = true;
+        triangleIndices.emplace_back(nextSeedIndex);
 
-    while (!triangleIndices.empty())
-    {
-        size_t triangleIndex = triangleIndices.front();
-        triangleIndices.pop_front();
-        sortedTriangles.emplace_back(triangleIndex);
-        for (C2MEdge& e : allTriangles[triangleIndex].edges)
+        while (!triangleIndices.empty())
         {
-            vector<size_t> linkedTriangles = edgeTriangleIndices[e];
-            if (linkedTriangles.size() > 2)
+            size_t triangleIndex = triangleIndices.front();
+            triangleIndices.pop_front();
+            sortedTriangles.emplace_back(triangleIndex);
+            std::vector<Node::Ptr> vertices1;
+            std::vector<Node::Ptr> vertices2;
+            for (C2MEdge& e : allTriangles[triangleIndex].edges)
             {
-                continue;
-            }
-            for (size_t f2i : linkedTriangles)
-            {
-                if (f2i != triangleIndex && !allTriangles[f2i].mark)
+                vector<size_t> linkedTriangles = edgeTriangleIndices[e];
+                for (size_t f2i : linkedTriangles)
                 {
-                    auto e2it = std::find(allTriangles[f2i].edges.begin(), allTriangles[f2i].edges.end(), e);
-                    if (e2it != allTriangles[f2i].edges.end() && e2it->from->ID == e.from->ID)
+                    if (f2i != triangleIndex && !allTriangles[f2i].mark)
                     {
-                        for (C2MEdge& e2 : allTriangles[f2i].edges)
+                        if (linkedTriangles.size() > 2)
                         {
-                            std::swap(e2.from, e2.to);
+                            if (allTriangles[nextSeedIndex].mark == false)
+                                continue;
+                            if (vertices1.size() == 0)
+                                for (C2MEdge& e1 : allTriangles[triangleIndex].edges)
+                                    vertices1.emplace_back(e1.from);
+                            vertices2.clear();
+                            for (C2MEdge& e2 : allTriangles[f2i].edges)
+                                vertices2.emplace_back(e2.from);
+                            Vec3 normal1 = nodes2normal(vertices1);
+                            Vec3 normal2 = nodes2normal(vertices2);
+
+                            if (abs(normal1.transpose() * normal2) < 0.866) // angle > 30°
+                                continue;
                         }
-                        std::swap(allTriangles[f2i].edges.front(), allTriangles[f2i].edges.back());
+
+                        auto e2it = std::find(allTriangles[f2i].edges.begin(), allTriangles[f2i].edges.end(), e);
+                        if (e2it != allTriangles[f2i].edges.end() && e2it->from->ID == e.from->ID)
+                        {
+                            for (C2MEdge& e2 : allTriangles[f2i].edges)
+                            {
+                                std::swap(e2.from, e2.to);
+                            }
+                            std::swap(allTriangles[f2i].edges.front(), allTriangles[f2i].edges.back());
+                        }
+                        if (linkedTriangles.size() > 2)
+                        {
+                            if (allTriangles[nextSeedIndex].mark == false)
+                                nextSeedIndex = f2i;
+                        }
+                        else
+                        {
+                            triangleIndices.emplace_back(f2i);
+                            allTriangles[f2i].mark = true;
+                        }
                     }
-                    triangleIndices.emplace_back(f2i);
-                    allTriangles[f2i].mark = true;
                 }
             }
         }
@@ -372,8 +266,7 @@ void MeshBuilder::floodFlip(size_t fi,
 }
 
 size_t MeshBuilder::triangulate(const Element2D::Ptr& elem,
-                                vector<Triangle>& allTriangles,
-                                map<C2MEdge, vector<size_t>, C2MEdge::Less>& edgeTriangleIndices)
+                                set<Triangle, Triangle::Less>& allTriangles)
 {
     vector<vector<Node::Ptr>> triangles;
     if (elem->nodes.size() < 3)
@@ -391,24 +284,29 @@ size_t MeshBuilder::triangulate(const Element2D::Ptr& elem,
                 vector<Node::Ptr>({elem->nodes[indexNode0], elem->nodes[indexNode1++], elem->nodes[indexNode2++]}));
     }
 
+    size_t numAdded = 0;
     for (const vector<Node::Ptr>& triangle : triangles)
     {
-        Triangle& f = allTriangles.emplace_back(Triangle());
+        Triangle f;
         f.elem = elem;
         for (uint i = 0; i < triangle.size(); i++)
         {
             C2MEdge e(triangle[i], triangle[(i + 1) % triangle.size()]);
             f.edges.emplace_back(e);
-            edgeTriangleIndices[e].emplace_back(allTriangles.size() - 1);
+        }
+
+        // Only add new unique triangles
+        if (allTriangles.insert(f).second)
+        {
+            numAdded++;
         }
     }
 
-    return triangles.size();
+    return numAdded;
 }
 
 size_t MeshBuilder::triangulateAll(Part::Ptr& partptr,
-                                   vector<Triangle>& allTriangles,
-                                   map<C2MEdge, vector<size_t>, C2MEdge::Less>& edgeTriangleIndices,
+                                   set<Triangle, Triangle::Less>& allTriangles,
                                    bool deleteMeshedElements)
 {
     if (partptr->elements2D.empty() && partptr->surfaceElements.empty())
@@ -417,11 +315,11 @@ size_t MeshBuilder::triangulateAll(Part::Ptr& partptr,
     size_t numTriangles = 0;
     for (const Element2D::Ptr& elem : partptr->elements2D)
     {
-        numTriangles += triangulate(elem, allTriangles, edgeTriangleIndices);
+        numTriangles += triangulate(elem, allTriangles);
     }
     for (const SurfaceElement::Ptr& elem : partptr->surfaceElements)
     {
-        numTriangles += triangulate(elem, allTriangles, edgeTriangleIndices);
+        numTriangles += triangulate(elem, allTriangles);
     }
 
     if (deleteMeshedElements)
@@ -456,107 +354,110 @@ VHandle MeshBuilder::getDuplicate(VHandle& v, map<VHandle, VHandle>& orig2dupe, 
 
 void MeshBuilder::assembleMeshFromTriangles(CMesh& mesh,
                                             const vector<Triangle>& allTriangles,
-                                            const vector<size_t>& triangleOrdering,
+                                            const vector<vector<size_t>>& submeshes,
                                             int& validTris,
                                             int& invalidTris)
 {
     mesh.clear();
-    map<nodeid_t, VHandle> nodeToVertex;
-    map<VHandle, VHandle> orig2dupe;
-    map<set<Node::Ptr>, FHandle> nodes2face;
-
-    for (size_t fi = 0; fi < triangleOrdering.size(); fi++)
+    for (const std::vector<size_t>& triangleOrdering: submeshes)
     {
-        const Triangle& f = allTriangles[triangleOrdering[fi]];
-        set<Node::Ptr> nodes;
-        for (uint i = 0; i < 3; i++)
+        map<nodeid_t, VHandle> nodeToVertex;
+        map<VHandle, VHandle> orig2dupe;
+        map<set<Node::Ptr>, FHandle> nodes2face;
+
+        for (size_t fi = 0; fi < triangleOrdering.size(); fi++)
         {
-            nodes.insert(f.edges[i].from);
-        }
-        auto it = nodes2face.find(nodes);
-        if (it != nodes2face.end())
-        {
-            FHandle fh = it->second;
-            mesh.data(fh).additionalElements.emplace_back(f.elem);
-        }
-        vector<VHandle> vertices;
-        for (uint i = 0; i < 3; i++)
-        {
-            const Node::Ptr& nodeptr = f.edges[i].from;
-            if (nodeToVertex.find(nodeptr->ID) == nodeToVertex.end())
+            const Triangle& f = allTriangles[triangleOrdering[fi]];
+            set<Node::Ptr> nodes;
+            for (uint i = 0; i < 3; i++)
             {
-                VHandle v = mesh.add_vertex(OMVec3(
-                    nodeptr->positions.coeff(0, 0), nodeptr->positions.coeff(0, 1), nodeptr->positions.coeff(0, 2)));
-                nodeToVertex[nodeptr->ID] = v;
-                mesh.data(v).node = nodeptr;
-                mesh.data(v).fixed = false;
-                mesh.data(v).mustRemove = false;
-                mesh.data(v).duplicate = VHandle();
-                vertices.emplace_back(v);
+                nodes.insert(f.edges[i].from);
+            }
+            auto it = nodes2face.find(nodes);
+            if (it != nodes2face.end())
+            {
+                FHandle fh = it->second;
+                mesh.data(fh).additionalElements.emplace_back(f.elem);
+            }
+            vector<VHandle> vertices;
+            for (uint i = 0; i < 3; i++)
+            {
+                const Node::Ptr& nodeptr = f.edges[i].from;
+                if (nodeToVertex.find(nodeptr->ID) == nodeToVertex.end())
+                {
+                    VHandle v = mesh.add_vertex(OMVec3(
+                        nodeptr->positions.coeff(0, 0), nodeptr->positions.coeff(0, 1), nodeptr->positions.coeff(0, 2)));
+                    nodeToVertex[nodeptr->ID] = v;
+                    mesh.data(v).node = nodeptr;
+                    mesh.data(v).fixed = false;
+                    mesh.data(v).mustRemove = false;
+                    mesh.data(v).duplicate = VHandle();
+                    vertices.emplace_back(v);
+                }
+                else
+                {
+                    vertices.emplace_back(nodeToVertex[nodeptr->ID]);
+                }
+            }
+
+            std::cerr.setstate(std::ios_base::failbit);
+
+            CMesh::FaceHandle fh = mesh.add_face(vertices);
+            if (fh.is_valid())
+            {
+                mesh.data(fh).element = f.elem;
+                nodes2face[nodes] = fh;
+                validTris++;
             }
             else
             {
-                vertices.emplace_back(nodeToVertex[nodeptr->ID]);
-            }
-        }
-
-        std::cerr.setstate(std::ios_base::failbit);
-
-        CMesh::FaceHandle fh = mesh.add_face(vertices);
-        if (fh.is_valid())
-        {
-            mesh.data(fh).element = f.elem;
-            nodes2face[nodes] = fh;
-            validTris++;
-        }
-        else
-        {
-            invalidTris++;
-            // Duplicate one vertex at a time until face is valid
-            bool fixed = false;
-            vector<VHandle> prevVertices = vertices;
-            const vector<vector<bool>> permutations({{true, false, false},
-                                                        {false, true, false},
-                                                        {false, false, true},
-                                                        {true, true, false},
-                                                        {true, false, true},
-                                                        {false, true, true},
-                                                        {true, true, true}});
-            while (!fixed)
-            {
-                vector<VHandle> dupeTri(3);
-                for (const vector<bool>& dupePermutation : permutations)
+                invalidTris++;
+                // Duplicate one vertex at a time until face is valid
+                bool fixed = false;
+                vector<VHandle> prevVertices = vertices;
+                const vector<vector<bool>> permutations({{true, false, false},
+                                                            {false, true, false},
+                                                            {false, false, true},
+                                                            {true, true, false},
+                                                            {true, false, true},
+                                                            {false, true, true},
+                                                            {true, true, true}});
+                while (!fixed)
                 {
-                    for (int vi = 0; vi < 3; vi++)
+                    vector<VHandle> dupeTri(3);
+                    for (const vector<bool>& dupePermutation : permutations)
                     {
-                        dupeTri[vi]
-                            = dupePermutation[vi] ? getDuplicate(prevVertices[vi], orig2dupe, mesh) : vertices[vi];
-                    }
-                    fh = mesh.add_face(dupeTri);
-                    if (fh.is_valid())
-                    {
-                        nodes2face[nodes] = fh;
-                        mesh.data(fh).element = f.elem;
-                        mesh.status(fh).set_fixed_nonmanifold(true);
                         for (int vi = 0; vi < 3; vi++)
                         {
-                            if (dupePermutation[vi])
-                            {
-                                mesh.data(vertices[vi]).fixed = true;
-                                mesh.status(vertices[vi]).set_fixed_nonmanifold(true);
-                            }
+                            dupeTri[vi]
+                                = dupePermutation[vi] ? getDuplicate(prevVertices[vi], orig2dupe, mesh) : vertices[vi];
                         }
-                        fixed = true;
-                        break;
+                        fh = mesh.add_face(dupeTri);
+                        if (fh.is_valid())
+                        {
+                            nodes2face[nodes] = fh;
+                            mesh.data(fh).element = f.elem;
+                            mesh.status(fh).set_fixed_nonmanifold(true);
+                            for (int vi = 0; vi < 3; vi++)
+                            {
+                                if (dupePermutation[vi])
+                                {
+                                    mesh.data(vertices[vi]).fixed = true;
+                                    mesh.status(vertices[vi]).set_fixed_nonmanifold(true);
+                                }
+                            }
+                            fixed = true;
+                            break;
+                        }
+                    }
+                    if (!fixed)
+                    {
+                        prevVertices = dupeTri; // All three duplicates
                     }
                 }
-                if (!fixed)
-                {
-                    prevVertices = dupeTri; // All three duplicates
-                }
             }
+            std::cerr.clear();
         }
-        std::cerr.clear();
     }
 
     // Delete duplicate vertices

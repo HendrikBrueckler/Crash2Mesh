@@ -3,6 +3,7 @@
 
 #include <crash2mesh/core/collectors.hpp>
 #include <vector>
+#include <set>
 
 namespace c2m
 {
@@ -29,19 +30,6 @@ class MeshBuilder
     static bool build(std::vector<Part::Ptr>& parts, bool deleteMeshedElements = true);
 
     /**
-     * @brief Builds a single combined mesh from all finite elements of the parts,
-     *        fixes non-manifoldness by duplicating vertices.
-     *
-     *        The parts' Elements1D will be preserved and wont enter the resulting mesh. The Elements2D and
-     * SurfaceElements will be meshed and may be deleted.
-     *
-     * @param parts parts to transform into meshes
-     * @param deleteMeshedElements whether to remove the element references that were meshed from the parts' lists
-     * @return CMesh the generated mesh
-     */
-    static CMesh buildSingle(std::vector<Part::Ptr>& parts, bool deleteMeshedElements = true);
-
-    /**
      * @brief Builds a single combined mesh from all part meshes, fixes non-manifoldness by duplicating vertices.
      *        fixes non-manifoldness by duplicating vertices.
      *
@@ -56,7 +44,7 @@ class MeshBuilder
 
     // TODO
     static void relink(CMesh& mesh);
-    
+
   private:
     /**
      * @brief Simple edge representation for internal detection of connected faces,
@@ -112,6 +100,38 @@ class MeshBuilder
         bool mark;
         std::vector<C2MEdge> edges;
         Element2D::Ptr elem;
+
+        struct Less
+        {
+            bool operator()(const Triangle& A, const Triangle& B) const
+            {
+                std::set<nodeid_t> nodeSetA;
+                std::set<nodeid_t> nodeSetB;
+                for (const C2MEdge eA : A.edges)
+                {
+                    nodeSetA.emplace(eA.from->ID);
+                }
+                for (const C2MEdge eB : B.edges)
+                {
+                    nodeSetB.emplace(eB.from->ID);
+                }
+
+                for (auto itA = nodeSetA.begin(), itB = nodeSetB.begin(); itA != nodeSetA.end() && itB != nodeSetB.end();
+                    itA++, itB++)
+                {
+                    if (*itA < *itB)
+                    {
+                        return true;
+                    }
+                    else if (*itA > *itB)
+                    {
+                        return false;
+                    }
+                }
+
+                return false;
+            }
+        };
     };
 
     /**
@@ -123,38 +143,36 @@ class MeshBuilder
      * @param fi index of triangle to start floodfill
      * @param allTriangles vector of triangles which \p fi indexes
      * @param edgeTriangleIndices mapping from edge to all triangles connected to that edge
-     * @param sortedTriangles triangles will be placed in here in the order of expansion
+     * @param subMeshes triangles will be placed in here in the order of expansion
      */
     static void floodFlip(size_t fi,
                           std::vector<Triangle>& allTriangles,
                           std::map<C2MEdge, std::vector<size_t>, C2MEdge::Less>& edgeTriangleIndices,
-                          std::vector<size_t>& sortedTriangles);
+                          std::vector<std::vector<size_t>>& subMeshes);
 
     /**
      * @brief Triangulates the face stored in \p elem using a triangle fan (ccw);
      *
      * @param elem element to triangulate
-     * @param allTriangles new triangles will be appended to this
+     * @param uniqueTriangles new triangles will be appended to this
      * @param edgeTriangleIndices edge to triangle references will be added to this
      * @return size_t number of triangles added
      */
     static size_t triangulate(const Element2D::Ptr& elem,
-                              std::vector<Triangle>& allTriangles,
-                              std::map<C2MEdge, std::vector<size_t>, C2MEdge::Less>& edgeTriangleIndices);
+                              std::set<Triangle, Triangle::Less>& uniqueTriangles);
 
     /**
      * @brief Triangulates all faces contained in Elements2D/SurfaceElements of \p partptr
      *        using a triangle fan.
      *
      * @param partptr part to triangulate
-     * @param allTriangles new triangles will be appended to this
+     * @param uniqueTriangles new triangles will be appended to this
      * @param edgeTriangleIndices edge to triangle references will be added to this
      * @param deleteMeshedElements whether to remove the pointers of triangulated elements from the part
      * @return size_t
      */
     static size_t triangulateAll(Part::Ptr& partptr,
-                                 std::vector<Triangle>& allTriangles,
-                                 std::map<C2MEdge, std::vector<size_t>, C2MEdge::Less>& edgeTriangleIndices,
+                                 std::set<Triangle, Triangle::Less>& uniqueTriangles,
                                  bool deleteMeshedElements);
 
     /**
@@ -182,7 +200,7 @@ class MeshBuilder
      */
     static void assembleMeshFromTriangles(CMesh& mesh,
                                           const std::vector<Triangle>& allTriangles,
-                                          const std::vector<size_t>& triangleOrdering,
+                                          const std::vector<std::vector<size_t>>& submeshes,
                                           int& validTris,
                                           int& invalidTris);
 
