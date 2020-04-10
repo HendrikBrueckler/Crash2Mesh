@@ -17,14 +17,31 @@ void NormalCone::merge(const NormalCone& _cone)
     {
         // new angle
         float centerAngle = acos(dotp);
-        float minAngle = std::min(-angle(), centerAngle - _cone.angle());
-        float maxAngle = std::max(angle(), centerAngle + _cone.angle());
-        angle_ = (maxAngle - minAngle) * float(0.5f);
+        if (angle() < 0.00000001f && _cone.angle() < 0.00000001f)
+        {
+            angle_ = centerAngle * 0.5f;
+            center_normal_ = center_normal_ * 0.5f + _cone.center_normal_ * 0.5f;
+            center_normal_ /= center_normal_.norm();
+        }
+        else
+        {
+            float minAngle = std::min(-angle(), centerAngle - _cone.angle());
+            float maxAngle = std::max(angle(), centerAngle + _cone.angle());
+            angle_ = (maxAngle - minAngle) * float(0.5f);
 
-        // axis by SLERP
-        float axisAngle = float(0.5f) * (minAngle + maxAngle);
-        center_normal_ = ((center_normal_ * sin(centerAngle - axisAngle) + _cone.center_normal_ * sin(axisAngle))
-                          / sin(centerAngle));
+            float axisAngle = float(0.5f) * (minAngle + maxAngle);
+            if (centerAngle < 0.5f * M_PI)
+            {
+                center_normal_ = center_normal_ * (1 - axisAngle / centerAngle) + _cone.center_normal_ * axisAngle / centerAngle;
+                center_normal_ /= center_normal_.norm();
+            }
+            else
+            {
+                // axis by SLERP
+                center_normal_ = ((center_normal_ * sin(centerAngle - axisAngle) + _cone.center_normal_ * sin(axisAngle))
+                                / sin(centerAngle));
+            }
+        }
     }
     else
     {

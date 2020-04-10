@@ -123,11 +123,11 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
     uint nFrames = nodes.size() == 0 ? 0 : static_cast<uint>((*nodes.begin())->positions.rows());
     // output
     out << "$$SECTION HEADER$$\n"
-        << "version " << 0.1 << "\n"
+        << "version " << 1.0 << "\n"
         << "binary " << binary << "\n"
         << "frames " << nFrames << "\n"
         << "vertices " << nodes.size() << "\n"
-        << "facestrains " << elements2D.size() << "\n"
+        << "strains " << elements2D.size() << "\n"
         << "rods " << rods.size() << "\n"
         << "triangles " << triangles.size() << "\n"
         << "$$ENDSECTION HEADER$$" << std::endl;
@@ -146,7 +146,7 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
         }
         out << "$$ENDSECTION VERTICES$$" << std::endl;
 
-        out << "$$SECTION FACESTRAINS$$\n";
+        out << "$$SECTION STRAINS$$\n";
         for (const Element2D::Ptr& elem2Dptr : elements2D)
         {
             out << elem2Dptr->elem2dID << "\n";
@@ -155,7 +155,7 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
                 out << "    " << static_cast<float>(elem2Dptr->plasticStrains.coeff(i)) + elem2Dptr->plasticStrain0 << "\n";
             }
         }
-        out << "$$ENDSECTION FACESTRAINS$$" << std::endl;
+        out << "$$ENDSECTION STRAINS$$" << std::endl;
 
         out << "$$SECTION RODS$$\n";
         for (const Rod& rod : rods)
@@ -228,7 +228,7 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
         }
         out << "\n$$ENDSECTION VERTICES$$" << std::endl;
 
-        out << "$$SECTION FACESTRAINS$$\n";
+        out << "$$SECTION STRAINS$$\n";
         for (const Element2D::Ptr& elem2Dptr : elements2D)
         {
             id = elem2Dptr->elem2dID;
@@ -239,7 +239,7 @@ void C2MWriter::write(const string& filename, const Scene::Ptr& scene, bool bina
                 out.write(reinterpret_cast<char*>(&strain), sizeof(float));
             }
         }
-        out << "\n$$ENDSECTION FACESTRAINS$$" << std::endl;
+        out << "\n$$ENDSECTION STRAINS$$" << std::endl;
 
         out << "$$SECTION RODS$$\n";
         for (const Rod& rod : rods)

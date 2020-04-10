@@ -35,14 +35,14 @@ $$ENDSECTION HEADER$$
 $$SECTION VERTICES$$
     ...binary or ascii mapping of vertex id to per-frame xyz-coordinates...
 $$ENDSECTION VERTICES$$
-$$SECTION FACESTRAINS$$
-    ...binary or ascii mapping of facestrain id to per-frame plastic strain values...
-$$ENDSECTION FACESTRAINS$$
+$$SECTION STRAINS$$
+    ...binary or ascii mapping of strain id to per-frame plastic strain values...
+$$ENDSECTION STRAINS$$
 $$SECTION RODS$$
     ...binary or ascii mapping of rod/line id to its 2 vertex ids (source and target)...
 $$ENDSECTION RODS$$
 $$SECTION TRIANGLES$$
-    ...binary or ascii mapping of triangle id to its facestrain id and its 3 vertex ids ...
+    ...binary or ascii mapping of triangle id to its strain id and its 3 vertex ids ...
 $$ENDSECTION TRIANGLES$$
 $$SECTION PARTS$$
     ...binary or ascii mapping of part id to its number of rods, its number of triangles,
@@ -64,7 +64,7 @@ version 1.0
 binary <0 if other sections in ascii, 1 if other sections in binary>
 frames <number of frames>
 vertices <number of vertices>
-facestrains <number of surface plastic strains>
+strains <number of surface plastic strains>
 rods <number of 1D elements, i.e. lines which are not part of any triangle>
 triangles <number of triangles>
 parts <number of parts>
@@ -110,34 +110,34 @@ Vertices section info:
   is a 4 byte float (i.e. NOT double precision)
 
 ------------------------
-Facestrains section verbatim:
+Strains section verbatim:
 ------------------------
-$$SECTION FACESTRAINS$$
-<FACESTRAIN1_ID>
+$$SECTION STRAINS$$
+<STRAIN1_ID>
     <plastic strain1 at frame1>
     <plastic strain1 at frame2>
     <plastic strain1 at frame3>
     <...repeated for a total of "frames" times (see header)...>
-<FACESTRAIN2_ID>
+<STRAIN2_ID>
     <plastic strain2 at frame1>
     <plastic strain2 at frame2>
     <plastic strain2 at frame3>
     <...repeated for a total of "frames" times (see header)...>
-<...repeated for a total of "facestrains" times (see header)...>
-$$ENDSECTION FACESTRAINS$$
+<...repeated for a total of "strains" times (see header)...>
+$$ENDSECTION STRAINS$$
 ------------------------
-Facestrains section info:
+Strains section info:
 ------------------------
 - in ascii format (see "binary" in header) the whitespace is exactly as
   depicted, meaning:
-    - a newline after $$SECTION FACESTRAINS$$, after each <FACESTRAIN_ID> and after
+    - a newline after $$SECTION STRAINS$$, after each <STRAIN_ID> and after
         each plastic strain value
     - four spaces before each plastic strain value
 - in binary format there is NO WHITESPACE except:
-    - a newline DIRECTLY after $$SECTION FACESTRAINS$$
+    - a newline DIRECTLY after $$SECTION STRAINS$$
     - a newline DIRECTLY after the binary contents, i.e. DIRECTLY before
-        $$ENDSECTION FACESTRAINS$$
-- in binary format FACESTRAIN_ID is a 4 byte unsigned integer, plastic strain
+        $$ENDSECTION STRAINS$$
+- in binary format STRAIN_ID is a 4 byte unsigned integer, plastic strain
   is a 4 byte float (i.e. NOT double precision)
 
 ------------------------
@@ -166,15 +166,15 @@ Rods section info:
 TRIANGLES section verbatim:
 ------------------------
 $$SECTION TRIANGLES$$
-<TRIANGLE1_ID> <TRIANGLE1_FACESTRAIN_ID> <TRIANGLE1_VERTEX1_ID> <TRIANGLE1_VERTEX2_ID> <TRIANGLE1_VERTEX3_ID>
-<TRIANGLE2_ID> <TRIANGLE2_FACESTRAIN_ID> <TRIANGLE2_VERTEX1_ID> <TRIANGLE2_VERTEX2_ID> <TRIANGLE2_VERTEX3_ID>
+<TRIANGLE1_ID> <TRIANGLE1_STRAIN_ID> <TRIANGLE1_VERTEX1_ID> <TRIANGLE1_VERTEX2_ID> <TRIANGLE1_VERTEX3_ID>
+<TRIANGLE2_ID> <TRIANGLE2_STRAIN_ID> <TRIANGLE2_VERTEX1_ID> <TRIANGLE2_VERTEX2_ID> <TRIANGLE2_VERTEX3_ID>
 <...repeated for a total of "triangles" times (see header)>
 $$ENDSECTION TRIANGLES$$
 ------------------------
 Triangles section info:
 ------------------------
 - VERTEX_IDs reference the Vertices section entries by their specified indices
-- FACESTRAIN_IDs reference the Facestrains section entries by their specified indices
+- STRAIN_IDs reference the Strains section entries by their specified indices
 - in ascii format (see "binary" in header) the whitespace is exactly as
   depicted, meaning:
     - a newline after $$SECTION TRIANGLES$$, and after each specified triangle
