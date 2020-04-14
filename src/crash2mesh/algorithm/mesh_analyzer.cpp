@@ -2,6 +2,7 @@
 
 #include <crash2mesh/util/logger.hpp>
 #include <crash2mesh/viewer/animation_viewer.hpp>
+#include <crash2mesh/viewer/imgui_viewer.hpp>
 
 #include <easy3d/core/point_cloud.h>
 #include <easy3d/core/surface_mesh.h>
@@ -205,7 +206,7 @@ void MeshAnalyzer::render(const CMesh& _mesh, const MatX3* epis, const VecX* mea
     // Silence annyoing messages
     std::cout.setstate(std::ios_base::failbit);
     std::cerr.setstate(std::ios_base::failbit);
-    AnimationViewer viewer("Mesh View");
+    ImGuiViewer viewer("Mesh View");
     std::cout.clear();
     std::cerr.clear();
 
@@ -375,11 +376,17 @@ void MeshAnalyzer::getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists)
     for (FHandle f : mesh.faces())
     {
         MatX3 positions = mesh.data(*(mesh.fv_begin(f))).node->positions;
-        VecX strains = mesh.data(f).element->plasticStrains * mesh.calc_face_area(f);
+        const VecX& strains = mesh.data(f).element->plasticStrains;
+        VecX weight = VecX::Zero(strains.rows());
+        float area = mesh.calc_face_area(f);
+        for (uint frame = 1; frame < numFrames; frame++)
+        {
+            weight(frame) = (strains(frame) - strains(frame - 1)) * area;
+        }
         for (uint frame = 0; frame < numFrames; frame++)
         {
-            epicenters.row(frame) += strains(frame) * positions.row(frame);
-            sumOfWeights(frame) += strains(frame);
+            epicenters.row(frame) += weight(frame) * positions.row(frame);
+            sumOfWeights(frame) += weight(frame);
         }
     }
     for (long frame = numFrames-1; frame >= 0; frame--)

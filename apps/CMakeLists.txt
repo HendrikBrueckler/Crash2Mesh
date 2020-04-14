@@ -8,3 +8,4 @@ target_include_directories(localpaths INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 ### Add all applications
 add_subdirectory(pretests)
 add_subdirectory(tests)
+add_subdirectory(gui)

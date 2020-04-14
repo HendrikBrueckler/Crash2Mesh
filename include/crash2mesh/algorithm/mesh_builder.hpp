@@ -159,7 +159,7 @@ class MeshBuilder
      * @return size_t number of triangles added
      */
     static size_t triangulate(const Element2D::Ptr& elem,
-                              std::set<Triangle, Triangle::Less>& uniqueTriangles);
+                              std::vector<Triangle>& uniqueTriangles);
 
     /**
      * @brief Triangulates all faces contained in Elements2D/SurfaceElements of \p partptr
@@ -172,7 +172,7 @@ class MeshBuilder
      * @return size_t
      */
     static size_t triangulateAll(Part::Ptr& partptr,
-                                 std::set<Triangle, Triangle::Less>& uniqueTriangles,
+                                 std::vector<Triangle>& uniqueTriangles,
                                  bool deleteMeshedElements);
 
     /**

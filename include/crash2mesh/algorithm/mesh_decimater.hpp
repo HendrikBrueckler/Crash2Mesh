@@ -22,6 +22,7 @@ class MeshDecimater
   public:
     MeshDecimater()
         : useQuadric(true), useNormalDeviation(true), useBoundaryDeviation(true), useAspectRatio(true),
+          quadricExcludeOnly(false), normalExcludeOnly(true),
           combineQuadricNormal(false), quadricAreaWeighting(false), quadricPositionOptimization(false),
           quadricPostProcessOptimize(false), maxQuadricError(2000), maxNormalDeviation(10), maxBoundaryDeviation(10),
           maxAspectRatio(10), framesQuadric(10), framesNormalDeviation(10), framesBoundaryDeviation(3), minVLog(1000),
@@ -78,6 +79,9 @@ class MeshDecimater
     bool useNormalDeviation;   //< Whether to use normal deviation module
     bool useBoundaryDeviation; //< Whether to use boundary deviation module
     bool useAspectRatio;       //< Whether to use aspect ratio module
+
+    bool quadricExcludeOnly; //< Whether to use quadrics as binary exclusion modules only
+    bool normalExcludeOnly;  //< Whether to use normals as binary exclusion modules only
 
     bool combineQuadricNormal; //< Whether to combine quadrics and normals to one joint continuous module
 

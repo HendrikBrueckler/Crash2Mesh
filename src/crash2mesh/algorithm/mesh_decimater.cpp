@@ -201,7 +201,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
     }
     else
     {
-        if (useQuadric || true) // Currently no alternative for a continuous module
+        if (useQuadric) // Currently no alternative for a continuous module
         {
             decimater.add(hModFWQuadric);
             decimater.module(hModFWQuadric).set_max_err(maxQuadricError, false);
@@ -209,6 +209,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
             decimater.module(hModFWQuadric).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
             decimater.module(hModFWQuadric).set_area_weighting(quadricAreaWeighting);
             decimater.module(hModFWQuadric).set_optimize_position(quadricPositionOptimization);
+            decimater.module(hModFWQuadric).set_binary(quadricExcludeOnly);
         }
         if (useNormalDeviation)
         {
@@ -220,6 +221,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
                 decimater.module(hModFWNormal).set_max_normal_deviation(maxNormalDeviation);
             decimater.module(hModFWNormal).set_num_frames(framesNormalDeviation);
             decimater.module(hModFWNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
+            decimater.module(hModFWNormal).set_binary(normalExcludeOnly);
         }
     }
 
@@ -229,12 +231,14 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
         decimater.module(hModFWBoundary).set_max_boundary_angle(maxBoundaryDeviation);
         decimater.module(hModFWBoundary).set_num_frames(framesBoundaryDeviation);
         decimater.module(hModFWBoundary).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
+        decimater.module(hModFWBoundary).set_binary(true);
     }
     if (useAspectRatio && (puid <= 9600000 || puid > 9980000))
     {
         decimater.add(hModAspectRatio);
         decimater.module(hModAspectRatio).set_binary(true);
         decimater.module(hModAspectRatio).set_aspect_ratio(maxAspectRatio);
+        decimater.module(hModAspectRatio).set_binary(true);
     }
 
     // Init and decimate

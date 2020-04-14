@@ -33,11 +33,9 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
 
     for (Part::Ptr& partptr : sortedParts)
     {
-        std::set<Triangle, Triangle::Less> uniqueTriangles;
+        std::vector<Triangle> allTriangles;
         map<C2MEdge, vector<size_t>, C2MEdge::Less> edgeTriangleIndices;
-        triangulateAll(partptr, uniqueTriangles, deleteMeshedElements);
-
-        vector<Triangle> allTriangles(uniqueTriangles.begin(), uniqueTriangles.end());
+        triangulateAll(partptr, allTriangles, deleteMeshedElements);
 
         for (uint triangleIndex = 0; triangleIndex < allTriangles.size(); triangleIndex++)
         {
@@ -266,7 +264,7 @@ void MeshBuilder::floodFlip(size_t seedIndex,
 }
 
 size_t MeshBuilder::triangulate(const Element2D::Ptr& elem,
-                                set<Triangle, Triangle::Less>& allTriangles)
+                                vector<Triangle>& allTriangles)
 {
     vector<vector<Node::Ptr>> triangles;
     if (elem->nodes.size() < 3)
@@ -295,18 +293,16 @@ size_t MeshBuilder::triangulate(const Element2D::Ptr& elem,
             f.edges.emplace_back(e);
         }
 
-        // Only add new unique triangles
-        if (allTriangles.insert(f).second)
-        {
-            numAdded++;
-        }
+        // Only add new unique triangles?
+        allTriangles.emplace_back(f);
+        numAdded++;
     }
 
     return numAdded;
 }
 
 size_t MeshBuilder::triangulateAll(Part::Ptr& partptr,
-                                   set<Triangle, Triangle::Less>& allTriangles,
+                                   vector<Triangle>& allTriangles,
                                    bool deleteMeshedElements)
 {
     if (partptr->elements2D.empty() && partptr->surfaceElements.empty())

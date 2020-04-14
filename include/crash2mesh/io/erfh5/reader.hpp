@@ -127,6 +127,8 @@ class Reader
                 entityIDToActivFlags[perStateEntityIDs[stateIndex][i]][stateIndex] = false;
             }
         }
+
+        return true;
     }
 
   private:
