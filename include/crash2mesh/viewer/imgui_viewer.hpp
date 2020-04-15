@@ -9,6 +9,7 @@
 #include <crash2mesh/io/c2m/c2m_writer.hpp>
 
 #include <crash2mesh/viewer/animation_viewer.hpp>
+#include <mutex>
 
 // A very good tutorial for imgui:
 // https://eliasdaler.github.io/using-imgui-with-sfml-pt1/
@@ -31,6 +32,11 @@ namespace c2m {
 			int depth_bits = 24,
 			int stencil_bits = 8
 		);
+
+        /**
+         * Run the viewer.
+         */
+        void run();
 
 	protected:
 
@@ -66,7 +72,7 @@ namespace c2m {
         double widget_scaling() { return dpi_scaling() / pixel_ratio(); }
 
 		// We don't need a per-window font. So this function is static
-		void  reload_font(int font_size = 16);
+		void  reload_font(int font_size = 14);
 
         // To provide real-time feedback to the user, e.g., current state of the
         // model and viewer, etc. This is implemented as a simple static window
@@ -87,6 +93,13 @@ namespace c2m {
 		/*
 		 * Additional stuff for decimation
 		 */
+		virtual bool key_press_event(int key, int modifiers);
+
+		virtual bool mouse_release_event(int x, int y, int button, int modifiers);
+
+		virtual bool mouse_drag_event(int x, int y, int dx, int dy, int button, int modifiers);
+
+		bool removeCurrentPartAndModel();
 
 		void drawInfoPanel();
 
@@ -118,7 +131,12 @@ namespace c2m {
 
 		bool updateFrame();
 
-		virtual bool key_press_event(int key, int modifiers);
+		bool toggleStrainColors();
+
+		bool updateWireframeVisibility();
+		bool updateBoundaryVisibility();
+        bool updateVertexVisibility();
+        bool updateFaceVisibility();
 
     	std::vector<Part::Ptr> parts;
 		std::string fileName;
@@ -134,7 +152,21 @@ namespace c2m {
 
 		bool partsExpanded = false;
 
-		int currentFrame = -1;
+		bool drawFaces = true;
+		bool drawWireframes = false;
+		bool drawVertices = false;
+		bool drawBoundaries = false;
+
+		bool strainColors = true;
+
+		bool animating = false;
+		int currentFrame = 0;
+		int nVisFrames = 1;
+		std::vector<size_t> visFrames;
+
+		std::map<easy3d::Model*, std::vector<std::vector<easy3d::vec3>>> modelToFrameToVertexbuffer;
+		std::map<easy3d::Model*, std::vector<std::vector<easy3d::vec3>>> modelToFrameToColorbuffer;
+
 		// global stats
 		int numFrames = 0;
 
@@ -142,6 +174,8 @@ namespace c2m {
 		int numTriangles = 0;
 		int numVertices = 0;
 
+	private:
+    	std::mutex mut;
 	};
 
 }

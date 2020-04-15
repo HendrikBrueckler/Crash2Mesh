@@ -104,10 +104,8 @@ class MeshDecimater
     uint maxVRender; //< Max number of mesh vertices to render mesh in own window
 
   private:
-#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
     static std::mutex mutLog;
     static std::mutex mutRender;
-#endif
     /**
      * @brief Decimates a given mesh down to a certain number of faces/vertices or
      *        or until no valid incremental decimation operations remain, that

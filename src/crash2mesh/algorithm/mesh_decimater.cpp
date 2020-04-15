@@ -193,10 +193,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
         decimater.module(hModFWQuadricNormal).set_area_weighting(quadricAreaWeighting);
         decimater.module(hModFWQuadricNormal).set_optimize_position(quadricPositionOptimization);
         // Normal stuff
-        if (puid >= 9600000 && puid < 9980000)
-            decimater.module(hModFWQuadricNormal).set_max_normal_deviation(FLT_MAX);
-        else
-            decimater.module(hModFWQuadricNormal).set_max_normal_deviation(maxNormalDeviation);
+        decimater.module(hModFWQuadricNormal).set_max_normal_deviation(maxNormalDeviation);
         decimater.module(hModFWQuadricNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }
     else
@@ -215,17 +212,14 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
         {
             decimater.add(hModFWNormal);
             // TODO collect these magic numbers in collectors.hpp as static vars
-            if (puid >= 9600000 && puid < 9980000)
-                decimater.module(hModFWNormal).set_max_normal_deviation(FLT_MAX);
-            else
-                decimater.module(hModFWNormal).set_max_normal_deviation(maxNormalDeviation);
+            decimater.module(hModFWNormal).set_max_normal_deviation(maxNormalDeviation);
             decimater.module(hModFWNormal).set_num_frames(framesNormalDeviation);
             decimater.module(hModFWNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
             decimater.module(hModFWNormal).set_binary(normalExcludeOnly);
         }
     }
 
-    if (useBoundaryDeviation && (puid <= 9600000 || puid > 9980000))
+    if (useBoundaryDeviation)
     {
         decimater.add(hModFWBoundary);
         decimater.module(hModFWBoundary).set_max_boundary_angle(maxBoundaryDeviation);
@@ -233,7 +227,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
         decimater.module(hModFWBoundary).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
         decimater.module(hModFWBoundary).set_binary(true);
     }
-    if (useAspectRatio && (puid <= 9600000 || puid > 9980000))
+    if (useAspectRatio)
     {
         decimater.add(hModAspectRatio);
         decimater.module(hModAspectRatio).set_binary(true);
@@ -264,17 +258,6 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
             }
         }
 #endif
-    }
-
-    if (useQuadric && puid >= 9600000 && puid < 9980000)
-    {
-        for (VHandle v: mesh.vertices())
-        {
-            for (Quadric& q : mesh.data(v).quadrics)
-            {
-                q *= 1.0f/1000.0f;
-            }
-        }
     }
 
     // TODO FIX THIS

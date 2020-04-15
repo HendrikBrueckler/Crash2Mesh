@@ -11,6 +11,9 @@
 #include <easy3d/viewer/drawable_lines.h>
 #include <easy3d/viewer/drawable_points.h>
 #include <easy3d/viewer/drawable_triangles.h>
+#include <easy3d/viewer/manipulated_camera_frame.h>
+#include <easy3d/viewer/opengl_timer.h>
+#include <easy3d/viewer/setting.h>
 
 #include <easy3d/gui/picker_model.h>
 #include <easy3d/util/dialogs.h>
@@ -21,6 +24,11 @@
 #include <3rd_party/imgui/misc/fonts/imgui_fonts_droid_sans.h>
 
 #include <3rd_party/glfw/include/GLFW/glfw3.h>
+
+#include <algorithm>
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
+#include <execution>
+#endif
 
 namespace c2m
 {
@@ -62,6 +70,73 @@ ImGuiViewer::ImGuiViewer(const std::string& title /* = "Easy3D ImGui Viewer" */,
     deciParts.maxVRender = 0;
     deciParts.minVLog = 1;
     deciParts.minVRender = 1;
+}
+
+static inline double get_seconds()
+{
+    return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+void ImGuiViewer::run()
+{
+    // initialize before showing the window because it can be slow
+    init();
+
+    // make sure scene fits the screen when the window appears
+    fit_screen();
+
+    // show the window
+    glfwShowWindow(window_);
+
+    try
+    {
+        // Rendering loop
+        const int num_extra_frames = 5;
+        const double animation_max_fps = 30;
+        int frame_counter = 0;
+
+        while (!glfwWindowShouldClose(window_))
+        {
+            if (!glfwGetWindowAttrib(window_, GLFW_VISIBLE)) // not visible
+                continue;
+
+            double tic = get_seconds();
+            pre_draw();
+
+            gpu_timer_->start();
+            draw();
+            gpu_timer_->stop();
+            gpu_time_ = gpu_timer_->time();
+
+            post_draw();
+            glfwSwapBuffers(window_);
+
+            if (animating || frame_counter++ < num_extra_frames)
+            {
+                glfwPollEvents();
+                // In microseconds
+                double duration = 1000000. * (get_seconds() - tic);
+                const double min_duration = 1000000. / animation_max_fps;
+                if (duration < min_duration)
+                    std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(min_duration - duration)));
+            }
+            else
+            {
+                /* Wait for mouse/keyboard or empty refresh events */
+                glfwWaitEvents();
+                frame_counter = 0;
+            }
+        }
+
+        /* Process events once more */
+        glfwPollEvents();
+    }
+    catch (const std::exception& e)
+    {
+        LOG(ERROR) << "Caught exception in main loop: " << e.what();
+    }
+
+    cleanup();
 }
 
 void ImGuiViewer::init()
@@ -164,13 +239,38 @@ bool ImGuiViewer::key_press_event(int key, int modifiers)
 {
     if (key == GLFW_KEY_LEFT && modifiers == 0)
     {
-        currentFrame = currentFrame <= 0 ? numFrames - 1 : currentFrame - 1;
+        currentFrame = currentFrame <= 0 ? visFrames.size() - 1 : currentFrame - 1;
         updateFrame();
     }
     else if (key == GLFW_KEY_RIGHT && modifiers == 0)
     {
-        currentFrame = currentFrame >= numFrames - 1 ? 0 : currentFrame + 1;
+        currentFrame = currentFrame >= visFrames.size() - 1 ? 0 : currentFrame + 1;
         updateFrame();
+    }
+    else if (key == GLFW_KEY_W && modifiers == 0)
+    {
+        drawWireframes = !drawWireframes;
+        updateWireframeVisibility();
+    }
+    else if (key == GLFW_KEY_V && modifiers == 0)
+    {
+        drawVertices = !drawVertices;
+        updateVertexVisibility();
+    }
+    else if (key == GLFW_KEY_B && modifiers == 0)
+    {
+        drawBoundaries = !drawBoundaries;
+        updateBoundaryVisibility();
+    }
+    else if (key == GLFW_KEY_F8 && modifiers == 0)
+    {
+        drawFaces = !drawFaces;
+        updateFaceVisibility();
+    }
+    else if (key == GLFW_KEY_DELETE && modifiers == 0)
+    {
+        if (current_model())
+            removeCurrentPartAndModel();
     }
     else
     {
@@ -179,42 +279,68 @@ bool ImGuiViewer::key_press_event(int key, int modifiers)
     return false;
 }
 
+bool ImGuiViewer::mouse_release_event(int x, int y, int button, int modifiers)
+{
+    return AnimationViewer::mouse_release_event(x, y, button, modifiers);
+}
+
+bool ImGuiViewer::mouse_drag_event(int x, int y, int dx, int dy, int button, int modifiers)
+{
+    if (modifiers != GLFW_MOD_ALT)
+    { // GLFW_MOD_ALT is reserved for zoom on region
+        switch (button)
+        {
+        case GLFW_MOUSE_BUTTON_RIGHT:
+            camera_->frame()->action_rotate(x, y, dx, dy, camera_, false);
+            break;
+        case GLFW_MOUSE_BUTTON_MIDDLE:
+            camera_->frame()->action_translate(x, y, dx, dy, camera_, false);
+            break;
+        }
+    }
+    else
+    {
+        return AnimationViewer::mouse_drag_event(x, y, dx, dy, button, modifiers);
+    }
+    return false;
+}
+
 bool ImGuiViewer::mouse_press_event(int x, int y, int button, int modifiers)
 {
-    easy3d::ModelPicker picker(camera());
-    auto model = picker.pick(models(), x, y);
-    if (model)
+    if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
-        if (button == GLFW_MOUSE_BUTTON_LEFT)
+        easy3d::ModelPicker picker(camera());
+        auto model = picker.pick(models(), x, y);
+        if (current_model() && dynamic_cast<easy3d::SurfaceMesh*>(current_model()))
         {
-            if (current_model() && dynamic_cast<easy3d::SurfaceMesh*>(current_model()))
+            for (auto drawable : current_model()->triangles_drawables())
             {
-                for (auto drawable : current_model()->triangles_drawables())
-                {
-                    drawable->set_per_vertex_color(true);
-                }
+                drawable->set_per_vertex_color(true);
             }
-            if (model != current_model())
+        }
+        if (model && (model != current_model() || modifiers == GLFW_MOD_SHIFT))
+        {
+            for (auto drawable : model->triangles_drawables())
             {
-                for (auto drawable : model->triangles_drawables())
+                if (!strainColors)
                 {
                     drawable->set_per_vertex_color(false);
                     drawable->set_default_color(easy3d::vec3(1, 1, 1));
                 }
-                auto pos = std::find(models_.begin(), models_.end(), model);
-                if (pos != models_.end())
-                {
-                    model_idx_ = pos - models_.begin();
-                }
             }
-            else
+            auto pos = std::find(models_.begin(), models_.end(), model);
+            if (pos != models_.end())
             {
-                model_idx_ = -1;
+                model_idx_ = pos - models_.begin();
             }
+        }
+        else
+        {
+            model_idx_ = -1;
         }
     }
 
-    return Viewer::mouse_press_event(x, y, button, modifiers);
+    return AnimationViewer::mouse_press_event(x, y, button, modifiers);
 }
 
 void ImGuiViewer::cleanup()
@@ -233,6 +359,16 @@ void ImGuiViewer::pre_draw()
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
+    if (animating)
+    {
+        currentFrame = currentFrame >= visFrames.size() - 1 ? 0 : currentFrame + 1;
+        updateFrame();
+
+        if (current_model())
+        {
+            fit_screen(current_model());
+        }
+    }
     AnimationViewer::pre_draw();
 }
 
@@ -369,6 +505,124 @@ void ImGuiViewer::draw_menu_view()
     }
 }
 
+bool ImGuiViewer::removeCurrentPartAndModel()
+{
+    if (!current_model())
+        return false;
+
+    auto model = current_model();
+    std::string name = model->name();
+    if (name.substr(0, 4) == "part")
+    {
+        uint userID = atoi(name.substr(4).c_str());
+        if (stage == 1)
+        {
+            for (auto partptr : parts)
+            {
+                if (partptr->userID == userID)
+                {
+                    partptr->mesh.clear();
+                }
+            }
+        }
+    }
+    delete_model(current_model());
+
+    model_idx_ = -1;
+
+    return true;
+}
+
+bool ImGuiViewer::updateWireframeVisibility()
+{
+    for (auto model : models_)
+    {
+        easy3d::SurfaceMesh* m = dynamic_cast<easy3d::SurfaceMesh*>(model);
+        if (m)
+        {
+            easy3d::LinesDrawable* wireframe = m->lines_drawable("wireframe");
+            if (!wireframe)
+            {
+                wireframe = m->add_lines_drawable("wireframe");
+                std::vector<unsigned int> indices;
+                for (auto e : m->edges())
+                {
+                    easy3d::SurfaceMesh::Vertex s = m->vertex(e, 0);
+                    easy3d::SurfaceMesh::Vertex t = m->vertex(e, 1);
+                    indices.push_back(s.idx());
+                    indices.push_back(t.idx());
+                }
+                auto points = m->get_vertex_property<easy3d::vec3>("v:point");
+                wireframe->update_vertex_buffer(points.vector());
+                wireframe->update_index_buffer(indices);
+                wireframe->set_default_color(easy3d::vec3(0.0f, 0.0f, 0.0f));
+                wireframe->set_per_vertex_color(false);
+                wireframe->set_visible(true);
+            }
+            wireframe->set_visible(drawWireframes);
+        }
+    }
+    return true;
+}
+
+bool ImGuiViewer::updateBoundaryVisibility()
+{
+    for (auto model : models_)
+    {
+        easy3d::SurfaceMesh* mesh = dynamic_cast<easy3d::SurfaceMesh*>(model);
+        if (mesh)
+        {
+            auto drawable = mesh->lines_drawable("borders");
+            if (!drawable)
+            {
+                auto prop = mesh->get_vertex_property<easy3d::vec3>("v:point");
+                std::vector<easy3d::vec3> points;
+                for (auto e : mesh->edges())
+                {
+                    if (mesh->is_boundary(e))
+                    {
+                        points.push_back(prop[mesh->vertex(e, 0)]);
+                        points.push_back(prop[mesh->vertex(e, 1)]);
+                    }
+                }
+                if (!points.empty())
+                {
+                    drawable = mesh->add_lines_drawable("borders");
+                    drawable->update_vertex_buffer(points);
+                    drawable->set_default_color(easy3d::setting::surface_mesh_borders_color);
+                    drawable->set_per_vertex_color(false);
+                    drawable->set_impostor_type(easy3d::LinesDrawable::CYLINDER);
+                    drawable->set_line_width(easy3d::setting::surface_mesh_borders_line_width);
+                }
+            }
+            if (drawable)
+                drawable->set_visible(drawBoundaries);
+        }
+    }
+    return true;
+}
+
+bool ImGuiViewer::updateVertexVisibility()
+{
+    for (auto model : models_)
+    {
+        easy3d::SurfaceMesh* surface = dynamic_cast<easy3d::SurfaceMesh*>(model);
+        for (auto vertices : surface->points_drawables())
+        {
+            vertices->set_visible(drawVertices);
+        }
+    }
+    return true;
+}
+
+bool ImGuiViewer::updateFaceVisibility()
+{
+    for (auto model : models_)
+        for (easy3d::TrianglesDrawable* drawable : model->triangles_drawables())
+            drawable->set_visible(drawFaces);
+    return true;
+}
+
 bool ImGuiViewer::openDialog()
 {
     const std::string& title = "Please choose a file";
@@ -395,7 +649,14 @@ bool ImGuiViewer::openFile(const std::string& fileName_)
 
     numFrames = std::max(1, (int)reader.getNumStates());
 
+    nVisFrames = 1;
+    visFrames = {0};
+    currentFrame = 0;
+
+    modelToFrameToVertexbuffer.clear();
+    modelToFrameToColorbuffer.clear();
     parts.clear();
+    scene.reset();
 
     if (!reader.readParts(parts))
     {
@@ -404,7 +665,10 @@ bool ImGuiViewer::openFile(const std::string& fileName_)
         return false;
     }
 
-    return buildParts();
+    buildParts();
+
+    fit_screen();
+    return true;
 }
 
 bool ImGuiViewer::buildParts()
@@ -429,109 +693,274 @@ bool ImGuiViewer::createDrawableParts()
     for (auto model : models_)
         delete model;
     models_.clear();
+    modelToFrameToVertexbuffer.clear();
+    modelToFrameToColorbuffer.clear();
 
-    partsExpanded = false;
-    for (const Part::Ptr partPtr : parts)
+    int preModelIdx = model_idx_;
+
+    std::vector<easy3d::SurfaceMesh*> drawablesMeshes(parts.size());
+    std::vector<easy3d::PointsDrawable*> drawablesPoints(parts.size());
+    std::vector<easy3d::TrianglesDrawable*> drawablesTriangles(parts.size());
+    std::vector<std::vector<easy3d::vec3>> drawablePointsVB(parts.size());
+    std::vector<std::vector<easy3d::vec3>> drawablePointsCB(parts.size());
+    std::vector<std::vector<easy3d::vec3>> drawableTrianglesVB(parts.size());
+    std::vector<std::vector<easy3d::vec3>> drawableTrianglesCB(parts.size());
+    std::vector<std::vector<uint>> drawableTrianglesIB(parts.size());
+
+    for (uint index = 0; index < parts.size(); index++)
     {
+        Part::Ptr partPtr = parts[index];
         const CMesh& mesh = partPtr->mesh;
+
         if (mesh.n_faces() == 0)
             continue;
 
-        // Create a drawable model
-        easy3d::SurfaceMesh* drawableMesh = new easy3d::SurfaceMesh;
-        drawableMesh->set_name("part " + std::to_string(partPtr->userID));
-        easy3d::SurfaceMesh::VertexProperty colors = drawableMesh->add_vertex_property<easy3d::vec3>("v:marking");
-        for (uint i = 0; i < numFrames; i++)
+        // Create a drawable mesh
+        drawablesMeshes[index] = new easy3d::SurfaceMesh;
+        drawablesMeshes[index]->set_name("part " + std::to_string(partPtr->userID));
+        drawablesMeshes[index]->add_vertex_property<easy3d::vec3>("v:marking");
+        for (uint i = 0; i < visFrames.size(); i++)
         {
-            drawableMesh->add_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(i));
+            drawablesMeshes[index]->add_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
         }
+        modelToFrameToVertexbuffer[drawablesMeshes[index]] = std::vector<std::vector<easy3d::vec3>>(numFrames);
+        modelToFrameToColorbuffer[drawablesMeshes[index]] = std::vector<std::vector<easy3d::vec3>>(numFrames);
+        // Visualize points as billboards
+        drawablesPoints[index] = drawablesMeshes[index]->add_points_drawable("vertices");
+        drawablesPoints[index]->set_point_size(5);
+        drawablesPoints[index]->set_per_vertex_color(true);
+        drawablesPoints[index]->set_visible(false);
+        // Visualize triangles with face normals
+        drawablesTriangles[index] = drawablesMeshes[index]->add_triangles_drawable("faces");
+        drawablesTriangles[index]->set_distinct_back_color(false);
+        drawablesTriangles[index]->set_lighting_two_sides(true);
+        drawablesTriangles[index]->set_smooth_shading(false);
+        drawablesTriangles[index]->set_per_vertex_color(true);
+    }
+
+    auto buildDrawable = [&](size_t index) {
+        Part::Ptr partPtr = parts[index];
+        const CMesh& mesh = partPtr->mesh;
+        if (mesh.n_faces() == 0)
+            return;
+
+        easy3d::SurfaceMesh* drawableMesh = drawablesMeshes[index];
+        easy3d::SurfaceMesh::VertexProperty colors = drawableMesh->get_vertex_property<easy3d::vec3>("v:marking");
 
         // Copy over vertices and their properties to drawable model
-        map<VHandle, easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex;
+        vector<easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex(mesh.n_vertices());
         int n = 0;
         for (VHandle v : mesh.vertices())
         {
             OMVec3 position = mesh.point(v);
-            vertexToDrawableVertex[v] = drawableMesh->add_vertex(easy3d::vec3(position[0], position[1], position[2]));
+            vertexToDrawableVertex[v.idx()]
+                = drawableMesh->add_vertex(easy3d::vec3(position[0], position[1], position[2]));
             const MatX3& positions = mesh.data(v).node->positions;
-            for (uint i = 0; i < numFrames; i++)
+            for (uint i = 0; i < visFrames.size(); i++)
             {
-                easy3d::SurfaceMesh::VertexProperty drawablePositions
-                    = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(i));
-                easy3d::vec3 pos = easy3d::vec3(positions.coeff(i, 0), positions.coeff(i, 1), positions.coeff(i, 2));
-                drawablePositions[vertexToDrawableVertex[v]] = pos;
+                auto drawablePositions
+                    = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
+                easy3d::vec3 pos = easy3d::vec3(positions.coeff(visFrames[i], 0), positions.coeff(visFrames[i], 1), positions.coeff(visFrames[i], 2));
+                drawablePositions[vertexToDrawableVertex[v.idx()]] = pos;
             }
             if (mesh.status(v).fixed_nonmanifold())
-            {
-                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8f, 0.0f, 0.0f);
-            }
+                colors[vertexToDrawableVertex[v.idx()]] = easy3d::vec3(0.8f, 0.0f, 0.0f);
             else if (mesh.data(v).node->referencingParts > 1)
-            {
-                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.9f, 0.6f, 0.0f);
-            }
+                colors[vertexToDrawableVertex[v.idx()]] = easy3d::vec3(0.9f, 0.6f, 0.0f);
             else if (mesh.is_boundary(v))
-            {
-                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8f, 0.8f, 0.0f);
-            }
+                colors[vertexToDrawableVertex[v.idx()]] = easy3d::vec3(0.8f, 0.8f, 0.0f);
             else
-            {
-                colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.0f, 0.6f, 0.0f);
-            }
+                colors[vertexToDrawableVertex[v.idx()]] = easy3d::vec3(0.0f, 0.6f, 0.0f);
         }
 
-        // Copy over faces and their properties to drawable model
+        auto drawablePositions
+            = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[currentFrame]));
+        auto pos = drawableMesh->get_vertex_property<easy3d::vec3>("v:point");
+        pos.vector() = drawablePositions.vector();
+
+        // Visualize points as billboards
+        drawablePointsVB[index] = drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector();
+        drawablePointsCB[index] = drawableMesh->get_vertex_property<easy3d::vec3>("v:marking").vector();
+
+        // Copy over faces and their properties to drawable models
+        std::vector<std::vector<easy3d::vec3>>& frameToVertexbuffer = modelToFrameToVertexbuffer[drawableMesh];
+        std::vector<std::vector<easy3d::vec3>>& frameToColorbuffer = modelToFrameToColorbuffer[drawableMesh];
         for (FHandle f : mesh.faces())
         {
+            auto strains = mesh.data(f).element->plasticStrains;
             vector<easy3d::SurfaceMesh::Vertex> vs;
             for (VHandle v : mesh.fv_range(f))
             {
-                vs.emplace_back(vertexToDrawableVertex[v]);
+                auto drawableVertex = vertexToDrawableVertex[v.idx()];
+                vs.emplace_back(drawableVertex);
+                for (uint i = 0; i < visFrames.size(); i++)
+                {
+                    auto drawablePositions
+                        = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
+                    float delta = std::min(1.0f, 20.0f * strains(visFrames[i]));
+                    easy3d::vec3 col = easy3d::vec3(1.0f, 1.0f - delta, 1.0f - delta);
+                    frameToColorbuffer[visFrames[i]].emplace_back(col);
+                    frameToVertexbuffer[visFrames[i]].emplace_back(drawablePositions[drawableVertex]);
+                }
             }
             easy3d::SurfaceMesh::Face fd = drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
         }
 
-        // Visualize points as billboards
-        easy3d::PointsDrawable* drawablePoints = drawableMesh->add_points_drawable("vertices");
-        drawablePoints->set_point_size(5);
-        drawablePoints->set_per_vertex_color(true);
-        drawablePoints->update_vertex_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
-        drawablePoints->update_color_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:marking").vector());
-        drawablePoints->set_visible(false);
-
-        // Visualize triangles with face normals
-        easy3d::TrianglesDrawable* drawableTriangles = drawableMesh->add_triangles_drawable("faces");
-        drawableTriangles->set_distinct_back_color(false);
-        drawableTriangles->set_lighting_two_sides(true);
-
-        vector<easy3d::vec3> points;
-        vector<easy3d::vec3> normals;
-        std::srand(partPtr->userID);
-        vector<easy3d::vec3> partColors(3 * drawableMesh->n_faces(), easy3d::random_color());
-        for (easy3d::SurfaceMesh::Face f : drawableMesh->faces())
+        vector<easy3d::vec3>& points = drawableTrianglesVB[index];
+        vector<easy3d::vec3>& faceColors = drawableTrianglesCB[index];
+        vector<uint>& indices = drawableTrianglesIB[index];
+        if (strainColors)
         {
-            easy3d::SurfaceMesh::Halfedge he = drawableMesh->halfedge(f);
-            easy3d::vec3 normal = drawableMesh->compute_face_normal(f);
-            for (int j = 0; j < 3; j++)
+            points = frameToVertexbuffer[visFrames[currentFrame]];
+            faceColors = frameToColorbuffer[visFrames[currentFrame]];
+            indices = std::vector<uint>(3 * drawableMesh->faces_size());
+            std::iota(indices.begin(), indices.end(), 0);
+        }
+        else
+        {
+            points = drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector();
+            std::srand(partPtr->userID);
+            faceColors = std::vector<easy3d::vec3>(drawableMesh->n_vertices(), easy3d::random_color());
+
+            for (auto f : drawableMesh->faces())
             {
-                points.emplace_back(drawableMesh->position(drawableMesh->to_vertex(he)));
-                normals.emplace_back(normal);
-                he = drawableMesh->next_halfedge(he);
+                easy3d::SurfaceMesh::Halfedge he = drawableMesh->halfedge(f);
+                for (int j = 0; j < 3; j++)
+                {
+                    indices.emplace_back(drawableMesh->to_vertex(he).idx());
+                    he = drawableMesh->next_halfedge(he);
+                }
             }
         }
-        drawableTriangles->update_vertex_buffer(points);
-        drawableTriangles->update_normal_buffer(normals);
-        drawableTriangles->update_color_buffer(partColors);
-        drawableTriangles->set_per_vertex_color(true);
+    };
 
-        vector<unsigned int> indices(3 * drawableMesh->faces_size());
-        std::iota(indices.begin(), indices.end(), 0);
-        drawableTriangles->update_index_buffer(indices);
+    std::vector<size_t> partIndices(parts.size());
+    std::iota(partIndices.begin(), partIndices.end(), 0);
 
-        // Silence annyoing messages ?
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
+    std::for_each(std::execution::par_unseq, partIndices.begin(), partIndices.end(), buildDrawable);
+#else
+    for (size_t index : partIndices)
+        buildDrawable(index);
+#endif
+
+    for (uint index = 0; index < parts.size(); index++)
+    {
+        easy3d::SurfaceMesh* drawableMesh = drawablesMeshes[index];
+        if (!drawableMesh)
+            continue;
+
+        easy3d::PointsDrawable* drawablePoints = drawablesPoints[index];
+        drawablePoints->update_vertex_buffer(drawablePointsVB[index]);
+        drawablePoints->update_color_buffer(drawablePointsCB[index]);
+        easy3d::TrianglesDrawable* drawableTriangles = drawablesTriangles[index];
+        drawableTriangles->update_vertex_buffer(drawableTrianglesVB[index]);
+        drawableTriangles->update_color_buffer(drawableTrianglesCB[index]);
+        drawableTriangles->update_index_buffer(drawableTrianglesIB[index]);
+
+        std::cout.setstate(std::ios_base::failbit);
+        std::cerr.setstate(std::ios_base::failbit);
         add_model(drawableMesh, false);
+        std::cout.clear();
+        std::cerr.clear();
     }
 
-    fit_screen();
+    updateFaceVisibility();
+    updateVertexVisibility();
+    updateBoundaryVisibility();
+    updateWireframeVisibility();
+
+    model_idx_ = preModelIdx;
+    if (partsExpanded)
+    {
+        partsExpanded = false;
+        toggleExpandParts();
+    }
+
+    return true;
+}
+
+bool ImGuiViewer::toggleStrainColors()
+{
+    strainColors = !strainColors;
+
+    for (auto model : models_)
+    {
+        easy3d::SurfaceMesh* surface = dynamic_cast<easy3d::SurfaceMesh*>(model);
+        if (!surface)
+            continue;
+        std::string name = surface->name();
+        if (name.substr(0, 4) != "part")
+            continue;
+
+        easy3d::SurfaceMesh::VertexProperty drawablePositions
+            = surface->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[currentFrame]));
+        auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
+
+        if (partsExpanded)
+        {
+            if (strainColors)
+            {
+                vector<easy3d::vec3> points;
+                for (easy3d::SurfaceMesh::Face f : surface->faces())
+                {
+                    easy3d::SurfaceMesh::Halfedge he = surface->halfedge(f);
+                    for (int j = 0; j < 3; j++)
+                    {
+                        points.emplace_back(pos[surface->to_vertex(he)]);
+                        he = surface->next_halfedge(he);
+                    }
+                }
+            }
+        }
+
+        for (auto drawableTriangles : surface->triangles_drawables())
+        {
+            if (strainColors)
+            {
+                drawableTriangles->update_color_buffer(modelToFrameToColorbuffer[surface][visFrames[currentFrame]]);
+                if (partsExpanded)
+                {
+                    vector<easy3d::vec3> points;
+                    for (easy3d::SurfaceMesh::Face f : surface->faces())
+                    {
+                        easy3d::SurfaceMesh::Halfedge he = surface->halfedge(f);
+                        for (int j = 0; j < 3; j++)
+                        {
+                            points.emplace_back(pos[surface->to_vertex(he)]);
+                            he = surface->next_halfedge(he);
+                        }
+                    }
+                    drawableTriangles->update_vertex_buffer(points);
+                }
+                else
+                    drawableTriangles->update_vertex_buffer(modelToFrameToVertexbuffer[surface][visFrames[currentFrame]]);
+                std::vector<uint> indices = std::vector<uint>(3 * surface->faces_size());
+                std::iota(indices.begin(), indices.end(), 0);
+                drawableTriangles->update_index_buffer(indices);
+            }
+            else
+            {
+                std::string name = surface->name();
+                uint userID = atoi(name.substr(4).c_str());
+                std::srand(userID);
+                drawableTriangles->update_color_buffer(
+                    std::vector<easy3d::vec3>(surface->n_vertices(), easy3d::random_color()));
+                drawableTriangles->update_vertex_buffer(pos.vector());
+                std::vector<uint> indices;
+                for (auto f : surface->faces())
+                {
+                    easy3d::SurfaceMesh::Halfedge he = surface->halfedge(f);
+                    for (int j = 0; j < 3; j++)
+                    {
+                        indices.emplace_back(surface->to_vertex(he).idx());
+                        he = surface->next_halfedge(he);
+                    }
+                }
+                drawableTriangles->update_index_buffer(indices);
+            }
+        }
+    }
 
     return true;
 }
@@ -545,54 +974,81 @@ bool ImGuiViewer::updateFrame()
             continue;
 
         easy3d::SurfaceMesh::VertexProperty drawablePositions
-            = surface->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(currentFrame));
+            = surface->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[currentFrame]));
 
-        surface->get_vertex_property<easy3d::vec3>("v:point").vector() = drawablePositions.vector();
-        vector<easy3d::vec3> points;
-        for (easy3d::SurfaceMesh::Face f : surface->faces())
+        auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
+        pos.vector() = drawablePositions.vector();
+
+        if (partsExpanded)
         {
-            easy3d::SurfaceMesh::Halfedge he = surface->halfedge(f);
-            for (int j = 0; j < 3; j++)
+            easy3d::vec3 center(0.0f, 0.0f, 0.0f);
+            for (auto v : surface->vertices())
             {
-                points.emplace_back(surface->position(surface->to_vertex(he)));
-                he = surface->next_halfedge(he);
+                center += pos[v];
+            }
+            center /= surface->n_vertices();
+            for (auto v : surface->vertices())
+            {
+                pos[v] += (1.3f) * center;
             }
         }
+
         for (auto drawableTriangles : surface->triangles_drawables())
         {
-            drawableTriangles->update_vertex_buffer(points);
+            if (strainColors)
+            {
+                if (partsExpanded)
+                {
+                    vector<easy3d::vec3> points;
+                    for (easy3d::SurfaceMesh::Face f : surface->faces())
+                    {
+                        easy3d::SurfaceMesh::Halfedge he = surface->halfedge(f);
+                        for (int j = 0; j < 3; j++)
+                        {
+                            points.emplace_back(pos[surface->to_vertex(he)]);
+                            he = surface->next_halfedge(he);
+                        }
+                    }
+                    drawableTriangles->update_vertex_buffer(points);
+                }
+                else
+                {
+                    drawableTriangles->update_vertex_buffer(modelToFrameToVertexbuffer[surface][visFrames[currentFrame]]);
+                }
+                drawableTriangles->update_color_buffer(modelToFrameToColorbuffer[surface][visFrames[currentFrame]]);
+            }
+            else
+                drawableTriangles->update_vertex_buffer(pos.vector());
         }
         for (auto drawablePoints : surface->points_drawables())
         {
-            drawablePoints->update_vertex_buffer(surface->get_vertex_property<easy3d::vec3>("v:point").vector());
+            drawablePoints->update_vertex_buffer(pos.vector());
         }
         auto drawable = surface->lines_drawable("borders");
         if (drawable)
         {
-            auto prop = surface->get_vertex_property<easy3d::vec3>("v:point");
-            std::vector<easy3d::vec3> points;
+            std::vector<easy3d::vec3> borderPoints;
             for (auto e : surface->edges())
             {
                 if (surface->is_boundary(e))
                 {
-                    points.push_back(prop[surface->vertex(e, 0)]);
-                    points.push_back(prop[surface->vertex(e, 1)]);
+                    borderPoints.push_back(pos[surface->vertex(e, 0)]);
+                    borderPoints.push_back(pos[surface->vertex(e, 1)]);
                 }
             }
-            if (!points.empty())
+            if (!borderPoints.empty())
             {
-                drawable->update_vertex_buffer(points);
+                drawable->update_vertex_buffer(borderPoints);
             }
         }
         for (auto drawableLines : surface->lines_drawables())
         {
             if (drawableLines != surface->lines_drawable("borders"))
             {
-                drawableLines->update_vertex_buffer(surface->get_vertex_property<easy3d::vec3>("v:point").vector());
+                drawableLines->update_vertex_buffer(pos.vector());
             }
         }
     }
-    partsExpanded = false;
 
     return true;
 }
@@ -619,69 +1075,74 @@ bool ImGuiViewer::toggleExpandParts()
         if (surface)
         {
             easy3d::vec3 center(0.0f, 0.0f, 0.0f);
+            auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
             for (auto v : surface->vertices())
             {
-                center += surface->position(v);
+                center += pos[v];
             }
             center /= surface->n_vertices();
             for (auto v : surface->vertices())
             {
                 if (partsExpanded)
                 {
-                    surface->position(v) -= (1.3f / 2.3f) * center;
+                    pos[v] -= (1.3f / 2.3f) * center;
                 }
                 else
                 {
-                    surface->position(v) += 1.3f * center;
+                    pos[v] += 1.3f * center;
                 }
             }
             vector<easy3d::vec3> points;
-            for (easy3d::SurfaceMesh::Face f : surface->faces())
+            if (strainColors)
             {
-                easy3d::SurfaceMesh::Halfedge he = surface->halfedge(f);
-                for (int j = 0; j < 3; j++)
+                for (easy3d::SurfaceMesh::Face f : surface->faces())
                 {
-                    points.emplace_back(surface->position(surface->to_vertex(he)));
-                    he = surface->next_halfedge(he);
+                    easy3d::SurfaceMesh::Halfedge he = surface->halfedge(f);
+                    for (int j = 0; j < 3; j++)
+                    {
+                        points.emplace_back(pos[surface->to_vertex(he)]);
+                        he = surface->next_halfedge(he);
+                    }
                 }
             }
             for (auto drawableTriangles : surface->triangles_drawables())
             {
-                drawableTriangles->update_vertex_buffer(points);
+                if (strainColors)
+                    drawableTriangles->update_vertex_buffer(points);
+                else
+                    drawableTriangles->update_vertex_buffer(pos.vector());
             }
             for (auto drawablePoints : surface->points_drawables())
             {
-                drawablePoints->update_vertex_buffer(surface->get_vertex_property<easy3d::vec3>("v:point").vector());
+                drawablePoints->update_vertex_buffer(pos.vector());
             }
             auto drawable = surface->lines_drawable("borders");
             if (drawable)
             {
-                auto prop = surface->get_vertex_property<easy3d::vec3>("v:point");
-                std::vector<easy3d::vec3> points;
+                std::vector<easy3d::vec3> borderPoints;
                 for (auto e : surface->edges())
                 {
                     if (surface->is_boundary(e))
                     {
-                        points.push_back(prop[surface->vertex(e, 0)]);
-                        points.push_back(prop[surface->vertex(e, 1)]);
+                        borderPoints.push_back(pos[surface->vertex(e, 0)]);
+                        borderPoints.push_back(pos[surface->vertex(e, 1)]);
                     }
                 }
-                if (!points.empty())
+                if (!borderPoints.empty())
                 {
-                    drawable->update_vertex_buffer(points);
+                    drawable->update_vertex_buffer(borderPoints);
                 }
             }
             for (auto drawableLines : surface->lines_drawables())
             {
                 if (drawableLines != surface->lines_drawable("borders"))
                 {
-                    drawableLines->update_vertex_buffer(surface->get_vertex_property<easy3d::vec3>("v:point").vector());
+                    drawableLines->update_vertex_buffer(pos.vector());
                 }
             }
         }
     }
     partsExpanded = !partsExpanded;
-    fit_screen();
 
     return partsExpanded;
 }
@@ -701,7 +1162,7 @@ bool ImGuiViewer::decimatePartwise()
 
 bool ImGuiViewer::mergeParts()
 {
-    scene = MeshBuilder::merge(parts);
+    scene = MeshBuilder::merge(parts, false);
     if (!scene)
     {
         Logger::lout(Logger::ERROR) << "Merging parts failed" << std::endl;
@@ -720,128 +1181,199 @@ bool ImGuiViewer::createDrawableScene()
     for (auto model : models_)
         delete model;
     models_.clear();
+    modelToFrameToVertexbuffer.clear();
+    modelToFrameToColorbuffer.clear();
 
-    partsExpanded = false;
+    int preModelIdx = model_idx_;
+
+    std::vector<easy3d::SurfaceMesh*> drawablesMeshes(parts.size());
+    std::vector<easy3d::PointsDrawable*> drawablesPoints(parts.size());
+    std::vector<easy3d::TrianglesDrawable*> drawablesTriangles(parts.size());
+    std::vector<std::vector<easy3d::vec3>> drawablePointsVB(parts.size());
+    std::vector<std::vector<easy3d::vec3>> drawablePointsCB(parts.size());
+    std::vector<std::vector<easy3d::vec3>> drawableTrianglesVB(parts.size());
+    std::vector<std::vector<easy3d::vec3>> drawableTrianglesCB(parts.size());
+    std::vector<std::vector<uint>> drawableTrianglesIB(parts.size());
+
+    std::map<uint, uint> partID2Index;
+    for (uint index = 0; index < parts.size(); index++)
+    {
+        Part::Ptr partPtr = parts[index];
+        const CMesh& mesh = partPtr->mesh;
+
+        if (mesh.n_faces() == 0)
+            continue;
+
+        partID2Index[partPtr->ID] = index;
+        // Create a drawable mesh
+        drawablesMeshes[index] = new easy3d::SurfaceMesh;
+        drawablesMeshes[index]->set_name("part " + std::to_string(partPtr->userID));
+        drawablesMeshes[index]->add_vertex_property<easy3d::vec3>("v:marking");
+        for (uint i = 0; i < visFrames.size(); i++)
+        {
+            drawablesMeshes[index]->add_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
+        }
+        modelToFrameToVertexbuffer[drawablesMeshes[index]] = std::vector<std::vector<easy3d::vec3>>(numFrames);
+        modelToFrameToColorbuffer[drawablesMeshes[index]] = std::vector<std::vector<easy3d::vec3>>(numFrames);
+        // Visualize points as billboards
+        drawablesPoints[index] = drawablesMeshes[index]->add_points_drawable("vertices");
+        drawablesPoints[index]->set_point_size(5);
+        drawablesPoints[index]->set_per_vertex_color(true);
+        drawablesPoints[index]->set_visible(false);
+        // Visualize triangles with face normals
+        drawablesTriangles[index] = drawablesMeshes[index]->add_triangles_drawable("faces");
+        drawablesTriangles[index]->set_distinct_back_color(false);
+        drawablesTriangles[index]->set_lighting_two_sides(true);
+        drawablesTriangles[index]->set_smooth_shading(false);
+        drawablesTriangles[index]->set_per_vertex_color(true);
+    }
 
     const CMesh& mesh = scene->mesh;
 
-    std::map<uint, easy3d::SurfaceMesh*> partID2model;
-    for (const Part::Ptr partPtr : parts)
-    {
-        if (partPtr->surfaceElements.empty() && partPtr->elements2D.empty())
-            continue;
+    auto buildDrawable = [&](size_t index) {
+        Part::Ptr partPtr = parts[index];
+        uint partID = partPtr->ID;
 
-        // Create a drawable model
-        easy3d::SurfaceMesh* drawableMesh = new easy3d::SurfaceMesh;
-        drawableMesh->set_name("part " + std::to_string(partPtr->userID));
-        drawableMesh->add_vertex_property<easy3d::vec3>("v:marking");
-        for (uint i = 0; i < numFrames; i++)
+        if (partPtr->mesh.n_faces() == 0)
+            return;
+
+        easy3d::SurfaceMesh* drawableMesh = drawablesMeshes[index];
+        std::vector<std::vector<easy3d::vec3>>& frameToVertexbuffer = modelToFrameToVertexbuffer[drawableMesh];
+        std::vector<std::vector<easy3d::vec3>>& frameToColorbuffer = modelToFrameToColorbuffer[drawableMesh];
+        frameToVertexbuffer = std::vector<std::vector<easy3d::vec3>>(numFrames);
+        frameToColorbuffer = std::vector<std::vector<easy3d::vec3>>(numFrames);
+        // Copy over vertices and their properties to drawable model
+        vector<easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex(mesh.n_vertices());
+        for (VHandle v : mesh.vertices())
         {
-            drawableMesh->add_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(i));
+            OMVec3 position = mesh.point(v);
+            FHandle f = *mesh.cvf_begin(v);
+            if (mesh.data(f).element->partID != partID)
+                continue;
+            vertexToDrawableVertex[v.idx()] = drawableMesh->add_vertex(easy3d::vec3(position[0], position[1], position[2]));
+            const MatX3& positions = mesh.data(v).node->positions;
+            for (uint i = 0; i < visFrames.size(); i++)
+            {
+                auto drawablePositions
+                    = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
+                easy3d::vec3 pos = easy3d::vec3(
+                    positions.coeff(visFrames[i], 0), positions.coeff(visFrames[i], 1), positions.coeff(visFrames[i], 2));
+                drawablePositions[vertexToDrawableVertex[v.idx()]] = pos;
+            }
+            auto colors = drawableMesh->get_vertex_property<easy3d::vec3>("v:marking");
+            if (mesh.status(v).fixed_nonmanifold())
+                colors[vertexToDrawableVertex[v.idx()]] = easy3d::vec3(0.8f, 0.0f, 0.0f);
+            else if (mesh.data(v).node->referencingParts > 1)
+                colors[vertexToDrawableVertex[v.idx()]] = easy3d::vec3(0.9f, 0.6f, 0.0f);
+            else if (mesh.is_boundary(v))
+                colors[vertexToDrawableVertex[v.idx()]] = easy3d::vec3(0.8f, 0.8f, 0.0f);
+            else
+                colors[vertexToDrawableVertex[v.idx()]] = easy3d::vec3(0.0f, 0.6f, 0.0f);
         }
 
-        partID2model[partPtr->ID] = drawableMesh;
-    }
+        for (FHandle f : mesh.faces())
+        {
+            auto strains = mesh.data(f).element->plasticStrains;
+            vector<easy3d::SurfaceMesh::Vertex> vs;
+            if (mesh.data(f).element->partID != partID)
+                continue;
+            for (VHandle v : mesh.fv_range(f))
+            {
+                auto drawableVertex = vertexToDrawableVertex[v.idx()];
+                vs.emplace_back(drawableVertex);
+                for (uint i = 0; i < visFrames.size(); i++)
+                {
+                    auto drawablePositions
+                        = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
+                    float delta = std::min(1.0f, 20.0f * strains(visFrames[i]));
+                    easy3d::vec3 col = easy3d::vec3(1.0f, 1.0f - delta, 1.0f - delta);
+                    frameToColorbuffer[visFrames[i]].emplace_back(col);
+                    frameToVertexbuffer[visFrames[i]].emplace_back(drawablePositions[drawableVertex]);
+                }
+            }
+            easy3d::SurfaceMesh::Face fd = drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
+        }
 
-    // Copy over vertices and their properties to drawable model
-    map<VHandle, easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex;
-    for (VHandle v : mesh.vertices())
-    {
-        OMVec3 position = mesh.point(v);
-        FHandle f = *mesh.cvf_begin(v);
-        assert(mesh.data(f).element != nullptr);
-        easy3d::SurfaceMesh* drawableMesh = partID2model[mesh.data(f).element->partID];
-        assert(drawableMesh != nullptr);
-        vertexToDrawableVertex[v] = drawableMesh->add_vertex(easy3d::vec3(position[0], position[1], position[2]));
-        const MatX3& positions = mesh.data(v).node->positions;
-        for (uint i = 0; i < numFrames; i++)
+        auto drawablePositions
+            = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[currentFrame]));
+        auto pos = drawableMesh->get_vertex_property<easy3d::vec3>("v:point");
+        pos.vector() = drawablePositions.vector();
+
+        // Visualize points as billboards
+        drawablePointsVB[index] = drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector();
+        drawablePointsCB[index] = drawableMesh->get_vertex_property<easy3d::vec3>("v:marking").vector();
+
+        vector<easy3d::vec3>& points = drawableTrianglesVB[index];
+        vector<easy3d::vec3>& faceColors = drawableTrianglesCB[index];
+        vector<uint>& indices = drawableTrianglesIB[index];
+        if (strainColors)
         {
-            easy3d::SurfaceMesh::VertexProperty drawablePositions
-                = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(i));
-            easy3d::vec3 pos = easy3d::vec3(positions.coeff(i, 0), positions.coeff(i, 1), positions.coeff(i, 2));
-            drawablePositions[vertexToDrawableVertex[v]] = pos;
-        }
-        easy3d::SurfaceMesh::VertexProperty colors = drawableMesh->get_vertex_property<easy3d::vec3>("v:marking");
-        if (mesh.status(v).fixed_nonmanifold())
-        {
-            colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8f, 0.0f, 0.0f);
-        }
-        else if (mesh.data(v).node->referencingParts > 1)
-        {
-            colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.9f, 0.6f, 0.0f);
-        }
-        else if (mesh.is_boundary(v))
-        {
-            colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.8f, 0.8f, 0.0f);
+            points = frameToVertexbuffer[visFrames[currentFrame]];
+            faceColors = frameToColorbuffer[visFrames[currentFrame]];
+            indices = std::vector<uint>(3 * drawableMesh->faces_size());
+            std::iota(indices.begin(), indices.end(), 0);
         }
         else
         {
-            colors[vertexToDrawableVertex[v]] = easy3d::vec3(0.0f, 0.6f, 0.0f);
-        }
-    }
+            points = drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector();
+            std::srand(partPtr->userID);
+            faceColors = std::vector<easy3d::vec3>(drawableMesh->n_vertices(), easy3d::random_color());
 
-    // Copy over faces and their properties to drawable models
-    for (FHandle f : mesh.faces())
-    {
-        vector<easy3d::SurfaceMesh::Vertex> vs;
-        for (VHandle v : mesh.fv_range(f))
-        {
-            vs.emplace_back(vertexToDrawableVertex[v]);
-        }
-        easy3d::SurfaceMesh* drawableMesh = partID2model[mesh.data(f).element->partID];
-        assert(drawableMesh != nullptr);
-        easy3d::SurfaceMesh::Face fd = drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
-    }
-
-    for (const Part::Ptr partPtr : parts)
-    {
-        if (partPtr->surfaceElements.empty() && partPtr->elements2D.empty())
-            continue;
-
-        easy3d::SurfaceMesh* drawableMesh = partID2model[partPtr->ID];
-
-        // Visualize points as billboards
-        easy3d::PointsDrawable* drawablePoints = drawableMesh->add_points_drawable("vertices");
-        drawablePoints->set_point_size(5);
-        drawablePoints->set_per_vertex_color(true);
-        drawablePoints->update_vertex_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector());
-        drawablePoints->update_color_buffer(drawableMesh->get_vertex_property<easy3d::vec3>("v:marking").vector());
-        drawablePoints->set_visible(false);
-
-        // Visualize triangles with face normals
-        easy3d::TrianglesDrawable* drawableTriangles = drawableMesh->add_triangles_drawable("faces");
-        drawableTriangles->set_distinct_back_color(false);
-        drawableTriangles->set_lighting_two_sides(true);
-
-        vector<easy3d::vec3> points;
-        vector<easy3d::vec3> normals;
-        std::srand(partPtr->userID);
-        vector<easy3d::vec3> partColors(3 * drawableMesh->n_faces(), easy3d::random_color());
-        for (easy3d::SurfaceMesh::Face f : drawableMesh->faces())
-        {
-            easy3d::SurfaceMesh::Halfedge he = drawableMesh->halfedge(f);
-            easy3d::vec3 normal = drawableMesh->compute_face_normal(f);
-            for (int j = 0; j < 3; j++)
+            for (auto f : drawableMesh->faces())
             {
-                points.emplace_back(drawableMesh->position(drawableMesh->to_vertex(he)));
-                normals.emplace_back(normal);
-                he = drawableMesh->next_halfedge(he);
+                easy3d::SurfaceMesh::Halfedge he = drawableMesh->halfedge(f);
+                for (int j = 0; j < 3; j++)
+                {
+                    indices.emplace_back(drawableMesh->to_vertex(he).idx());
+                    he = drawableMesh->next_halfedge(he);
+                }
             }
         }
-        drawableTriangles->update_vertex_buffer(points);
-        drawableTriangles->update_normal_buffer(normals);
-        drawableTriangles->update_color_buffer(partColors);
-        drawableTriangles->set_per_vertex_color(true);
+    };
+    
+    std::vector<size_t> partIndices(parts.size());
+    std::iota(partIndices.begin(), partIndices.end(), 0);
 
-        vector<unsigned int> indices(3 * drawableMesh->faces_size());
-        std::iota(indices.begin(), indices.end(), 0);
-        drawableTriangles->update_index_buffer(indices);
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
+    std::for_each(std::execution::par_unseq, partIndices.begin(), partIndices.end(), buildDrawable);
+#else
+    for (size_t index : partIndices)
+        buildDrawable(index);
+#endif
 
-        // Silence annyoing messages ?
+    for (uint index = 0; index < parts.size(); index++)
+    {
+        easy3d::SurfaceMesh* drawableMesh = drawablesMeshes[index];
+        if (!drawableMesh)
+            continue;
+
+        easy3d::PointsDrawable* drawablePoints = drawablesPoints[index];
+        drawablePoints->update_vertex_buffer(drawablePointsVB[index]);
+        drawablePoints->update_color_buffer(drawablePointsCB[index]);
+        easy3d::TrianglesDrawable* drawableTriangles = drawablesTriangles[index];
+        drawableTriangles->update_vertex_buffer(drawableTrianglesVB[index]);
+        drawableTriangles->update_color_buffer(drawableTrianglesCB[index]);
+        drawableTriangles->update_index_buffer(drawableTrianglesIB[index]);
+
+        std::cout.setstate(std::ios_base::failbit);
+        std::cerr.setstate(std::ios_base::failbit);
         add_model(drawableMesh, false);
+        std::cout.clear();
+        std::cerr.clear();
     }
 
-    fit_screen();
+    updateFaceVisibility();
+    updateVertexVisibility();
+    updateBoundaryVisibility();
+    updateWireframeVisibility();
+
+    model_idx_ = preModelIdx;
+
+    if (partsExpanded)
+    {
+        partsExpanded = false;
+        toggleExpandScene();
+    }
 
     return true;
 }
@@ -854,54 +1386,60 @@ bool ImGuiViewer::toggleExpandScene()
     for (auto model : models_)
     {
         easy3d::SurfaceMesh* surface = dynamic_cast<easy3d::SurfaceMesh*>(model);
+        auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
         if (surface)
         {
             easy3d::vec3 center(0.0f, 0.0f, 0.0f);
             for (auto v : surface->vertices())
             {
-                center += surface->position(v);
+                center += pos[v];
             }
             center /= surface->n_vertices();
             for (auto v : surface->vertices())
             {
                 if (partsExpanded)
                 {
-                    surface->position(v) -= (1.3f / 2.3f) * center;
+                    pos[v] -= (1.3f / 2.3f) * center;
                 }
                 else
                 {
-                    surface->position(v) += 1.3f * center;
+                    pos[v] += 1.3f * center;
                 }
             }
             vector<easy3d::vec3> points;
-            for (easy3d::SurfaceMesh::Face f : surface->faces())
+            if (strainColors)
             {
-                easy3d::SurfaceMesh::Halfedge he = surface->halfedge(f);
-                for (int j = 0; j < 3; j++)
+                for (easy3d::SurfaceMesh::Face f : surface->faces())
                 {
-                    points.emplace_back(surface->position(surface->to_vertex(he)));
-                    he = surface->next_halfedge(he);
+                    easy3d::SurfaceMesh::Halfedge he = surface->halfedge(f);
+                    for (int j = 0; j < 3; j++)
+                    {
+                        points.emplace_back(pos[surface->to_vertex(he)]);
+                        he = surface->next_halfedge(he);
+                    }
                 }
             }
             for (auto drawableTriangles : surface->triangles_drawables())
             {
-                drawableTriangles->update_vertex_buffer(points);
+                if (strainColors)
+                    drawableTriangles->update_vertex_buffer(points);
+                else
+                    drawableTriangles->update_vertex_buffer(pos.vector());
             }
             for (auto drawablePoints : surface->points_drawables())
             {
-                drawablePoints->update_vertex_buffer(surface->get_vertex_property<easy3d::vec3>("v:point").vector());
+                drawablePoints->update_vertex_buffer(pos.vector());
             }
             auto drawable = surface->lines_drawable("borders");
             if (drawable)
             {
-                auto prop = surface->get_vertex_property<easy3d::vec3>("v:point");
                 std::vector<easy3d::vec3> points;
                 for (auto e : surface->edges())
                 {
                     if (surface->is_boundary(e))
                     {
-                        points.push_back(prop[surface->vertex(e, 0)]);
-                        points.push_back(prop[surface->vertex(e, 1)]);
+                        points.push_back(pos[surface->vertex(e, 0)]);
+                        points.push_back(pos[surface->vertex(e, 1)]);
                     }
                 }
                 if (!points.empty())
@@ -913,13 +1451,12 @@ bool ImGuiViewer::toggleExpandScene()
             {
                 if (drawableLines != surface->lines_drawable("borders"))
                 {
-                    drawableLines->update_vertex_buffer(surface->get_vertex_property<easy3d::vec3>("v:point").vector());
+                    drawableLines->update_vertex_buffer(pos.vector());
                 }
             }
         }
     }
     partsExpanded = !partsExpanded;
-    fit_screen();
 
     return partsExpanded;
 
@@ -944,6 +1481,12 @@ bool ImGuiViewer::decimateScene()
     createDrawableScene();
 
     updateGlobalStats();
+
+    updateFaceVisibility();
+    updateVertexVisibility();
+    updateBoundaryVisibility();
+    updateWireframeVisibility();
+
     return true;
 }
 
@@ -964,7 +1507,7 @@ void ImGuiViewer::drawInfoPanel()
 {
     ImGui::SetNextWindowSize(ImVec2(200.0f * widget_scaling(), 300.0f * widget_scaling()), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(0.05f * width(), 0.05 * height()), ImGuiCond_Appearing, ImVec2(0.0f, 0.0f));
-    if (ImGui::Begin("Easy3D: Information",
+    if (ImGui::Begin("Information",
                      nullptr,
                      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize
                          | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing
@@ -972,10 +1515,74 @@ void ImGuiViewer::drawInfoPanel()
     {
         ImGui::Text("Info");
         ImGui::Separator();
-        int preFrame = currentFrame;
-        ImGui::SliderInt("Current animation frame", &currentFrame, 0, numFrames-1);
-        if (preFrame != currentFrame)
-            updateFrame();
+
+        if (stage > 0)
+        {
+            if (ImGui::Button("Show animation frames"))
+                ImGui::OpenPopup("Choose animation frames");
+
+            if (ImGui::BeginPopupModal("Choose animation frames"))
+            {
+                ImGui::Text("How many of the total %i frames should be visualized?", numFrames);
+                ImGui::SliderInt("", &nVisFrames, 1, numFrames);
+                ImGui::Text("Visualizing more than ~10-20 frames NOT recommended for big models!");
+                ImGui::Text("More frames = more memory consumption and longer loading times!");
+                ImGui::Text("This affects only visualization, decimation is independent of this!");
+                if (ImGui::Button("OK")) 
+                { 
+                    float frameSkip = numFrames;
+                    if (nVisFrames > 1)
+                        frameSkip = std::max(1.0f, 1.0f / (nVisFrames - 1) * (numFrames - 1));
+
+                    visFrames.clear();
+                    for (float frameF = 0; frameF < numFrames; frameF += frameSkip)
+                        visFrames.emplace_back(std::floor(frameF));
+
+                    currentFrame = 0;
+
+                    if (stage == 1)
+                        createDrawableParts();
+                    else if (stage == 2)
+                        createDrawableScene();
+                    ImGui::CloseCurrentPopup(); 
+                }
+                ImGui::EndPopup();
+            }
+            ImGui::Separator();
+        }
+        if (visFrames.size() > 0)
+        {
+            ImGui::Text("Current frame: %i", visFrames[currentFrame]);
+        }
+        else
+        {
+            ImGui::Text("Current frame: none");
+        }
+        if (visFrames.size() > 1)
+        {
+            int preFrame = currentFrame;
+            ImGui::SliderInt("Choose animation frame", &currentFrame, 0, visFrames.size() - 1);
+            if (preFrame != currentFrame && !animating)
+                updateFrame();
+        }
+        if (stage > 0)
+        {
+            if (visFrames.size() > 1)
+            {
+                if (ImGui::Button("Toggle animation"))
+                {
+                    animating = !animating;
+                }
+            }
+            if (ImGui::Button("Toggle strain coloring"))
+            {
+                toggleStrainColors();
+            }
+            if (ImGui::Button("Toggle part expansion"))
+            {
+                toggleExpandParts();
+            }
+        }
         ImGui::Separator();
         ImGui::Text("Frame rate: %.1f", ImGui::GetIO().Framerate);
         ImGui::Text("GPU time (ms): %4.1f", gpu_time_);
@@ -983,7 +1590,7 @@ void ImGuiViewer::drawInfoPanel()
         ImGui::Separator();
 
         ImGui::Text("Global stats: ");
-        ImGui::Text("#Frames: %i", numFrames);
+        ImGui::Text("#Frames: %i (#frames visualized: %i)", numFrames, visFrames.size());
         ImGui::Text("#Faces: %i", numTriangles);
         ImGui::Text("#Vertices: %i", numVertices);
 
@@ -1034,10 +1641,6 @@ void ImGuiViewer::drawDecimationPanel()
                 buildParts();
             }
             ImGui::Separator();
-            if (ImGui::Button("Toggle part expansion"))
-            {
-                toggleExpandParts();
-            }
             if (ImGui::Button("Calculate epicenters (will then be used for error scaling)"))
             {
                 calcEpicenters();
@@ -1060,11 +1663,6 @@ void ImGuiViewer::drawDecimationPanel()
             {
                 stage = 0;
                 buildParts();
-            }
-            ImGui::Separator();
-            if (ImGui::Button("Toggle part expansion"))
-            {
-                toggleExpandScene();
             }
             ImGui::Separator();
             ImGui::InputInt("Target #vertices (0 = no limit): ", &targetVertices, 10000, 100000);
@@ -1198,6 +1796,7 @@ bool ImGuiViewer::updateGlobalStats()
     if (stage <= 0)
     {
         numFrames = 0;
+        visFrames.clear();
         return false;
     }
     else if (stage == 1)

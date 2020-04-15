@@ -13,6 +13,11 @@
 #include <set>
 #include <memory>
 
+#include <algorithm>
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
+#include <execution>
+#endif
+
 namespace c2m
 {
 using std::list;
@@ -31,11 +36,16 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
         return a->elements2D.size() + a->surfaceElements.size() > b->elements2D.size() + b->surfaceElements.size();
     });
 
-    for (Part::Ptr& partptr : sortedParts)
-    {
-        std::vector<Triangle> allTriangles;
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
+    static std::mutex mut;
+#endif
+
+    auto buildPart = [&](Part::Ptr& partptr) {
+        std::set<Triangle, Triangle::Less> uniqueTriangles;
         map<C2MEdge, vector<size_t>, C2MEdge::Less> edgeTriangleIndices;
-        triangulateAll(partptr, allTriangles, deleteMeshedElements);
+        triangulateAll(partptr, uniqueTriangles, deleteMeshedElements);
+
+        vector<Triangle> allTriangles(uniqueTriangles.begin(), uniqueTriangles.end());
 
         for (uint triangleIndex = 0; triangleIndex < allTriangles.size(); triangleIndex++)
         {
@@ -55,15 +65,33 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
             }
         }
 
-        // vector<list<C2MEdge>> nMfPaths(nonManifoldPaths(edgeTriangleIndices));
-        // sortFromNonManifoldPaths(nMfPaths, allTriangles, edgeTriangleIndices);
 
         CMesh& mesh = partptr->mesh;
-        assembleMeshFromTriangles(mesh, allTriangles, submeshes, validTriangles, invalidTriangles);
+        int deltaValid = 0;
+        int deltaInvalid = 0;
+        assembleMeshFromTriangles(mesh, allTriangles, submeshes, deltaValid, deltaInvalid);
         despike(mesh);
 
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
+        mut.lock();
+#endif
+        validTriangles += deltaValid;
+        invalidTriangles += deltaInvalid;
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
+        mut.unlock();
+#endif
+
         meshes++;
-    }
+    };
+
+    std::cerr.setstate(std::ios_base::failbit);
+#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
+    std::for_each(std::execution::par_unseq, parts.begin(), parts.end(), buildPart);
+#else
+    for (Part::Ptr& partptr : sortedParts)
+        buildPart(partptr);
+#endif
+    std::cerr.clear();
 
     Logger::lout(Logger::INFO) << "Non-manifold triangles: " << invalidTriangles
                                << ", valid triangles: " << validTriangles << std::endl;
@@ -264,7 +292,7 @@ void MeshBuilder::floodFlip(size_t seedIndex,
 }
 
 size_t MeshBuilder::triangulate(const Element2D::Ptr& elem,
-                                vector<Triangle>& allTriangles)
+                                set<Triangle, Triangle::Less>& allTriangles)
 {
     vector<vector<Node::Ptr>> triangles;
     if (elem->nodes.size() < 3)
@@ -293,16 +321,18 @@ size_t MeshBuilder::triangulate(const Element2D::Ptr& elem,
             f.edges.emplace_back(e);
         }
 
-        // Only add new unique triangles?
-        allTriangles.emplace_back(f);
-        numAdded++;
+        // Only add new unique triangles
+        if (allTriangles.insert(f).second)
+        {
+            numAdded++;
+        }
     }
 
     return numAdded;
 }
 
 size_t MeshBuilder::triangulateAll(Part::Ptr& partptr,
-                                   vector<Triangle>& allTriangles,
+                                   set<Triangle, Triangle::Less>& allTriangles,
                                    bool deleteMeshedElements)
 {
     if (partptr->elements2D.empty() && partptr->surfaceElements.empty())
@@ -396,8 +426,6 @@ void MeshBuilder::assembleMeshFromTriangles(CMesh& mesh,
                 }
             }
 
-            std::cerr.setstate(std::ios_base::failbit);
-
             CMesh::FaceHandle fh = mesh.add_face(vertices);
             if (fh.is_valid())
             {
@@ -452,7 +480,6 @@ void MeshBuilder::assembleMeshFromTriangles(CMesh& mesh,
                     }
                 }
             }
-            std::cerr.clear();
         }
     }
 
