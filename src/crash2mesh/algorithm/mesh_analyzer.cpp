@@ -392,7 +392,7 @@ void MeshAnalyzer::getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists)
     for (long frame = numFrames-1; frame >= 0; frame--)
     {
         // TODO more sensible value here
-        if (sumOfWeights(frame) > 20.0)
+        if (sumOfWeights(frame) > 100.0)
             epicenters.row(frame) /= sumOfWeights(frame);
         else if (static_cast<uint>(frame + 1) < numFrames)
             epicenters.row(frame) = epicenters.row(frame+1);
@@ -403,6 +403,8 @@ void MeshAnalyzer::getEpicenter(CMesh& mesh, MatX3& epicenters, VecX& meanDists)
         MatX3 position = mesh.data(v).node->positions;
         for (uint frame = 0; frame < numFrames; frame++)
         {
+            if (epicenters.row(frame).squaredNorm() == 0.0)
+                continue;
             meanDists(frame) += (position.row(frame) - epicenters.row(frame)).norm();
         }
     }

@@ -111,6 +111,8 @@ namespace c2m {
 
 		static void HelpMarker(const char* desc);
 
+		bool createDrawableEpicenters();
+
 		bool buildParts();
 
 		bool createDrawableParts();
@@ -125,8 +127,6 @@ namespace c2m {
 
 		bool decimatePartwise();
 
-		bool toggleExpandScene();
-
 		bool decimateScene();
 
 		bool updateFrame();
@@ -138,6 +138,15 @@ namespace c2m {
         bool updateVertexVisibility();
         bool updateFaceVisibility();
 
+		bool exportCurrentPart();
+		bool exportScene();
+		
+		bool fullReload = false;
+
+		bool show_overlay = true;
+		
+		bool targetCam = false;
+
     	std::vector<Part::Ptr> parts;
 		std::string fileName;
 
@@ -145,10 +154,13 @@ namespace c2m {
 		MeshDecimater deciScene;
 		Scene::Ptr scene;
 
+		MatX3 epicenters;
+		VecX meanDists;
+
 		int targetVertices = 0;
 		int targetFaces = 0;
 
-		int stage = -1;
+		int stage = 0;
 
 		bool partsExpanded = false;
 

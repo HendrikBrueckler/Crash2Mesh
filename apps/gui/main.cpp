@@ -4,7 +4,7 @@ int main(int argc, char** argv)
 {
     easy3d::logging::initialize();
     try {
-        c2m::ImGuiViewer viewer("Mesh View");
+        c2m::ImGuiViewer viewer("Crash2Mesh");
         viewer.resize(1920, 1080);
         viewer.run();
     } catch (const std::runtime_error &e) {

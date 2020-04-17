@@ -1,17 +1,21 @@
 #include <crash2mesh/viewer/imgui_viewer.hpp>
 
-#include <cmath>
-#include <iostream>
+#include <crash2mesh/io/c2m/c2m_writer.hpp>
+#include <crash2mesh/util/par_for.hpp>
 
+#include <easy3d/core/graph.h>
 #include <easy3d/core/point_cloud.h>
 #include <easy3d/core/random.h>
 #include <easy3d/core/surface_mesh.h>
+#include <easy3d/fileio/resources.h>
+#include <easy3d/fileio/surface_mesh_io.h>
 #include <easy3d/util/file_system.h>
 #include <easy3d/viewer/drawable.h>
 #include <easy3d/viewer/drawable_lines.h>
 #include <easy3d/viewer/drawable_points.h>
 #include <easy3d/viewer/drawable_triangles.h>
 #include <easy3d/viewer/manipulated_camera_frame.h>
+#include <easy3d/viewer/opengl_text.h>
 #include <easy3d/viewer/opengl_timer.h>
 #include <easy3d/viewer/setting.h>
 
@@ -25,10 +29,8 @@
 
 #include <3rd_party/glfw/include/GLFW/glfw3.h>
 
-#include <algorithm>
-#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
-#include <execution>
-#endif
+#include <cmath>
+#include <iostream>
 
 namespace c2m
 {
@@ -161,7 +163,7 @@ void ImGuiViewer::init()
         ImGuiStyle& style = ImGui::GetStyle();
         style.FrameRounding = 5.0f;
 
-        // load font
+        // load ui font
         reload_font();
     }
 }
@@ -318,6 +320,13 @@ bool ImGuiViewer::mouse_press_event(int x, int y, int button, int modifiers)
                 drawable->set_per_vertex_color(true);
             }
         }
+        else if (current_model() && current_model()->name() == "epicenter")
+        {
+            for (auto drawable : current_model()->lines_drawables())
+            {
+                drawable->set_default_color(easy3d::vec3(1.0, 1.0, 1.0) - drawable->default_color());
+            }
+        }
         if (model && (model != current_model() || modifiers == GLFW_MOD_SHIFT))
         {
             for (auto drawable : model->triangles_drawables())
@@ -326,6 +335,13 @@ bool ImGuiViewer::mouse_press_event(int x, int y, int button, int modifiers)
                 {
                     drawable->set_per_vertex_color(false);
                     drawable->set_default_color(easy3d::vec3(1, 1, 1));
+                }
+            }
+            if (model && model->name() == "epicenter")
+            {
+                for (auto drawable : model->lines_drawables())
+                {
+                    drawable->set_default_color(easy3d::vec3(1.0, 1.0, 1.0) - drawable->default_color());
                 }
             }
             auto pos = std::find(models_.begin(), models_.end(), model);
@@ -337,6 +353,11 @@ bool ImGuiViewer::mouse_press_event(int x, int y, int button, int modifiers)
         else
         {
             model_idx_ = -1;
+            if (targetCam)
+            {
+                fit_screen();
+                targetCam = false;
+            }
         }
     }
 
@@ -367,6 +388,15 @@ void ImGuiViewer::pre_draw()
         if (current_model())
         {
             fit_screen(current_model());
+            targetCam = true;
+        }
+        else
+        {
+            if (targetCam)
+            {
+                fit_screen();
+                targetCam = false;
+            }
         }
     }
     AnimationViewer::pre_draw();
@@ -380,7 +410,6 @@ void ImGuiViewer::draw_overlay(bool* visible)
 
 void ImGuiViewer::post_draw()
 {
-    static bool show_overlay = true;
     if (show_overlay)
         draw_overlay(&show_overlay);
 
@@ -388,8 +417,8 @@ void ImGuiViewer::post_draw()
     if (show_about)
     {
         ImGui::SetNextWindowPos(ImVec2(width() * 0.5f, height() * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        ImGui::Begin("About Easy3D ImGui Viewer", &show_about, ImGuiWindowFlags_NoResize);
-        ImGui::Text("This viewer shows how to use ImGui for GUI creation and event handling");
+        ImGui::Begin("Crash2Mesh ImGui Viewer", &show_about, ImGuiWindowFlags_NoResize);
+        ImGui::Text("Adapted from Easy3D ImGui Viewer by:");
         ImGui::Separator();
         ImGui::Text("\n"
                     "Liangliang Nan\n"
@@ -409,29 +438,36 @@ void ImGuiViewer::post_draw()
         ImGui::End();
     }
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(5, 8));
-    if (ImGui::BeginMainMenuBar())
-    {
-        draw_menu_file();
+    // ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(5, 8));
+    // if (ImGui::BeginMainMenuBar())
+    // {
+    //     draw_menu_file();
 
-        draw_menu_view();
+    //     draw_menu_view();
 
-        if (ImGui::BeginMenu("Help"))
-        {
-            ImGui::MenuItem("Manual", nullptr, &show_manual);
-            ImGui::Separator();
-            ImGui::MenuItem("About", nullptr, &show_about);
-            ImGui::EndMenu();
-        }
-        menu_height_ = ImGui::GetWindowHeight();
-        ImGui::EndMainMenuBar();
-    }
-    ImGui::PopStyleVar();
+    //     if (ImGui::BeginMenu("Help"))
+    //     {
+    //         ImGui::MenuItem("Manual", nullptr, &show_manual);
+    //         ImGui::Separator();
+    //         ImGui::MenuItem("About", nullptr, &show_about);
+    //         ImGui::EndMenu();
+    //     }
+    //     menu_height_ = ImGui::GetWindowHeight();
+    //     ImGui::EndMainMenuBar();
+    // }
+    // ImGui::PopStyleVar();
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-    AnimationViewer::post_draw();
+    // draw Easy3D logo
+    if (text_renderer_)
+    {
+        const float font_size = 20.0f;
+        const float offsetX = 0.5f * width() - 120.0f * dpi_scaling();
+        const float offsetY = 20.0f * dpi_scaling();
+        text_renderer_->draw("Crash2Mesh", offsetX, offsetY, font_size, 0);
+    }
 }
 
 void ImGuiViewer::draw_menu_file()
@@ -526,6 +562,15 @@ bool ImGuiViewer::removeCurrentPartAndModel()
             }
         }
     }
+    else if (name == "epicenter")
+    {
+        epicenters.resize(0, 3);
+        meanDists.resize(0, 0);
+        deciParts.epicenters.resize(0, 3);
+        deciParts.meanDistsFromEpicenters.resize(0, 0);
+        deciScene.epicenters.resize(0, 3);
+        deciScene.meanDistsFromEpicenters.resize(0, 0);
+    }
     delete_model(current_model());
 
     model_idx_ = -1;
@@ -605,20 +650,15 @@ bool ImGuiViewer::updateBoundaryVisibility()
 bool ImGuiViewer::updateVertexVisibility()
 {
     for (auto model : models_)
-    {
-        easy3d::SurfaceMesh* surface = dynamic_cast<easy3d::SurfaceMesh*>(model);
-        for (auto vertices : surface->points_drawables())
-        {
-            vertices->set_visible(drawVertices);
-        }
-    }
+        for (auto drawable : model->points_drawables())
+            drawable->set_visible(drawVertices);
     return true;
 }
 
 bool ImGuiViewer::updateFaceVisibility()
 {
     for (auto model : models_)
-        for (easy3d::TrianglesDrawable* drawable : model->triangles_drawables())
+        for (auto drawable : model->triangles_drawables())
             drawable->set_visible(drawFaces);
     return true;
 }
@@ -642,7 +682,7 @@ bool ImGuiViewer::openFile(const std::string& fileName_)
     if (fileName_ == "")
         return false;
 
-    stage = -1;
+    stage = 0;
 
     fileName = fileName_;
     erfh5::Reader reader(fileName, 100);
@@ -664,6 +704,7 @@ bool ImGuiViewer::openFile(const std::string& fileName_)
         fileName = "";
         return false;
     }
+    fullReload = false;
 
     buildParts();
 
@@ -721,7 +762,7 @@ bool ImGuiViewer::createDrawableParts()
         drawablesMeshes[index]->add_vertex_property<easy3d::vec3>("v:marking");
         for (uint i = 0; i < visFrames.size(); i++)
         {
-            drawablesMeshes[index]->add_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
+            drawablesMeshes[index]->add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
         }
         modelToFrameToVertexbuffer[drawablesMeshes[index]] = std::vector<std::vector<easy3d::vec3>>(numFrames);
         modelToFrameToColorbuffer[drawablesMeshes[index]] = std::vector<std::vector<easy3d::vec3>>(numFrames);
@@ -759,8 +800,10 @@ bool ImGuiViewer::createDrawableParts()
             for (uint i = 0; i < visFrames.size(); i++)
             {
                 auto drawablePositions
-                    = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
-                easy3d::vec3 pos = easy3d::vec3(positions.coeff(visFrames[i], 0), positions.coeff(visFrames[i], 1), positions.coeff(visFrames[i], 2));
+                    = drawableMesh->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
+                easy3d::vec3 pos = easy3d::vec3(positions.coeff(visFrames[i], 0),
+                                                positions.coeff(visFrames[i], 1),
+                                                positions.coeff(visFrames[i], 2));
                 drawablePositions[vertexToDrawableVertex[v.idx()]] = pos;
             }
             if (mesh.status(v).fixed_nonmanifold())
@@ -774,7 +817,7 @@ bool ImGuiViewer::createDrawableParts()
         }
 
         auto drawablePositions
-            = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[currentFrame]));
+            = drawableMesh->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
         auto pos = drawableMesh->get_vertex_property<easy3d::vec3>("v:point");
         pos.vector() = drawablePositions.vector();
 
@@ -796,7 +839,7 @@ bool ImGuiViewer::createDrawableParts()
                 for (uint i = 0; i < visFrames.size(); i++)
                 {
                     auto drawablePositions
-                        = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
+                        = drawableMesh->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
                     float delta = std::min(1.0f, 20.0f * strains(visFrames[i]));
                     easy3d::vec3 col = easy3d::vec3(1.0f, 1.0f - delta, 1.0f - delta);
                     frameToColorbuffer[visFrames[i]].emplace_back(col);
@@ -837,12 +880,7 @@ bool ImGuiViewer::createDrawableParts()
     std::vector<size_t> partIndices(parts.size());
     std::iota(partIndices.begin(), partIndices.end(), 0);
 
-#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
-    std::for_each(std::execution::par_unseq, partIndices.begin(), partIndices.end(), buildDrawable);
-#else
-    for (size_t index : partIndices)
-        buildDrawable(index);
-#endif
+    parallel_for_each(partIndices, buildDrawable);
 
     for (uint index = 0; index < parts.size(); index++)
     {
@@ -876,6 +914,10 @@ bool ImGuiViewer::createDrawableParts()
         partsExpanded = false;
         toggleExpandParts();
     }
+    if (epicenters.rows() > 0)
+    {
+        createDrawableEpicenters();
+    }
 
     return true;
 }
@@ -894,7 +936,7 @@ bool ImGuiViewer::toggleStrainColors()
             continue;
 
         easy3d::SurfaceMesh::VertexProperty drawablePositions
-            = surface->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[currentFrame]));
+            = surface->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
         auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
 
         if (partsExpanded)
@@ -934,7 +976,8 @@ bool ImGuiViewer::toggleStrainColors()
                     drawableTriangles->update_vertex_buffer(points);
                 }
                 else
-                    drawableTriangles->update_vertex_buffer(modelToFrameToVertexbuffer[surface][visFrames[currentFrame]]);
+                    drawableTriangles->update_vertex_buffer(
+                        modelToFrameToVertexbuffer[surface][visFrames[currentFrame]]);
                 std::vector<uint> indices = std::vector<uint>(3 * surface->faces_size());
                 std::iota(indices.begin(), indices.end(), 0);
                 drawableTriangles->update_index_buffer(indices);
@@ -969,12 +1012,24 @@ bool ImGuiViewer::updateFrame()
 {
     for (auto model : models_)
     {
+        if (model->name() == "epicenter")
+        {
+            auto graph = dynamic_cast<easy3d::Graph*>(model);
+            auto drawablePositions
+                = graph->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
+
+            auto pos = graph->get_vertex_property<easy3d::vec3>("v:point");
+            pos.vector() = drawablePositions.vector();
+            graph->points_drawable("vertices")->update_vertex_buffer(pos.vector());
+            graph->lines_drawable("edges")->update_vertex_buffer(pos.vector());
+            continue;
+        }
         easy3d::SurfaceMesh* surface = dynamic_cast<easy3d::SurfaceMesh*>(model);
         if (!surface)
             continue;
 
         easy3d::SurfaceMesh::VertexProperty drawablePositions
-            = surface->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[currentFrame]));
+            = surface->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
 
         auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
         pos.vector() = drawablePositions.vector();
@@ -995,7 +1050,7 @@ bool ImGuiViewer::updateFrame()
 
         for (auto drawableTriangles : surface->triangles_drawables())
         {
-            if (strainColors)
+            if (strainColors && surface->name() != "epicenter")
             {
                 if (partsExpanded)
                 {
@@ -1013,7 +1068,8 @@ bool ImGuiViewer::updateFrame()
                 }
                 else
                 {
-                    drawableTriangles->update_vertex_buffer(modelToFrameToVertexbuffer[surface][visFrames[currentFrame]]);
+                    drawableTriangles->update_vertex_buffer(
+                        modelToFrameToVertexbuffer[surface][visFrames[currentFrame]]);
                 }
                 drawableTriangles->update_color_buffer(modelToFrameToColorbuffer[surface][visFrames[currentFrame]]);
             }
@@ -1055,11 +1111,11 @@ bool ImGuiViewer::updateFrame()
 
 bool ImGuiViewer::calcEpicenters()
 {
-    MatX3 epicenters;
-    VecX meanDists;
-    MeshAnalyzer::getEpicenter(parts, epicenters, deciParts.meanDistsFromEpicenters);
+    MeshAnalyzer::getEpicenter(parts, epicenters, meanDists);
     deciParts.epicenters = deciScene.epicenters = epicenters;
     deciParts.meanDistsFromEpicenters = deciScene.meanDistsFromEpicenters = meanDists;
+
+    createDrawableEpicenters();
 
     return true;
 }
@@ -1071,6 +1127,9 @@ bool ImGuiViewer::toggleExpandParts()
 
     for (auto model : models_)
     {
+        if (model->name() == "epicenter")
+            model->set_visible(partsExpanded);
+
         easy3d::SurfaceMesh* surface = dynamic_cast<easy3d::SurfaceMesh*>(model);
         if (surface)
         {
@@ -1149,6 +1208,10 @@ bool ImGuiViewer::toggleExpandParts()
 
 bool ImGuiViewer::decimatePartwise()
 {
+    if (deciParts.quadricPositionOptimization)
+    {
+        fullReload = true;
+    }
     if (!deciParts.decimateParts(parts))
     {
         Logger::lout(Logger::ERROR) << "Decimation failed" << std::endl;
@@ -1211,7 +1274,7 @@ bool ImGuiViewer::createDrawableScene()
         drawablesMeshes[index]->add_vertex_property<easy3d::vec3>("v:marking");
         for (uint i = 0; i < visFrames.size(); i++)
         {
-            drawablesMeshes[index]->add_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
+            drawablesMeshes[index]->add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
         }
         modelToFrameToVertexbuffer[drawablesMeshes[index]] = std::vector<std::vector<easy3d::vec3>>(numFrames);
         modelToFrameToColorbuffer[drawablesMeshes[index]] = std::vector<std::vector<easy3d::vec3>>(numFrames);
@@ -1250,14 +1313,16 @@ bool ImGuiViewer::createDrawableScene()
             FHandle f = *mesh.cvf_begin(v);
             if (mesh.data(f).element->partID != partID)
                 continue;
-            vertexToDrawableVertex[v.idx()] = drawableMesh->add_vertex(easy3d::vec3(position[0], position[1], position[2]));
+            vertexToDrawableVertex[v.idx()]
+                = drawableMesh->add_vertex(easy3d::vec3(position[0], position[1], position[2]));
             const MatX3& positions = mesh.data(v).node->positions;
             for (uint i = 0; i < visFrames.size(); i++)
             {
                 auto drawablePositions
-                    = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
-                easy3d::vec3 pos = easy3d::vec3(
-                    positions.coeff(visFrames[i], 0), positions.coeff(visFrames[i], 1), positions.coeff(visFrames[i], 2));
+                    = drawableMesh->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
+                easy3d::vec3 pos = easy3d::vec3(positions.coeff(visFrames[i], 0),
+                                                positions.coeff(visFrames[i], 1),
+                                                positions.coeff(visFrames[i], 2));
                 drawablePositions[vertexToDrawableVertex[v.idx()]] = pos;
             }
             auto colors = drawableMesh->get_vertex_property<easy3d::vec3>("v:marking");
@@ -1284,7 +1349,7 @@ bool ImGuiViewer::createDrawableScene()
                 for (uint i = 0; i < visFrames.size(); i++)
                 {
                     auto drawablePositions
-                        = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[i]));
+                        = drawableMesh->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
                     float delta = std::min(1.0f, 20.0f * strains(visFrames[i]));
                     easy3d::vec3 col = easy3d::vec3(1.0f, 1.0f - delta, 1.0f - delta);
                     frameToColorbuffer[visFrames[i]].emplace_back(col);
@@ -1295,7 +1360,7 @@ bool ImGuiViewer::createDrawableScene()
         }
 
         auto drawablePositions
-            = drawableMesh->get_vertex_property<easy3d::vec3>("v:posframe" + std::to_string(visFrames[currentFrame]));
+            = drawableMesh->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
         auto pos = drawableMesh->get_vertex_property<easy3d::vec3>("v:point");
         pos.vector() = drawablePositions.vector();
 
@@ -1330,16 +1395,11 @@ bool ImGuiViewer::createDrawableScene()
             }
         }
     };
-    
+
     std::vector<size_t> partIndices(parts.size());
     std::iota(partIndices.begin(), partIndices.end(), 0);
 
-#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
-    std::for_each(std::execution::par_unseq, partIndices.begin(), partIndices.end(), buildDrawable);
-#else
-    for (size_t index : partIndices)
-        buildDrawable(index);
-#endif
+    parallel_for_each(partIndices, buildDrawable);
 
     for (uint index = 0; index < parts.size(); index++)
     {
@@ -1372,99 +1432,22 @@ bool ImGuiViewer::createDrawableScene()
     if (partsExpanded)
     {
         partsExpanded = false;
-        toggleExpandScene();
+        toggleExpandParts();
     }
-
-    return true;
-}
-
-bool ImGuiViewer::toggleExpandScene()
-{
-    if (models_.empty())
-        return false;
-
-    for (auto model : models_)
+    if (epicenters.rows() > 0)
     {
-        easy3d::SurfaceMesh* surface = dynamic_cast<easy3d::SurfaceMesh*>(model);
-        auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
-        if (surface)
-        {
-            easy3d::vec3 center(0.0f, 0.0f, 0.0f);
-            for (auto v : surface->vertices())
-            {
-                center += pos[v];
-            }
-            center /= surface->n_vertices();
-            for (auto v : surface->vertices())
-            {
-                if (partsExpanded)
-                {
-                    pos[v] -= (1.3f / 2.3f) * center;
-                }
-                else
-                {
-                    pos[v] += 1.3f * center;
-                }
-            }
-            vector<easy3d::vec3> points;
-            if (strainColors)
-            {
-                for (easy3d::SurfaceMesh::Face f : surface->faces())
-                {
-                    easy3d::SurfaceMesh::Halfedge he = surface->halfedge(f);
-                    for (int j = 0; j < 3; j++)
-                    {
-                        points.emplace_back(pos[surface->to_vertex(he)]);
-                        he = surface->next_halfedge(he);
-                    }
-                }
-            }
-            for (auto drawableTriangles : surface->triangles_drawables())
-            {
-                if (strainColors)
-                    drawableTriangles->update_vertex_buffer(points);
-                else
-                    drawableTriangles->update_vertex_buffer(pos.vector());
-            }
-            for (auto drawablePoints : surface->points_drawables())
-            {
-                drawablePoints->update_vertex_buffer(pos.vector());
-            }
-            auto drawable = surface->lines_drawable("borders");
-            if (drawable)
-            {
-                std::vector<easy3d::vec3> points;
-                for (auto e : surface->edges())
-                {
-                    if (surface->is_boundary(e))
-                    {
-                        points.push_back(pos[surface->vertex(e, 0)]);
-                        points.push_back(pos[surface->vertex(e, 1)]);
-                    }
-                }
-                if (!points.empty())
-                {
-                    drawable->update_vertex_buffer(points);
-                }
-            }
-            for (auto drawableLines : surface->lines_drawables())
-            {
-                if (drawableLines != surface->lines_drawable("borders"))
-                {
-                    drawableLines->update_vertex_buffer(pos.vector());
-                }
-            }
-        }
+        createDrawableEpicenters();
     }
-    partsExpanded = !partsExpanded;
-
-    return partsExpanded;
 
     return true;
 }
 
 bool ImGuiViewer::decimateScene()
 {
+    if (deciParts.quadricPositionOptimization || deciScene.quadricPositionOptimization)
+    {
+        fullReload = true;
+    }
     for (FHandle f : scene->mesh.faces())
     {
         for (NormalCone& nc : scene->mesh.data(f).normalCones)
@@ -1528,8 +1511,8 @@ void ImGuiViewer::drawInfoPanel()
                 ImGui::Text("Visualizing more than ~10-20 frames NOT recommended for big models!");
                 ImGui::Text("More frames = more memory consumption and longer loading times!");
                 ImGui::Text("This affects only visualization, decimation is independent of this!");
-                if (ImGui::Button("OK")) 
-                { 
+                if (ImGui::Button("OK"))
+                {
                     float frameSkip = numFrames;
                     if (nVisFrames > 1)
                         frameSkip = std::max(1.0f, 1.0f / (nVisFrames - 1) * (numFrames - 1));
@@ -1544,7 +1527,7 @@ void ImGuiViewer::drawInfoPanel()
                         createDrawableParts();
                     else if (stage == 2)
                         createDrawableScene();
-                    ImGui::CloseCurrentPopup(); 
+                    ImGui::CloseCurrentPopup();
                 }
                 ImGui::EndPopup();
             }
@@ -1574,7 +1557,7 @@ void ImGuiViewer::drawInfoPanel()
                     animating = !animating;
                 }
             }
-            if (ImGui::Button("Toggle strain coloring"))
+            if (ImGui::Button("Toggle strain/part coloring"))
             {
                 toggleStrainColors();
             }
@@ -1613,6 +1596,16 @@ void ImGuiViewer::drawInfoPanel()
                 ImGui::Text("#Vertices: %i", mesh->n_vertices());
                 ImGui::Text("#Edges: %i", mesh->n_edges());
             }
+            else if (dynamic_cast<easy3d::Graph*>(current_model()))
+            {
+                if (current_model()->name() == "epicenter")
+                {
+                    ImGui::Text("Type: epicenter visualization");
+                    ImGui::TextWrapped("Decimation error is scaled up for elements inside the sphere, and is scaled "
+                                       "down for elements outside the sphere.");
+                    ImGui::TextWrapped("This means elements inside the sphere are preserved in more detail");
+                }
+            }
         }
         ImGui::End();
     }
@@ -1620,8 +1613,6 @@ void ImGuiViewer::drawInfoPanel()
 
 void ImGuiViewer::drawDecimationPanel()
 {
-    if (stage < 0)
-        return;
 
     ImGui::SetNextWindowSize(ImVec2(200 * widget_scaling(), 300 * widget_scaling()), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(width() * 0.5, height() * 0.05), ImGuiCond_Appearing, ImVec2(1.0f, 0.0f));
@@ -1635,42 +1626,100 @@ void ImGuiViewer::drawDecimationPanel()
         if (stage == 1)
         {
             ImGui::Text("PART-WISE STAGE");
-            if (ImGui::Button("Reload original model"))
-            {
-                stage = 0;
-                buildParts();
-            }
-            ImGui::Separator();
-            if (ImGui::Button("Calculate epicenters (will then be used for error scaling)"))
-            {
-                calcEpicenters();
-            }
-            ImGui::Separator();
-            if (ImGui::Button("Decimate part-wise"))
-            {
-                decimatePartwise();
-            }
-            ImGui::Separator();
-            if (ImGui::Button("Merge part meshes to scene"))
-            {
-                mergeParts();
-            }
         }
         else if (stage == 2)
         {
             ImGui::Text("GLOBAL SCENE STAGE");
-            if (ImGui::Button("Reload original model"))
+        }
+        if (stage == 0)
+        {
+            if (ImGui::Button("Load a file to start"))
+                openDialog();
+        }
+        else
+        {
+            if (ImGui::Button("Actions"))
+                ImGui::OpenPopup("Choose action");
+        }
+
+        if (ImGui::BeginPopup("Choose action", ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            if (stage == 0 || stage == 1 || stage == 2)
             {
-                stage = 0;
-                buildParts();
+                if (ImGui::Button("Load a different file"))
+                    openDialog();
             }
-            ImGui::Separator();
-            ImGui::InputInt("Target #vertices (0 = no limit): ", &targetVertices, 10000, 100000);
-            ImGui::InputInt("Target #faces (0 = no limit): ", &targetFaces, 10000, 100000);
-            if (ImGui::Button("Decimate globally"))
+            if (stage == 1 || stage == 2)
             {
-                decimateScene();
+                ImGui::Separator();
+                if (ImGui::Button("Reload original model"))
+                {
+                    stage = 0;
+                    if (fullReload)
+                    {
+                        openFile(fileName);
+                    }
+                    else
+                    {
+                        buildParts();
+                    }
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::Separator();
+                if (ImGui::Button("Export selected part") && current_model())
+                {
+                    if (partsExpanded)
+                    {
+                        toggleExpandParts();
+                    }
+                    exportCurrentPart();
+                    ImGui::CloseCurrentPopup();
+                }
             }
+            if (stage == 1)
+            {
+                ImGui::Separator();
+                if (ImGui::Button("Calculate epicenters (will then be used for error scaling)"))
+                {
+                    calcEpicenters();
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::Separator();
+                if (ImGui::Button("Decimate part-wise"))
+                {
+                    decimatePartwise();
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::Separator();
+                if (ImGui::Button("Merge part meshes to scene"))
+                {
+                    mergeParts();
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+            if (stage == 2)
+            {
+                ImGui::Separator();
+                if (ImGui::Button("Export scene"))
+                {
+                    if (partsExpanded)
+                    {
+                        toggleExpandParts();
+                    }
+                    exportScene();
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::Separator();
+                ImGui::InputInt("Target #vertices", &targetVertices, 10000, 100000);
+                ImGui::InputInt("Target #faces", &targetFaces, 10000, 100000);
+                ImGui::Text("0 = as far as possible within error bounds");
+                if (ImGui::Button("Decimate globally"))
+                {
+                    decimateScene();
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+            ImGui::EndPopup();
         }
 
         ImGui::Separator();
@@ -1713,10 +1762,10 @@ void ImGuiViewer::drawDecimationPanel()
         if (ImGui::CollapsingHeader("Quadric error metric settings"))
         {
             ImGui::Indent();
-            ImGui::Checkbox("Use QEM for decimation", &deciParts.useQuadric);
+            ImGui::Text("QEM is always used as the base metric", &deciParts.useQuadric);
             if (deciParts.useQuadric)
             {
-                ImGui::Checkbox("Use QEM for error bound exclusion only", &deciParts.quadricExcludeOnly);
+                // ImGui::Checkbox("Use QEM for error bound exclusion only", &deciParts.quadricExcludeOnly);
                 int auxFramesQuadric = deciParts.framesQuadric;
                 ImGui::SliderInt("How many frames should QEM consider: ", &auxFramesQuadric, 1, numFrames);
                 deciParts.framesQuadric = auxFramesQuadric;
@@ -1751,17 +1800,10 @@ void ImGuiViewer::drawDecimationPanel()
             }
             if (deciParts.useNormalDeviation)
             {
-                if (deciParts.useQuadric && !deciParts.quadricExcludeOnly)
-                {
-                    ImGui::Checkbox("Use NDM for error bound exclusion only", &deciParts.normalExcludeOnly);
-                    deciParts.combineQuadricNormal = !deciParts.normalExcludeOnly;
-                }
-                else
-                {
-                    ImGui::Text("Using NDM as primary guiding function");
-                    deciParts.normalExcludeOnly = false;
-                    deciParts.combineQuadricNormal = false;
-                }
+                ImGui::Checkbox("Use NDM for error bound exclusion only", &deciParts.normalExcludeOnly);
+                deciParts.combineQuadricNormal = !deciParts.normalExcludeOnly;
+                ImGui::Checkbox("Use NDM as guiding function in combination with QEM", &deciParts.combineQuadricNormal);
+                deciParts.normalExcludeOnly = !deciParts.combineQuadricNormal;
                 int auxFramesNormal
                     = deciParts.combineQuadricNormal ? deciParts.framesQuadric : deciParts.framesNormalDeviation;
                 int minNormalFrames = deciParts.combineQuadricNormal ? deciParts.framesQuadric : 1;
@@ -1817,4 +1859,282 @@ bool ImGuiViewer::updateGlobalStats()
     return false;
 }
 
+bool ImGuiViewer::exportCurrentPart()
+{
+    const easy3d::Model* m = current_model();
+    if (!m)
+        return false;
+
+    std::string name = m->name();
+    if (name.substr(0, 4) != "part")
+        return false;
+    entid_t userID = atoi(name.substr(4).c_str());
+
+    const std::string& title = "Please choose a file name";
+    const std::vector<std::string>& filters
+        = {"Single frame mesh (*.ply)", "*.ply", "Crash2Mesh file (*.c2m)", "*.c2m"};
+
+    std::string default_file_name = m->name();
+    if (easy3d::file_system::extension(default_file_name).empty()) // no extension?
+        default_file_name += ".ply";                               // default to ply
+
+    const bool warn_overwrite = true;
+    const std::string& file_name = easy3d::dialog::save(title, default_file_name, filters, warn_overwrite);
+    if (file_name.empty())
+        return false;
+
+    if (dynamic_cast<const easy3d::SurfaceMesh*>(m))
+    {
+        const easy3d::SurfaceMesh* mesh = dynamic_cast<const easy3d::SurfaceMesh*>(m);
+        const std::string name = mesh->name();
+        const std::string& ext = easy3d::file_system::extension(file_name, true);
+        if (ext == "c2m")
+        {
+            if (stage == 1)
+            {
+                for (Part::Ptr part : parts)
+                {
+                    if (part->userID == userID)
+                    {
+                        Scene::Ptr dummyScene = MeshBuilder::merge(std::vector<Part::Ptr>({part}), false);
+                        C2MWriter::write(file_name, dummyScene, true);
+                        return true;
+                    }
+                }
+                return false;
+            }
+            else if (stage == 2)
+            {
+                partid_t partID;
+                for (Part::Ptr part : parts)
+                {
+                    if (part->userID == userID)
+                    {
+                        partID = part->ID;
+                        break;
+                    }
+                }
+
+                const CMesh& sceneMesh = scene->mesh;
+                Part::Ptr part = std::make_shared<Part>(0, userID);
+                CMesh& partMesh = part->mesh;
+                // Copy over vertices and their properties to new part mesh
+                std::map<VHandle, VHandle> sceneVtx2PartVtx;
+                for (VHandle v : sceneMesh.vertices())
+                {
+                    FHandle f = *sceneMesh.cvf_begin(v);
+                    if (sceneMesh.data(f).element->partID != partID)
+                        continue;
+                    sceneVtx2PartVtx[v] = partMesh.add_vertex(sceneMesh.point(v));
+                    partMesh.data(sceneVtx2PartVtx[v]).node = sceneMesh.data(v).node;
+                }
+
+                for (FHandle f : sceneMesh.faces())
+                {
+                    if (sceneMesh.data(f).element->partID != partID)
+                        continue;
+                    vector<VHandle> vs;
+                    for (VHandle v : sceneMesh.fv_range(f))
+                    {
+                        VHandle partVtx = sceneVtx2PartVtx[v];
+                        vs.emplace_back(partVtx);
+                    }
+                    FHandle partFace = partMesh.add_face(vs);
+                    partMesh.data(partFace).element = sceneMesh.data(f).element;
+                }
+                Scene::Ptr dummyScene = MeshBuilder::merge(std::vector<Part::Ptr>({part}), false);
+                C2MWriter::write(file_name, dummyScene, true);
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else if (ext == "ply")
+            return easy3d::SurfaceMeshIO::save(file_name, mesh);
+        else
+            return false;
+    }
+    else
+        return false;
+}
+
+bool ImGuiViewer::exportScene()
+{
+    if (stage != 2)
+        return false;
+
+    const std::string& title = "Please choose a file name";
+    const std::vector<std::string>& filters
+        = {"Crash2Mesh file (*.c2m)", "*.c2m", "Single frame mesh with attributes (*.ply)", "*.ply"};
+
+    std::string default_file_name = easy3d::file_system::base_name(fileName);
+    if (easy3d::file_system::extension(default_file_name).empty()) // no extension?
+        default_file_name += ".c2m";                               // default to c2m
+
+    const bool warn_overwrite = true;
+    const std::string& file_name = easy3d::dialog::save(title, default_file_name, filters, warn_overwrite);
+    if (file_name.empty())
+        return false;
+
+    const std::string& ext = easy3d::file_system::extension(file_name, true);
+    if (ext == "c2m")
+    {
+        C2MWriter::write(file_name, scene, true);
+        return true;
+    }
+    else if (ext == "ply")
+    {
+        const CMesh& mesh = scene->mesh;
+        easy3d::SurfaceMesh drawableMesh;
+        drawableMesh.set_name("scene");
+        for (uint i = 0; i < numFrames; i++)
+        {
+            drawableMesh.add_face_property<float>("f:strain_frame" + std::to_string(i));
+            drawableMesh.add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+        }
+
+        vector<easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex(mesh.n_vertices());
+        for (VHandle v : mesh.vertices())
+        {
+            OMVec3 position = mesh.point(v);
+            easy3d::SurfaceMesh::Vertex vd = vertexToDrawableVertex[v.idx()]
+                = drawableMesh.add_vertex(easy3d::vec3(position[0], position[1], position[2]));
+            const MatX3& positions = mesh.data(v).node->positions;
+            for (uint i = 0; i < numFrames; i++)
+            {
+                auto drawablePositions
+                    = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+                easy3d::vec3 pos = easy3d::vec3(positions.coeff(i, 0), positions.coeff(i, 1), positions.coeff(i, 2));
+                drawablePositions[vd] = pos;
+            }
+        }
+
+        for (FHandle f : mesh.faces())
+        {
+            vector<easy3d::SurfaceMesh::Vertex> vs;
+            for (VHandle v : mesh.fv_range(f))
+            {
+                vs.emplace_back(vertexToDrawableVertex[v.idx()]);
+            }
+            easy3d::SurfaceMesh::Face fd = drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
+            auto strains = mesh.data(f).element->plasticStrains;
+            for (uint i = 0; i < numFrames; i++)
+            {
+                auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" + std::to_string(i));
+                faceStrains[fd] = strains(i);
+            }
+        }
+
+        auto drawablePositions
+            = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
+        auto pos = drawableMesh.get_vertex_property<easy3d::vec3>("v:point");
+        pos.vector() = drawablePositions.vector();
+
+        return easy3d::SurfaceMeshIO::save(file_name, &drawableMesh);
+    }
+    else
+        return false;
+}
+
+bool ImGuiViewer::createDrawableEpicenters()
+{
+    for (auto it = models_.begin(); it != models_.end(); it++)
+    {
+        auto model = *it;
+        if (model->name() == "epicenter")
+        {
+            models_.erase(it);
+            delete model;
+            break;
+        }
+    }
+    if (epicenters.rows() < numFrames)
+    {
+        std::cout << "TOO FEW ROWS" << std::endl;
+        return false;
+    }
+    int preModelIdx = model_idx_;
+
+    easy3d::Graph* epicenterSphere = new easy3d::Graph;
+    epicenterSphere->set_name("epicenter");
+    for (uint i = 0; i < visFrames.size(); i++)
+    {
+        // if (meandists(visFrames[i]) > 0.0f)
+        epicenterSphere->add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
+    }
+
+    int slices = 20;
+    int stacks = 20;
+    std::vector<std::vector<easy3d::Graph::Vertex>> stackToSliceToVertex(stacks + 1,
+                                                                         std::vector<easy3d::Graph::Vertex>(slices));
+    for (int t = 0; t < stacks + 1; t++)
+    {
+        float theta = ((float)(t) / stacks) * M_PI;
+        for (int p = 0; p < slices; p++)
+        {
+            float phi = ((float)(p) / slices) * 2 * M_PI;
+            stackToSliceToVertex[t][p] = epicenterSphere->add_vertex(easy3d::vec3(0.0f, 0.0f, 0.0f));
+            easy3d::vec3 normal = easy3d::vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+            for (uint i = 0; i < visFrames.size(); i++)
+            {
+                auto pos
+                    = epicenterSphere->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
+                float r = meanDists(i);
+                easy3d::vec3 center(epicenters.coeff(i, 0), epicenters.coeff(i, 1), epicenters.coeff(i, 2));
+                pos[stackToSliceToVertex[t][p]] = center + r * normal;
+            }
+        }
+    }
+
+    std::vector<uint> indices;
+    auto normal = epicenterSphere->get_vertex_property<easy3d::vec3>("v:normal");
+    for (int t = 0; t < stacks; t++) // stacks are ELEVATION so they count theta
+    {
+        for (int p = 0; p < slices; p++) // slices are ORANGE SLICES so the count azimuth
+        {
+            auto vertex1 = stackToSliceToVertex[t][p];
+            auto vertex2 = stackToSliceToVertex[t][(p + 1) % slices];
+            auto vertex3 = stackToSliceToVertex[t + 1][p];
+
+            epicenterSphere->add_edge(vertex1, vertex2);
+            epicenterSphere->add_edge(vertex1, vertex3);
+        }
+    }
+    auto pos = epicenterSphere->get_vertex_property<easy3d::vec3>("v:point");
+    auto currentPos
+        = epicenterSphere->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
+    pos.vector() = currentPos.vector();
+
+    // Visualize as vertices
+    easy3d::PointsDrawable* pointsDrawable = epicenterSphere->add_points_drawable("vertices");
+    pointsDrawable->update_vertex_buffer(pos.vector());
+    pointsDrawable->set_point_size(5);
+    pointsDrawable->set_per_vertex_color(false);
+    pointsDrawable->set_default_color(easy3d::vec3(1.0f, 0.0f, 0.0f));
+    pointsDrawable->set_visible(false);
+
+    // + wireframe
+    easy3d::LinesDrawable* wireframe = epicenterSphere->add_lines_drawable("edges");
+    std::vector<unsigned int> lineIndices;
+    for (auto e : epicenterSphere->edges())
+    {
+        easy3d::Graph::Vertex s = epicenterSphere->from_vertex(e);
+        easy3d::Graph::Vertex t = epicenterSphere->to_vertex(e);
+        lineIndices.push_back(s.idx());
+        lineIndices.push_back(t.idx());
+    }
+    wireframe->update_vertex_buffer(pos.vector());
+    wireframe->update_index_buffer(lineIndices);
+    wireframe->set_default_color(easy3d::vec3(1.0f, 0.0f, 0.0f));
+    wireframe->set_per_vertex_color(false);
+    wireframe->set_visible(true);
+
+    add_model(epicenterSphere, false);
+
+    model_idx_ = preModelIdx;
+
+    return true;
+}
 } // namespace c2m

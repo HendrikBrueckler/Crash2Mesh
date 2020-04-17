@@ -8,14 +8,11 @@
 #include <crash2mesh/decimater/modules/mod_quadric_normal.hpp>
 #include <crash2mesh/decimater/robust_decimater.hpp>
 #include <crash2mesh/util/logger.hpp>
+#include <crash2mesh/util/par_for.hpp>
 
 #include <OpenMesh/Tools/Decimater/DecimaterT.hh>
 #include <OpenMesh/Tools/Decimater/ModAspectRatioT.hh>
 
-#include <algorithm>
-#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
-#include <execution>
-#endif
 #include <set>
 
 namespace c2m
@@ -123,12 +120,7 @@ bool MeshDecimater::decimateParts(std::vector<Part::Ptr>& parts) const
         render(mesh, false, rendered);
     };
 
-#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
-    std::for_each(std::execution::par_unseq, parts.begin(), parts.end(), decimatePart);
-#else
-    for (Part::Ptr& partptr : parts)
-        decimatePart(partptr);
-#endif
+    parallel_for_each(parts, decimatePart);
 
     Logger::lout(Logger::INFO) << "Reduced meshes from a total of " << v_before << " vertices and " << f_before
                                << " faces to a total of " << v_after << " vertices and " << f_after << " faces."

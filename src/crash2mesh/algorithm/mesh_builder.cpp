@@ -1,6 +1,7 @@
 #include <crash2mesh/algorithm/mesh_builder.hpp>
 
 #include <crash2mesh/util/logger.hpp>
+#include <crash2mesh/util/par_for.hpp>
 
 #include <OpenMesh/Core/Geometry/MathDefs.hh>
 
@@ -12,11 +13,6 @@
 #include <map>
 #include <set>
 #include <memory>
-
-#include <algorithm>
-#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
-#include <execution>
-#endif
 
 namespace c2m
 {
@@ -31,10 +27,10 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
     int invalidTriangles = 0;
     int meshes = 0;
 
-    std::vector<Part::Ptr> sortedParts(parts);
-    std::stable_sort(sortedParts.begin(), sortedParts.end(), [](const Part::Ptr& a, const Part::Ptr& b) -> bool {
-        return a->elements2D.size() + a->surfaceElements.size() > b->elements2D.size() + b->surfaceElements.size();
-    });
+    // std::vector<Part::Ptr> sortedParts(parts);
+    // std::stable_sort(sortedParts.begin(), sortedParts.end(), [](const Part::Ptr& a, const Part::Ptr& b) -> bool {
+    //     return a->elements2D.size() + a->surfaceElements.size() > b->elements2D.size() + b->surfaceElements.size();
+    // });
 
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
     static std::mutex mut;
@@ -85,12 +81,7 @@ bool MeshBuilder::build(vector<Part::Ptr>& parts, bool deleteMeshedElements)
     };
 
     std::cerr.setstate(std::ios_base::failbit);
-#if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
-    std::for_each(std::execution::par_unseq, parts.begin(), parts.end(), buildPart);
-#else
-    for (Part::Ptr& partptr : sortedParts)
-        buildPart(partptr);
-#endif
+    parallel_for_each(parts, buildPart);
     std::cerr.clear();
 
     Logger::lout(Logger::INFO) << "Non-manifold triangles: " << invalidTriangles
