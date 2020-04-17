@@ -373,17 +373,19 @@ bool ModQuadric::optimal_position(Quadric& q, Vec3& optimalPos) const
 
     Vec3 reference = optimalPos;
 
-    float tolerance = 0.15;
-    if (area_weighting_)
-    {
-        tolerance = 0.15 * A.trace() / 20;
-    }
+    // float tolerance = 0.15;
+    // if (area_weighting_)
+    // {
+    //     tolerance = 0.15 * A.trace() / 20;
+    // }
     auto svd = A.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
+    float tolerance = 1e-3;
 
     const auto &singularValues = svd.singularValues();
     Mat3 singularValuesInv(Mat3::Zero());
+    float maxSV = singularValues.maxCoeff();
     for (unsigned int i = 0; i < singularValues.size(); ++i) {
-        if (singularValues(i) > tolerance)
+        if (singularValues(i) / maxSV > tolerance)
         {
             singularValuesInv(i, i) = 1.0f / singularValues(i);
         }
@@ -402,7 +404,7 @@ bool ModQuadric::optimal_position(Quadric& q, Vec3& optimalPos) const
 float ModQuadric::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const
 {
     // TODO implement a proper function here
-    float factor = 0.1f + 0.9f * ((pt - epicenter).norm() / mean_dist);
+    float factor = 0.5f + 0.5f * ((pt - epicenter).squaredNorm() / (mean_dist * mean_dist));
     return factor;
 }
 
@@ -465,7 +467,7 @@ Quadric ModQuadric::calc_edge_quadric(HEHandle he, uint frame, const Vec3& p, co
         float neighbor_strain = mesh_.data(mesh_.face_handle(mesh_.opposite_halfedge_handle(he))).element->plasticStrains(frame);
         if (abs(neighbor_strain - strain) < 0.005)
             return qEdge;
-        weightFactor = abs(neighbor_strain - strain) * 10000;
+        weightFactor = abs(neighbor_strain - strain) * 50;
     }
 
     // Plane quadric for plane passing through edge, perpendicular to triangle

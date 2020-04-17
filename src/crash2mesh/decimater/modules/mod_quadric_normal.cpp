@@ -79,7 +79,7 @@ void ModQuadricNormal::postprocess_collapse(const CollapseInfo& _ci)
 
 float ModQuadricNormal::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const
 {
-    float factor = 0.1f + 0.9 * ((pt - epicenter).norm() / mean_dist);
+    float factor = 0.5f + 0.5f * ((pt - epicenter).squaredNorm() / (mean_dist * mean_dist));
     return factor;
 }
 
