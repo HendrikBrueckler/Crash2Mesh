@@ -384,21 +384,7 @@ void ImGuiViewer::pre_draw()
     {
         currentFrame = currentFrame >= visFrames.size() - 1 ? 0 : currentFrame + 1;
         updateFrame();
-
-        if (current_model())
-        {
-            fit_screen(current_model());
-            targetCam = true;
-        }
-        else
-        {
-            if (targetCam)
-            {
-                fit_screen();
-                targetCam = false;
             }
-        }
-    }
     AnimationViewer::pre_draw();
 }
 
@@ -1106,6 +1092,20 @@ bool ImGuiViewer::updateFrame()
         }
     }
 
+    if (current_model())
+    {
+        fit_screen(current_model());
+        targetCam = true;
+    }
+    else
+    {
+        if (targetCam)
+        {
+            fit_screen();
+            targetCam = false;
+        }
+    }
+
     return true;
 }
 
@@ -1508,6 +1508,7 @@ void ImGuiViewer::drawInfoPanel()
             {
                 ImGui::Text("How many of the total %i frames should be visualized?", numFrames);
                 ImGui::SliderInt("", &nVisFrames, 1, numFrames);
+                ImGui::Text("Frames are linearly spaced over the whole frame range.");
                 ImGui::Text("Visualizing more than ~10-20 frames NOT recommended for big models!");
                 ImGui::Text("More frames = more memory consumption and longer loading times!");
                 ImGui::Text("This affects only visualization, decimation is independent of this!");
