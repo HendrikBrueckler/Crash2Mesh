@@ -68,8 +68,7 @@ void ModNormal::initialize()
             OMVec3 pt1(p1[0], p1[1], p1[2]);
             OMVec3 pt2(p2[0], p2[1], p2[2]);
             OMVec3 n = face_normal(p0, p1, p2);
-            normalCones.emplace_back(
-                NormalCone(n, max_normal_deviation_ * std::min(1.0f, dist2epicenter_f((pt0 + pt1 + pt2) / 3.0, frame))));
+            normalCones.emplace_back(n);
             // TODO do we need min(1.0f, ...) here?
         }
         mesh_.data(f).normalCones = normalCones;
@@ -79,66 +78,81 @@ void ModNormal::initialize()
 float ModNormal::collapse_priority(const CollapseInfo& _ci)
 {
     float max_angle(0.0f);
-    float priority(0.0f);
-    Mesh::ConstVertexFaceIter vf_it(mesh_, _ci.v0);
     Mesh::FaceHandle fh, fhl, fhr;
+    Mesh::ConstVertexFaceIter vf_it;
     Mesh::FaceVertexCCWIter fv_it;
 
-    if (_ci.v0vl.is_valid())
-        fhl = mesh_.face_handle(_ci.v0vl);
-    if (_ci.vrv0.is_valid())
-        fhr = mesh_.face_handle(_ci.vrv0);
 
     std::vector<uint> frames(frame_seq());
     std::vector<NormalCone> nc;
     const MatX3 *positions0, *positions1, *positions2;
-    for (; vf_it.is_valid(); ++vf_it)
+    OpenMesh::HPropHandleT<MatX3> collapseTargets;
+    bool optimalPos = mesh_.get_property_handle(collapseTargets, "collapseTargets");
+    const MatX3* remainingPos
+        = optimalPos ? &mesh_.property(collapseTargets, _ci.v0v1) : &mesh_.data(_ci.v1).node->positions;
+
+    for (VHandle vCenter : (optimalPos ? std::vector<VHandle>({_ci.v0, _ci.v1}) : std::vector<VHandle>({_ci.v0})))
     {
-        fh = *vf_it;
-        if (fh == _ci.fl || fh == _ci.fr)
-            continue;
-
-        nc = mesh_.data(fh).normalCones;
-        fv_it = mesh_.fv_ccwbegin(fh);
-        // simulate position change
-        positions0
-            = (*fv_it == _ci.v0) ? &mesh_.data(_ci.v1).node->positions : &mesh_.data(*fv_it).node->positions;
-        fv_it++;
-        positions1
-            = (*fv_it == _ci.v0) ? &mesh_.data(_ci.v1).node->positions : &mesh_.data(*fv_it).node->positions;
-        fv_it++;
-        positions2
-            = (*fv_it == _ci.v0) ? &mesh_.data(_ci.v1).node->positions : &mesh_.data(*fv_it).node->positions;
-        fv_it++;
-        for (size_t i = 0; i < frames.size(); i++)
+        if (vCenter == _ci.v0)
         {
-            uint frame = frames[i];
-            OMVec3 n = face_normal(positions0->row(frame).transpose(),
-                                   positions1->row(frame).transpose(),
-                                   positions2->row(frame).transpose());
-            nc[i].merge(NormalCone(n, nc[i].max_angle()));
-            if (fh == fhl)
-                nc[i].merge(mesh_.data(_ci.fl).normalCones[i]);
-            if (fh == fhr)
-                nc[i].merge(mesh_.data(_ci.fr).normalCones[i]);
+            if (_ci.v0vl.is_valid())
+                fhl = mesh_.face_handle(_ci.v0vl);
+            if (_ci.vrv0.is_valid())
+                fhr = mesh_.face_handle(_ci.vrv0);
+        }
+        else
+        {
+            if (_ci.vlv1.is_valid())
+                fhl = mesh_.face_handle(_ci.vlv1);
+            if (_ci.v1vr.is_valid())
+                fhr = mesh_.face_handle(_ci.v1vr);
+        }
+        for (vf_it = mesh_.vf_begin(vCenter); vf_it.is_valid(); ++vf_it)
+        {
+            fh = *vf_it;
+            if (fh == _ci.fl || fh == _ci.fr)
+                continue;
 
-            // Legality
-            if (nc[i].angle() > max_angle)
+            nc = mesh_.data(fh).normalCones;
+            fv_it = mesh_.fv_ccwbegin(fh);
+            // simulate position change
+            positions0
+                = (*fv_it == vCenter) ? remainingPos : &mesh_.data(*fv_it).node->positions;
+            fv_it++;
+            positions1
+                = (*fv_it == vCenter) ? remainingPos : &mesh_.data(*fv_it).node->positions;
+            fv_it++;
+            positions2
+                = (*fv_it == vCenter) ? remainingPos : &mesh_.data(*fv_it).node->positions;
+            fv_it++;
+            for (size_t i = 0; i < frames.size(); i++)
             {
-                max_angle = nc[i].angle();
-                if (max_angle > 0.5 * nc[i].max_angle())
-                    return float(Base::ILLEGAL_COLLAPSE);
-            }
-            // Priority (weighted by distance 2 epicenter factor)
-            float dist2epifactor = nc[i].max_angle() / max_normal_deviation_;
-            if (nc[i].angle() / dist2epifactor > priority)
-            {
-                priority = nc[i].angle() / dist2epifactor;
+                uint frame = frames[i];
+                OMVec3 n = face_normal(positions0->row(frame).transpose(),
+                                    positions1->row(frame).transpose(),
+                                    positions2->row(frame).transpose());
+                nc[i].merge(NormalCone(n));
+                if (fh == fhl)
+                    nc[i].merge(mesh_.data(_ci.fl).normalCones[i]);
+                if (fh == fhr)
+                    nc[i].merge(mesh_.data(_ci.fr).normalCones[i]);
+
+                Vec3 pos = (positions0->row(frame).transpose() + positions1->row(frame).transpose() + positions2->row(frame).transpose()) / 3.0f;
+                float dist2epifactor = dist2epicenter_f(pos, frame);
+
+                // Priority
+                if (nc[i].angle() * dist2epifactor > max_angle)
+                {
+                    max_angle = nc[i].angle() * dist2epifactor;
+                    // Legality
+                    if (max_angle > 0.5 * max_normal_deviation_)
+                        return float(Base::ILLEGAL_COLLAPSE);
+                }
             }
         }
     }
 
-    return priority;
+    return max_angle;
 }
 
 void ModNormal::set_error_tolerance_factor(double _factor)
@@ -182,7 +196,7 @@ void ModNormal::postprocess_collapse(const CollapseInfo& _ci)
             OMVec3 n = face_normal(positions0.row(frame).transpose(),
                                    positions1.row(frame).transpose(),
                                    positions2.row(frame).transpose());
-            ncs[frame].merge(NormalCone(n, ncs[frame].max_angle()));
+            ncs[frame].merge(NormalCone(n));
             if (fh == fhl)
                 ncs[frame].merge(mesh_.data(_ci.fl).normalCones[frame]);
             if (fh == fhr)
@@ -199,13 +213,6 @@ OMVec3 ModNormal::face_normal(Vec3 p0, Vec3 p1, Vec3 p2)
     OMVec3 n = cross(pt2 - pt1, pt0 - pt1);
     float length = norm(n);
     return (length > 0.0) ? n * (1.0f / length) : Normal(0, 0, 0);
-}
-
-float ModNormal::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const
-{
-    // TODO implement a proper function here
-    float factor = 0.5f + 0.5f * ((pt - epicenter).squaredNorm() / (mean_dist * mean_dist));
-    return factor;
 }
 
 } // namespace c2m

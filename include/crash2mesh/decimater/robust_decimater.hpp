@@ -2,6 +2,8 @@
 #define C2M_ROBUST_DECIMATER_HPP
 
 #include <OpenMesh/Tools/Decimater/DecimaterT.hh>
+#include <crash2mesh/decimater/modules/mod_base.hpp>
+#include <crash2mesh/decimater/modules/mod_quadric.hpp>
 #include <crash2mesh/core/mesh.hpp>
 
 namespace c2m
@@ -18,7 +20,7 @@ class RobustDecimater : virtual public OpenMesh::Decimater::BaseDecimaterT<CMesh
     using DeciHeap = OpenMesh::Utils::HeapT<VHandle, HeapInterface>;
 
     /// Constructor
-    explicit RobustDecimater(CMesh& _mesh);
+    explicit RobustDecimater(CMesh& _mesh, bool optimizePosition);
 
     /// Destructor
     ~RobustDecimater();
@@ -65,8 +67,15 @@ class RobustDecimater : virtual public OpenMesh::Decimater::BaseDecimaterT<CMesh
     /// Insert vertex in heap
     void heap_vertex(VHandle _vh);
 
+    float collapse_priority(const CollapseInfo& _ci);
+
+    /// Post-process a collapse
+    void postprocess_collapse(CollapseInfo& _ci);
+
     // reference to mesh
     Mesh& mesh_;
+
+    const bool optimize_position_;
 
     // heap
     std::unique_ptr<DeciHeap> heap_;
@@ -75,6 +84,7 @@ class RobustDecimater : virtual public OpenMesh::Decimater::BaseDecimaterT<CMesh
     OpenMesh::VPropHandleT<HEHandle> collapse_target_;
     OpenMesh::VPropHandleT<float> priority_;
     OpenMesh::VPropHandleT<int> heap_position_;
+    OpenMesh::HPropHandleT<MatX3> optimalCollapseTargets_;
 };
 } // namespace c2m
 

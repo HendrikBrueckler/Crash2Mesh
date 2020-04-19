@@ -3,15 +3,15 @@
 namespace c2m
 {
 
-NormalCone::NormalCone(const OMVec3& _center_normal, float _max_angle, float _angle)
-    : center_normal_(_center_normal), max_angle_(_max_angle), angle_(_angle)
+NormalCone::NormalCone(const OMVec3& _center_normal, /*float _max_angle,*/ float _angle)
+    : center_normal_(_center_normal), /*max_angle_(_max_angle),*/ angle_(_angle)
 {
 }
 
 void NormalCone::merge(const NormalCone& _cone)
 {
     float dotp = (center_normal_ | _cone.center_normal_);
-    max_angle_ = std::min(max_angle_, _cone.max_angle_);
+    /*max_angle_ = std::min(max_angle_, _cone.max_angle_);*/
 
     if (fabs(dotp) < 0.99999f)
     {

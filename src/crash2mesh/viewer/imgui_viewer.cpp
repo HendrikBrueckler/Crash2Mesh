@@ -702,6 +702,12 @@ bool ImGuiViewer::openFile(const std::string& fileName_)
         fileName = "";
         return false;
     }
+    if (!SurfaceExtractor::extract(parts, true))
+    {
+        Logger::lout(Logger::ERROR) << "Could not extract surface elements" << std::endl;
+        fileName = "";
+        return false;
+    }
     fullReload = false;
 
     buildParts();
@@ -1032,11 +1038,20 @@ bool ImGuiViewer::updateFrame()
         if (partsExpanded)
         {
             easy3d::vec3 center(0.0f, 0.0f, 0.0f);
-            for (auto v : surface->vertices())
+            float sumAreas = 0.0f;
+            for (auto f : surface->faces())
             {
-                center += pos[v];
+                auto he = surface->halfedge(f);
+                auto v1 = surface->to_vertex(he);
+                he = surface->next_halfedge(he);
+                auto v2 = surface->to_vertex(he);
+                he = surface->next_halfedge(he);
+                auto v3 = surface->to_vertex(he);
+                float area = easy3d::geom::triangle_area(pos[v1], pos[v2], pos[v3]);
+                center += (pos[v1] + pos[v2] + pos[v3]) / 3.0f * area;
+                sumAreas += area;
             }
-            center /= surface->n_vertices();
+            center /= sumAreas;
             for (auto v : surface->vertices())
             {
                 pos[v] += (1.3f) * center;
@@ -1144,11 +1159,20 @@ bool ImGuiViewer::toggleExpandParts()
         {
             easy3d::vec3 center(0.0f, 0.0f, 0.0f);
             auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
-            for (auto v : surface->vertices())
+            float sumAreas = 0.0f;
+            for (auto f : surface->faces())
             {
-                center += pos[v];
+                auto he = surface->halfedge(f);
+                auto v1 = surface->to_vertex(he);
+                he = surface->next_halfedge(he);
+                auto v2 = surface->to_vertex(he);
+                he = surface->next_halfedge(he);
+                auto v3 = surface->to_vertex(he);
+                float area = easy3d::geom::triangle_area(pos[v1], pos[v2], pos[v3]);
+                center += (pos[v1] + pos[v2] + pos[v3]) / 3.0f * area;
+                sumAreas += area;
             }
-            center /= surface->n_vertices();
+            center /= sumAreas;
             for (auto v : surface->vertices())
             {
                 if (partsExpanded)
@@ -1459,13 +1483,6 @@ bool ImGuiViewer::decimateScene()
     if (deciParts.quadricPositionOptimization || deciScene.quadricPositionOptimization)
     {
         fullReload = true;
-    }
-    for (FHandle f : scene->mesh.faces())
-    {
-        for (NormalCone& nc : scene->mesh.data(f).normalCones)
-        {
-            nc.max_angle() *= 20;
-        }
     }
     if (!deciParts.decimateScene(scene, targetFaces, targetVertices))
     {
@@ -1853,6 +1870,8 @@ void ImGuiViewer::drawDecimationPanel()
                 {
                     deciParts.maxQuadricError = FLT_MAX;
                 }
+                ImGui::Checkbox("Use quadrics to preserve boundary shape", &deciParts.boundaryQuadrics);
+                ImGui::Checkbox("Use quadrics to preserve plastic strain distribution", &deciParts.featureQuadrics);
                 ImGui::Checkbox("Weight quadrics by triangle area", &deciParts.quadricAreaWeighting);
                 ImGui::Checkbox("Optimize vertex position using QEM during decimation",
                                 &deciParts.quadricPositionOptimization);
@@ -2021,6 +2040,7 @@ bool ImGuiViewer::updateGlobalStats()
             pNumBoundaryEdges[partPtr->userID] += boundaryEdges;
             pNum2DFE[partPtr->userID] += elem2D.size();
             pNumNodes[partPtr->userID] += nodes.size();
+            pIs2DPart[partPtr->userID] = partPtr->elements3D.empty() && partPtr->surfaceElements.empty();
         }
     }
     else if (stage == 2)

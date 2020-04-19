@@ -8,9 +8,10 @@ namespace c2m
 {
 using std::map;
 using std::set;
+using std::vector;
 
-RobustDecimater::RobustDecimater(CMesh& _mesh)
-    : Base(_mesh), mesh_(_mesh),
+RobustDecimater::RobustDecimater(CMesh& _mesh, bool _optimize_position)
+    : Base(_mesh), mesh_(_mesh), optimize_position_(_optimize_position),
 #if (defined(_MSC_VER) && (_MSC_VER >= 1800)) || __cplusplus > 199711L || defined(__GXX_EXPERIMENTAL_CXX0X__)
       heap_(nullptr)
 #else
@@ -23,6 +24,8 @@ RobustDecimater::RobustDecimater(CMesh& _mesh)
     mesh_.add_property(collapse_target_);
     mesh_.add_property(priority_);
     mesh_.add_property(heap_position_);
+    if (optimize_position_)
+        mesh_.add_property(optimalCollapseTargets_, "collapseTargets");
 }
 
 //-----------------------------------------------------------------------------
@@ -34,6 +37,8 @@ RobustDecimater::~RobustDecimater()
     mesh_.remove_property(collapse_target_);
     mesh_.remove_property(priority_);
     mesh_.remove_property(heap_position_);
+    if (optimize_position_)
+        mesh_.remove_property(optimalCollapseTargets_);
 }
 
 //-----------------------------------------------------------------------------
@@ -123,7 +128,7 @@ bool RobustDecimater::is_multi_collapse_legal(const std::vector<VHandle>& v0Dupe
                 }
             }
         }
-        RobustDecimater testDecimater(testMesh);
+        RobustDecimater testDecimater(testMesh, false);
         for (const CollapseInfo ciDupe : ciDupes)
         {
             assert(ciDupe.v0v1.is_valid());
@@ -196,6 +201,56 @@ void RobustDecimater::get_dupes(const CollapseInfo& _ci,
         }
     }
     // std::cout << "POSTCI" << std::endl;
+}
+float RobustDecimater::collapse_priority(const CollapseInfo& _ci)
+{
+    if (optimize_position_)
+    {
+        const vector<Quadric>& quadricsRemoved = mesh_.data(_ci.v0).quadrics;
+        const vector<Quadric>& quadricsRemaining = mesh_.data(_ci.v1).quadrics;
+
+        MatX3& collapseTargets = mesh_.property(optimalCollapseTargets_, _ci.v0v1);
+        if (collapseTargets.size() == 0)
+        {
+            collapseTargets = mesh_.data(_ci.v1).node->positions;
+        }
+        if (collapseTargets.size() == 0)
+        {
+            throw std::logic_error("HOW CAN THIS HAPPEN");
+        }
+        for (size_t i = 0; i < quadricsRemoved.size(); i++)
+        {
+            Quadric q = quadricsRemaining[i] + quadricsRemoved[i];
+            Vec3 optPos = collapseTargets.row(i).transpose();
+            if (!mesh_.status(_ci.v1).locked() && !mesh_.data(_ci.v0).duplicate.is_valid()
+                && !mesh_.data(_ci.v1).duplicate.is_valid())
+            {
+                ModQuadric::optimal_position(q, optPos);
+                collapseTargets.row(i) = optPos.transpose();
+            }
+        }
+    }
+    return Base::collapse_priority(_ci);
+}
+
+/// Post-process a collapse
+void RobustDecimater::postprocess_collapse(CollapseInfo& _ci)
+{
+    if (optimize_position_)
+    {
+        if (!optimalCollapseTargets_.is_valid())
+            throw std::logic_error("Impossible, there must be a programming error here");
+        MatX3& collapseTargets = mesh_.property(optimalCollapseTargets_, _ci.v0v1);
+        if (collapseTargets.size() == 0)
+        {
+            throw std::logic_error("Impossible, there must be a programming error here");
+        }
+        if (optimize_position_)
+        {
+            mesh_.data(_ci.v1).node->positions = collapseTargets;
+        }
+    }
+    Base::postprocess_collapse(_ci);
 }
 
 void RobustDecimater::heap_vertex(VHandle _vh)

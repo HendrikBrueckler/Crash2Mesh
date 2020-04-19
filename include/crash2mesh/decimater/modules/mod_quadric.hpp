@@ -115,6 +115,16 @@ class ModQuadric : virtual public ModBase
         optimize_position_ = _optimize_position;
     }
 
+    void set_boundary_quadrics(bool _boundary_quadrics)
+    {
+        boundary_quadrics_ = _boundary_quadrics;
+    }
+
+    void set_feature_quadrics(bool _feature_quadrics)
+    {
+        feature_quadrics_ = _feature_quadrics;
+    }
+
     /**
      * @brief Calculate the optimal position from solving A * x = b (A, b from quadric)
      *
@@ -124,10 +134,9 @@ class ModQuadric : virtual public ModBase
      * @return true if system could be solved
      * @return false else
      */
-    bool optimal_position(Quadric& q, Vec3& optimalPos) const;
+    static bool optimal_position(Quadric& q, Vec3& optimalPos);
 
   protected:
-    float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const override;
 
     /**
      * @brief Calculate the quadric of a triangle (p, q, r) at a certain frame
@@ -157,6 +166,8 @@ class ModQuadric : virtual public ModBase
     double max_err_;
     bool area_weighting_;
     bool optimize_position_;
+    bool boundary_quadrics_;
+    bool feature_quadrics_;
 
 #ifdef C2M_PROB_QUADRICS
     /**

@@ -66,7 +66,6 @@ class ModBoundary : public ModBase
     void set_error_tolerance_factor(double _factor) override;
 
   protected:
-    float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const override;
 
     float max_boundary_angle_;
 };

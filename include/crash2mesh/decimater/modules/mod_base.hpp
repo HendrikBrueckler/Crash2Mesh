@@ -119,16 +119,6 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
     float dist2epicenter_f(const Vec3& pt, uint frame) const;
 
   protected:
-    /**
-     * @brief A weighting factor for submodules to override. Should be between about 0 and 5-10.
-     *
-     * @param pt point for which a weight is returned
-     * @param epicenter epicenter
-     * @param meanDist mean distance to epicenter
-     * @return float weighting factor of \p p
-     */
-    virtual float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float meanDist) const = 0;
-
     Mesh& mesh_;
 
   private:

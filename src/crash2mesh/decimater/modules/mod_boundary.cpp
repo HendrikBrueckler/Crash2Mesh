@@ -1,5 +1,5 @@
-#include <crash2mesh/decimater/modules/mod_boundary.hpp>
 #include <crash2mesh/algorithm/mesh_analyzer.hpp>
+#include <crash2mesh/decimater/modules/mod_boundary.hpp>
 
 namespace c2m
 {
@@ -12,17 +12,25 @@ ModBoundary::ModBoundary(CMesh& _mesh, float _max_angle) : ModBase(_mesh, true)
 float ModBoundary::collapse_priority(const CollapseInfo& _ci)
 {
     if ((mesh_.is_boundary(_ci.v0v1) || mesh_.is_boundary(_ci.v1v0))
-        && MeshAnalyzer::dupes(Base::mesh(), _ci.v0v1).size() == 1
-        && MeshAnalyzer::dupes(Base::mesh(), _ci.v1v0).size() == 1)
+        /*&& MeshAnalyzer::dupes(Base::mesh(), _ci.v0v1).size() == 1
+        && MeshAnalyzer::dupes(Base::mesh(), _ci.v1v0).size() == 1*/)
     {
-        typename Mesh::VertexHandle vh2;
+        typename Mesh::VertexHandle vhPre, vhPost;
         if (mesh_.is_boundary(_ci.v0v1))
         {
             for (typename Mesh::HalfedgeHandle he : mesh_.vih_range(_ci.v0))
             {
                 if (mesh_.is_boundary(he))
                 {
-                    vh2 = mesh_.from_vertex_handle(he);
+                    vhPre = mesh_.from_vertex_handle(he);
+                    break;
+                }
+            }
+            for (typename Mesh::HalfedgeHandle he : mesh_.voh_range(_ci.v1))
+            {
+                if (mesh_.is_boundary(he))
+                {
+                    vhPost = mesh_.to_vertex_handle(he);
                     break;
                 }
             }
@@ -33,27 +41,56 @@ float ModBoundary::collapse_priority(const CollapseInfo& _ci)
             {
                 if (mesh_.is_boundary(he))
                 {
-                    vh2 = mesh_.to_vertex_handle(he);
+                    vhPre = mesh_.to_vertex_handle(he);
+                    break;
+                }
+            }
+            for (typename Mesh::HalfedgeHandle he : mesh_.vih_range(_ci.v1))
+            {
+                if (mesh_.is_boundary(he))
+                {
+                    vhPost = mesh_.from_vertex_handle(he);
                     break;
                 }
             }
         }
-        if (!vh2.is_valid())
+        if (!vhPre.is_valid() || !vhPost.is_valid() || vhPre == vhPost)
             throw std::logic_error("Error in calculation of followup boundary edge");
 
-        Node::Ptr nodes[3] = {mesh_.data(_ci.v0).node, mesh_.data(_ci.v1).node, mesh_.data(vh2).node};
-        OMVec3 points[3];
+        Node::Ptr nodes[4]
+            = {mesh_.data(vhPre).node, mesh_.data(_ci.v0).node, mesh_.data(_ci.v1).node, mesh_.data(vhPost).node};
+        OpenMesh::HPropHandleT<MatX3> collapseTargets;
+        bool optimalPos = mesh_.get_property_handle(collapseTargets, "collapseTargets");
+        const MatX3& remainingPos
+            = optimalPos ? mesh_.property(collapseTargets, _ci.v0v1) : mesh_.data(_ci.v1).node->positions;
+        if (remainingPos.rows() < num_frames())
+            throw std::logic_error("Error in calculation of followup boundary edge");
         for (uint frame : frame_seq())
         {
-            for (uint j = 0; j < 3; j++)
+            if (!optimalPos)
             {
-                points[j] = OMVec3(nodes[j]->positions.coeff(frame, 0),
-                                   nodes[j]->positions.coeff(frame, 1),
-                                   nodes[j]->positions.coeff(frame, 2));
+                float leftAngle = acos((nodes[2]->positions.row(frame) - nodes[0]->positions.row(frame))
+                                       * (nodes[1]->positions.row(frame) - nodes[0]->positions.row(frame)).transpose());
+                float rightAngle = acos((nodes[2]->positions.row(frame) - nodes[0]->positions.row(frame))
+                                       * (nodes[2]->positions.row(frame) - nodes[1]->positions.row(frame)).transpose());
+                if (std::max(leftAngle, rightAngle) * dist2epicenter_f(remainingPos.row(frame), frame)
+                    > max_boundary_angle_)
+                    return float(Base::ILLEGAL_COLLAPSE);
             }
-            if (acos((points[1] - points[0]).normalize() | (points[0] - points[2]).normalize())
-                > max_boundary_angle_ * dist2epicenter_f((points[1] + points[0]) / 2.0, frame))
-                return float(Base::ILLEGAL_COLLAPSE);
+            else
+            {
+                float leftAngle1 = acos((remainingPos.row(frame) - nodes[0]->positions.row(frame))
+                                       * (nodes[1]->positions.row(frame) - nodes[0]->positions.row(frame)).transpose());
+                float leftAngle2 = acos((remainingPos.row(frame) - nodes[3]->positions.row(frame))
+                                       * (nodes[2]->positions.row(frame) - nodes[3]->positions.row(frame)).transpose());
+                float rightAngle1 = acos((remainingPos.row(frame) - nodes[0]->positions.row(frame))
+                                       * (remainingPos.row(frame) - nodes[1]->positions.row(frame)).transpose());
+                float rightAngle2 = acos((remainingPos.row(frame) - nodes[3]->positions.row(frame))
+                                       * (remainingPos.row(frame) - nodes[2]->positions.row(frame)).transpose());
+                if (std::max(std::max(leftAngle1, rightAngle1), std::max(leftAngle2, rightAngle2)) * dist2epicenter_f(remainingPos.row(frame), frame)
+                    > max_boundary_angle_)
+                    return float(Base::ILLEGAL_COLLAPSE);
+            }
         }
     }
 
@@ -72,13 +109,6 @@ void ModBoundary::set_error_tolerance_factor(double _factor)
         set_max_boundary_angle(max_boundary_angle_value);
         this->error_tolerance_factor_ = _factor;
     }
-}
-
-float ModBoundary::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const
-{
-    // TODO implement a proper function here
-    float factor = 0.5f + 0.5f * ((pt - epicenter).squaredNorm() / (mean_dist * mean_dist));
-    return factor;
 }
 
 } // namespace c2m

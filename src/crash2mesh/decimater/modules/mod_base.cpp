@@ -39,20 +39,11 @@ void ModBase::set_num_frames(uint frames)
 
 float ModBase::dist2epicenter_f(const Vec3& pt, uint frame) const
 {
-    if (epicenters_.size() == 0 || mean_dists_.size() == 0 || epicenters_.row(frame).squaredNorm() == 0.0)
+    if (epicenters_.size() == 0 || mean_dists_.size() == 0 || mean_dists_(frame) == 0.0f)
         return 1.0;
 
-    float factor
-        = factor_dist_to_epicenter(pt, epicenters_.row(frame).transpose(), mean_dists_[frame]);
-    assert(factor >= 0.0);
-#if 0
-    static float avg = 1.0;
-    static uint times = 1;
-    avg = (avg * times + factor);
-    avg /= ++times;
-    std::cout << avg << std::endl;
-#endif
-    return factor;
+    float factor = 1.0f + ((pt - epicenters_.row(frame).transpose()).squaredNorm() / (mean_dists_[frame] * mean_dists_[frame]));
+    return 2.0f / factor;
 }
 
 void ModBase::update_frame_sequence()

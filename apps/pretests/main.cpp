@@ -73,13 +73,6 @@ int main(int argc, char** argv)
             Logger::lout(Logger::ERROR) << "\t\ttesting scene merging failed!" << endl;
             return -1;
         }
-        for (FHandle f: scene->mesh.faces())
-        {
-            for (NormalCone& nc : scene->mesh.data(f).normalCones)
-            {
-                nc.max_angle() *= 20;
-            }
-        }
         deci.useQuadric = true;
         deci.framesQuadric = 15;
         deci.maxQuadricError = FLT_MAX;

@@ -166,7 +166,7 @@ bool MeshDecimater::decimateScene(Scene::Ptr scene, uint nFaces, uint nVertices)
 void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t /*puid*/, bool forceRemove) const
 {
     // Create decimater and decimation modules
-    RobustDecimater decimater(mesh);
+    RobustDecimater decimater(mesh, quadricPositionOptimization);
 
     ModQuadricNormal::Handle hModFWQuadricNormal;
     ModQuadric::Handle hModFWQuadric;
@@ -184,13 +184,15 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t /
         decimater.module(hModFWQuadricNormal).set_max_err(maxQuadricError, false);
         decimater.module(hModFWQuadricNormal).set_area_weighting(quadricAreaWeighting);
         decimater.module(hModFWQuadricNormal).set_optimize_position(quadricPositionOptimization);
+        decimater.module(hModFWQuadricNormal).set_boundary_quadrics(boundaryQuadrics);
+        decimater.module(hModFWQuadricNormal).set_feature_quadrics(featureQuadrics);
         // Normal stuff
         decimater.module(hModFWQuadricNormal).set_max_normal_deviation(maxNormalDeviation);
         decimater.module(hModFWQuadricNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }
     else
     {
-        if (useQuadric) // Currently no alternative for a continuous module
+        if (useQuadric || true) // Currently no alternative for a continuous module
         {
             decimater.add(hModFWQuadric);
             decimater.module(hModFWQuadric).set_max_err(maxQuadricError, false);
@@ -198,6 +200,8 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t /
             decimater.module(hModFWQuadric).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
             decimater.module(hModFWQuadric).set_area_weighting(quadricAreaWeighting);
             decimater.module(hModFWQuadric).set_optimize_position(quadricPositionOptimization);
+            decimater.module(hModFWQuadric).set_boundary_quadrics(boundaryQuadrics);
+            decimater.module(hModFWQuadric).set_feature_quadrics(featureQuadrics);
             decimater.module(hModFWQuadric).set_binary(quadricExcludeOnly);
         }
         if (useNormalDeviation)

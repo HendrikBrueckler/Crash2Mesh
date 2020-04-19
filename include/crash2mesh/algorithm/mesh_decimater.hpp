@@ -24,7 +24,8 @@ class MeshDecimater
         : useQuadric(true), useNormalDeviation(true), useBoundaryDeviation(true), useAspectRatio(true),
           quadricExcludeOnly(false), normalExcludeOnly(true),
           combineQuadricNormal(false), quadricAreaWeighting(false), quadricPositionOptimization(false),
-          quadricPostProcessOptimize(false), maxQuadricError(2000), maxNormalDeviation(10), maxBoundaryDeviation(10),
+          quadricPostProcessOptimize(false),
+          boundaryQuadrics(true), featureQuadrics(true), maxQuadricError(2000), maxNormalDeviation(10), maxBoundaryDeviation(10),
           maxAspectRatio(10), framesQuadric(10), framesNormalDeviation(10), framesBoundaryDeviation(3), minVLog(1000),
           minVRender(1000), maxVLog(10000000), maxVRender(500000)
     {
@@ -88,6 +89,8 @@ class MeshDecimater
     bool quadricAreaWeighting;        //< Whether to weight quadrics with the face area
     bool quadricPositionOptimization; //< Whether to optimize positions wrt quadrics during decimation
     bool quadricPostProcessOptimize;  //< Whether to optimize positions wrt quadrics AFTER decimation
+    bool boundaryQuadrics;
+    bool featureQuadrics;
 
     float maxQuadricError;      //< Maximum tolerable error of quadric module
     float maxNormalDeviation;   //< Maximum tolerable normal change of normal module

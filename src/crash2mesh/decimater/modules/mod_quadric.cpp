@@ -170,7 +170,8 @@ Mat4 ModQuadric::probabilisticPlaneQuadric(const OMVec3& ppp, const OMVec3& qqq,
 }
 #endif // C2M_PROB_QUADRICS
 
-ModQuadric::ModQuadric(CMesh& _mesh) : ModBase(_mesh, false), max_err_(FLT_MAX), area_weighting_(false)
+ModQuadric::ModQuadric(CMesh& _mesh) : ModBase(_mesh, false), max_err_(FLT_MAX), area_weighting_(false), optimize_position_(false),
+                                    boundary_quadrics_(true), feature_quadrics_(true)
 {
 }
 
@@ -263,7 +264,7 @@ void ModQuadric::initialize(void)
 
             // Sum face quadrices up at each corner vertex
             for (uint j = 0; j < 3; j++)
-            {                
+            {
                 mesh_.data(vh[j]).quadrics[i] += calc_face_quadric(frame, points[0], points[1], points[2]);
             }
 
@@ -283,6 +284,12 @@ float ModQuadric::collapse_priority(const CollapseInfo& _ci)
     const vector<Quadric>& quadricsRemoved = mesh_.data(_ci.v0).quadrics;
     const vector<Quadric>& quadricsRemaining = mesh_.data(_ci.v1).quadrics;
 
+    OpenMesh::HPropHandleT<MatX3> optCollTarget;
+    bool optimalPos = mesh_.get_property_handle(optCollTarget, "collapseTargets");
+    const MatX3& collapseTargets = optimalPos ? mesh_.property(optCollTarget, _ci.v0v1) : mesh_.data(_ci.v1).node->positions;
+    if (optimize_position_ && collapseTargets.size() == 0)
+        throw std::logic_error("Uninitialized collapse target!");
+
     float error = 0;
     const MatX3& positions = mesh_.data(_ci.v1).node->positions;
     vector<uint> frames(frame_seq());
@@ -295,15 +302,15 @@ float ModQuadric::collapse_priority(const CollapseInfo& _ci)
         if (optimize_position_ && !mesh_.status(_ci.v1).locked() && !mesh_.data(_ci.v0).duplicate.is_valid()
             && !mesh_.data(_ci.v1).duplicate.is_valid())
         {
-            optimal_position(q, optPos);
+            optPos = collapseTargets.row(frame).transpose();
         }
 #ifdef C2M_PROB_QUADRICS
         Vec4 pointRemaining(optPos[0], optPos[1], optPos[2], 1);
         float err = pointRemaining.transpose() * (q * pointRemaining);
-        error = std::max(error, err);
+        error = std::max(error, err * dist2epicenter_f(pointRemaining, frame));
 #else
         OMVec3 pointRemaining = OMVec3(optPos[0], optPos[1], optPos[2]);
-        error = std::max(error, q(pointRemaining));
+        error = std::max(error, q(pointRemaining) * dist2epicenter_f(pointRemaining, frame));
 #endif
         if (error > max_err_)
             return Base::ILLEGAL_COLLAPSE;
@@ -326,17 +333,6 @@ void ModQuadric::postprocess_collapse(const CollapseInfo& _ci)
         //     quadricsRemaining[frame] *= 0.5f;
         // }
     }
-
-    if (optimize_position_ && !mesh_.status(_ci.v1).locked() && !mesh_.data(_ci.v0).duplicate.is_valid()
-        && !mesh_.data(_ci.v1).duplicate.is_valid())
-    {
-        for (size_t frame = 0; frame < num_frames(); frame++)
-        {
-            Vec3 optPos = mesh_.data(_ci.v1).node->positions.row(frame).transpose();
-            optimal_position(quadricsRemaining[frame], optPos);
-            mesh_.data(_ci.v1).node->positions.row(frame) = optPos.transpose();
-        }
-    }
 }
 
 void ModQuadric::set_error_tolerance_factor(double _factor)
@@ -357,7 +353,7 @@ void ModQuadric::set_error_tolerance_factor(double _factor)
     }
 }
 
-bool ModQuadric::optimal_position(Quadric& q, Vec3& optimalPos) const
+bool ModQuadric::optimal_position(Quadric& q, Vec3& optimalPos)
 {
 #ifdef C2M_PROB_QUADRICS
     Mat3 A = q.block<3, 3>(0, 0);
@@ -401,14 +397,7 @@ bool ModQuadric::optimal_position(Quadric& q, Vec3& optimalPos) const
 #endif
 }
 
-float ModQuadric::factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const
-{
-    // TODO implement a proper function here
-    float factor = 0.5f + 0.5f * ((pt - epicenter).squaredNorm() / (mean_dist * mean_dist));
-    return factor;
-}
-
-Quadric ModQuadric::calc_face_quadric(uint frame, const Vec3& p, const Vec3& q, const Vec3& r) const
+Quadric ModQuadric::calc_face_quadric(uint /*frame*/, const Vec3& p, const Vec3& q, const Vec3& r) const
 {
 #ifdef C2M_PROB_QUADRICS
     Quadric qFace;
@@ -440,7 +429,6 @@ Quadric ModQuadric::calc_face_quadric(uint frame, const Vec3& p, const Vec3& q, 
         qFace *= area;
     }
 #endif
-    qFace *= 1.0 / dist2epicenter_f((p + q + r) / 3.0, frame);
 
     return qFace;
 }
@@ -455,7 +443,7 @@ Quadric ModQuadric::calc_edge_quadric(HEHandle he, uint frame, const Vec3& p, co
     float weightFactor = 0;
     if (mesh_.is_boundary(mesh_.opposite_halfedge_handle(he)))
     {
-        if (MeshAnalyzer::dupes(mesh_, he).size() != 1)
+        if (/*MeshAnalyzer::dupes(mesh_, he).size() != 1 ||*/ !boundary_quadrics_)
             return qEdge;
         // preserve boundary contours
         weightFactor = 2.0;
@@ -465,7 +453,7 @@ Quadric ModQuadric::calc_edge_quadric(HEHandle he, uint frame, const Vec3& p, co
         // preserve feature edges, across which plastic strains differ
         float strain = mesh_.data(mesh_.face_handle(he)).element->plasticStrains(frame);
         float neighbor_strain = mesh_.data(mesh_.face_handle(mesh_.opposite_halfedge_handle(he))).element->plasticStrains(frame);
-        if (abs(neighbor_strain - strain) < 0.005)
+        if (abs(neighbor_strain - strain) < 0.005 || !feature_quadrics_)
             return qEdge;
         weightFactor = abs(neighbor_strain - strain) * 50;
     }
@@ -502,7 +490,7 @@ Quadric ModQuadric::calc_edge_quadric(HEHandle he, uint frame, const Vec3& p, co
         qEdge *= edgePlaneArea;
     }
 #endif
-    qEdge *= weightFactor / dist2epicenter_f((p + q) / 2.0, frame);
+    qEdge *= weightFactor;
 
     return qEdge;
 }

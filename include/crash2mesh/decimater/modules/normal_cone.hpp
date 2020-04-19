@@ -15,7 +15,7 @@ class NormalCone
     }
 
     //! Initialize cone with center (unit vector) and angle (radius in radians)
-    NormalCone(const OMVec3& _center_normal, float _max_angle, float _angle = 0.0);
+    NormalCone(const OMVec3& _center_normal, /*float _max_angle,*/ float _angle = 0.0);
 
     //! merge cones this instance will then enclose both former cones
     void merge(const NormalCone& _cone);
@@ -32,21 +32,21 @@ class NormalCone
         return angle_;
     }
 
-    //! returns max allowed size of cone (radius in radians)
-    inline float max_angle() const
-    {
-        return max_angle_;
-    }
+    // //! returns max allowed size of cone (radius in radians)
+    // inline float max_angle() const
+    // {
+    //     return max_angle_;
+    // }
 
-    //! returns max allowed size of cone (radius in radians)
-    inline float& max_angle()
-    {
-        return max_angle_;
-    }
+    // //! returns max allowed size of cone (radius in radians)
+    // inline float& max_angle()
+    // {
+    //     return max_angle_;
+    // }
 
   private:
     OMVec3 center_normal_;
-    float max_angle_; //< As a way to specify for each normal cone a maximum tolerance at creation time
+    // float max_angle_; //< As a way to specify for each normal cone a maximum tolerance at creation time
     float angle_;
 };
 

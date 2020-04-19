@@ -50,7 +50,6 @@ class ModQuadricNormal : public ModQuadric, public ModNormal
     void postprocess_collapse(const CollapseInfo& _ci) override;
 
   protected:
-    float factor_dist_to_epicenter(Vec3 pt, Vec3 epicenter, float mean_dist) const override;
 
     Vec3 bbox_min;
     Vec3 bbox_max;

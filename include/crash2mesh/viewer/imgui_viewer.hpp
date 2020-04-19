@@ -157,7 +157,7 @@ struct hsv
 
 		easy3d::vec3 getStrainColor(float strain);
 
-		hsv minColorHSV{90.0f/360.0f, 0.1f, 1.0f};
+		hsv minColorHSV{90.0f/360.0f, 0.0f, 1.0f};
 		hsv maxColorHSV{0.0f, 1.0, 1.0f};
 
 		bool fullReload = false;
