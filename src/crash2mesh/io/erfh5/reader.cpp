@@ -245,7 +245,7 @@ bool Reader::read1DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             std::vector<bool> activFlags(genTypeToActivFlags[genericType][elementIDs[i]]);
             for (nodeid_t nodeID : nodeIDs[i])
             {
-                Node::Ptr& node = nodes.emplace_back(nodeIDToNode.at(nodeID));
+                nodes.emplace_back(nodeIDToNode.at(nodeID));
             }
 
             // TODO clear right here ?
@@ -345,7 +345,7 @@ bool Reader::read2DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             vector<Node::Ptr> nodes;
             for (nodeid_t nodeID : nodeIDs[i])
             {
-                Node::Ptr& node = nodes.emplace_back(nodeIDToNode.at(nodeID));
+                nodes.emplace_back(nodeIDToNode.at(nodeID));
             }
             // TODO clear right here ?
 
@@ -440,7 +440,7 @@ bool Reader::read3DElements(const map<nodeid_t, Node::Ptr>& nodeIDToNode,
             std::vector<bool> activFlags(genTypeToActivFlags[genericType][elementIDs[i]]);
             for (nodeid_t nodeID : nodeIDs[i])
             {
-                Node::Ptr& node = nodes.emplace_back(nodeIDToNode.at(nodeID));
+                nodes.emplace_back(nodeIDToNode.at(nodeID));
             }
             // TODO clear right here ?
 

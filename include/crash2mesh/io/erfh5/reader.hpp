@@ -103,7 +103,7 @@ class Reader
 
         std::vector<std::vector<ID_T>> perStateEntityIDs(states.size());
         std::set<ID_T> allInactiveElements;
-        size_t numInactive = allInactiveElements.size();
+        // size_t numInactive = allInactiveElements.size();
         for (size_t stateIndex = 0; stateIndex < states.size(); stateIndex++)
         {
             std::string state = states[stateIndex];
@@ -190,7 +190,7 @@ class Reader
 
         return true;
     }
-    
+
     template <typename ID_T, typename Scalar, int DIM>
     bool readPerStateResultsSAFE(const FEType& elemType,
                                  const ResultType& resultType,
@@ -201,7 +201,7 @@ class Reader
         std::vector<std::vector<ID_T>> perStateEntityIDs(states.size());
         std::vector<Mat<Scalar, Dynamic, DIM>> perStateResults(states.size());
         std::set<ID_T> allEntityIDs;
-        
+
         for (size_t stateIndex = 0; stateIndex < states.size(); stateIndex++)
         {
             std::string state = states[stateIndex];
@@ -216,7 +216,7 @@ class Reader
             }
             std::copy(perStateEntityIDs[stateIndex].begin(), perStateEntityIDs[stateIndex].end(), std::inserter(allEntityIDs, allEntityIDs.end()));
         }
-        
+
         // std::vector<ID_T> inactiveElements;
         // std::set<ID_T> allInactiveElements;
         // size_t numInactive = allEntityIDs.size();

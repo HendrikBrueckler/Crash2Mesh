@@ -163,7 +163,7 @@ bool MeshDecimater::decimateScene(Scene::Ptr scene, uint nFaces, uint nVertices)
     return true;
 }
 
-void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t puid, bool forceRemove) const
+void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t /*puid*/, bool forceRemove) const
 {
     // Create decimater and decimation modules
     RobustDecimater decimater(mesh);
@@ -261,7 +261,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t p
         {
             if (mesh.status(f).deleted())
                 continue;
-            CMesh::FaceVertexIter fv_it = mesh.fv_begin(f);
+            fv_it = mesh.fv_begin(f);
             v0 = *(fv_it++);
             v1 = *(fv_it++);
             v2 = *fv_it;

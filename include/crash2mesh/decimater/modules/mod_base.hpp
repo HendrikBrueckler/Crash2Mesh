@@ -103,7 +103,7 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
      * @param frame frame to consider
      * @return float weight of specified point (>= 0.0)
      */
-    float ModBase::dist2epicenter_f(const OMVec3& pt, uint frame) const
+    float dist2epicenter_f(const OMVec3& pt, uint frame) const
     {
         return dist2epicenter_f(Vec3(pt[0], pt[1], pt[2]), frame);
     }
@@ -116,7 +116,7 @@ class ModBase : public OpenMesh::Decimater::ModBaseT<CMesh>
      * @param frame frame to consider
      * @return float weight of specified point (>= 0.0)
      */
-    float ModBase::dist2epicenter_f(const Vec3& pt, uint frame) const;
+    float dist2epicenter_f(const Vec3& pt, uint frame) const;
 
   protected:
     /**

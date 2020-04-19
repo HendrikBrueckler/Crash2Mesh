@@ -8,7 +8,7 @@ else()
 set(C2M_COMPILE_FLAGS -ffast-math -Wall -Wextra  -Wstrict-aliasing -pedantic -fmax-errors=5 -Werror
                     -Wunreachable-code -Wcast-align -Wcast-qual
                     -Wdisabled-optimization -Wformat=2 -Winit-self -Wlogical-op
-                    -Wmissing-include-dirs -Wold-style-cast -Woverloaded-virtual
+                    -Wmissing-include-dirs -Woverloaded-virtual
                     -Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel
                     -Wstrict-overflow=2 -Wswitch-enum -Wundef -Wunused
                     -Wno-variadic-macros -Wno-parentheses -fdiagnostics-show-option)

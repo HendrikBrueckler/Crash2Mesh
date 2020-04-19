@@ -79,6 +79,18 @@ static inline double get_seconds()
     return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
+easy3d::vec3 ImGuiViewer::getStrainColor(float strain)
+{
+    float t = strain / maxStrain;
+    t = std::clamp(t, 0.0f, 1.0f);
+    hsv colHSV{t * maxColorHSV.h + (1.0f - t) * minColorHSV.h,
+               t * maxColorHSV.s + (1.0f - t) * minColorHSV.s,
+               t * maxColorHSV.v + (1.0f - t) * minColorHSV.v};
+    rgb colRGB;
+    ImGui::ColorConvertHSVtoRGB(colHSV.h, colHSV.s, colHSV.v, colRGB.r, colRGB.g, colRGB.b);
+    return easy3d::vec3(colRGB.r, colRGB.g, colRGB.b);
+}
+
 void ImGuiViewer::run()
 {
     // initialize before showing the window because it can be slow
@@ -241,12 +253,12 @@ bool ImGuiViewer::key_press_event(int key, int modifiers)
 {
     if (key == GLFW_KEY_LEFT && modifiers == 0)
     {
-        currentFrame = currentFrame <= 0 ? visFrames.size() - 1 : currentFrame - 1;
+        currentFrame = currentFrame <= 0 ? (int)visFrames.size() - 1 : currentFrame - 1;
         updateFrame();
     }
     else if (key == GLFW_KEY_RIGHT && modifiers == 0)
     {
-        currentFrame = currentFrame >= visFrames.size() - 1 ? 0 : currentFrame + 1;
+        currentFrame = currentFrame >= (int)visFrames.size() - 1 ? 0 : currentFrame + 1;
         updateFrame();
     }
     else if (key == GLFW_KEY_W && modifiers == 0)
@@ -382,13 +394,13 @@ void ImGuiViewer::pre_draw()
 
     if (animating)
     {
-        currentFrame = currentFrame >= visFrames.size() - 1 ? 0 : currentFrame + 1;
+        currentFrame = currentFrame >= (int)visFrames.size() - 1 ? 0 : currentFrame + 1;
         updateFrame();
-            }
+    }
     AnimationViewer::pre_draw();
 }
 
-void ImGuiViewer::draw_overlay(bool* visible)
+void ImGuiViewer::draw_overlay(bool* /*visible*/)
 {
     drawInfoPanel();
     drawDecimationPanel();
@@ -536,7 +548,7 @@ bool ImGuiViewer::removeCurrentPartAndModel()
     std::string name = model->name();
     if (name.substr(0, 4) == "part")
     {
-        uint userID = atoi(name.substr(4).c_str());
+        int userID = atoi(name.substr(4).c_str());
         if (stage == 1)
         {
             for (auto partptr : parts)
@@ -707,6 +719,8 @@ bool ImGuiViewer::buildParts()
         return false;
     }
 
+    updateMaxStrains();
+
     if (createDrawableParts())
         stage = 1;
 
@@ -776,7 +790,6 @@ bool ImGuiViewer::createDrawableParts()
 
         // Copy over vertices and their properties to drawable model
         vector<easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex(mesh.n_vertices());
-        int n = 0;
         for (VHandle v : mesh.vertices())
         {
             OMVec3 position = mesh.point(v);
@@ -802,10 +815,10 @@ bool ImGuiViewer::createDrawableParts()
                 colors[vertexToDrawableVertex[v.idx()]] = easy3d::vec3(0.0f, 0.6f, 0.0f);
         }
 
-        auto drawablePositions
+        auto currentPositions
             = drawableMesh->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
         auto pos = drawableMesh->get_vertex_property<easy3d::vec3>("v:point");
-        pos.vector() = drawablePositions.vector();
+        pos.vector() = currentPositions.vector();
 
         // Visualize points as billboards
         drawablePointsVB[index] = drawableMesh->get_vertex_property<easy3d::vec3>("v:point").vector();
@@ -826,13 +839,12 @@ bool ImGuiViewer::createDrawableParts()
                 {
                     auto drawablePositions
                         = drawableMesh->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
-                    float delta = std::min(1.0f, 20.0f * strains(visFrames[i]));
-                    easy3d::vec3 col = easy3d::vec3(1.0f, 1.0f - delta, 1.0f - delta);
+                    easy3d::vec3 col = getStrainColor(strains(visFrames[i]));
                     frameToColorbuffer[visFrames[i]].emplace_back(col);
                     frameToVertexbuffer[visFrames[i]].emplace_back(drawablePositions[drawableVertex]);
                 }
             }
-            easy3d::SurfaceMesh::Face fd = drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
+            drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
         }
 
         vector<easy3d::vec3>& points = drawableTrianglesVB[index];
@@ -921,8 +933,6 @@ bool ImGuiViewer::toggleStrainColors()
         if (name.substr(0, 4) != "part")
             continue;
 
-        easy3d::SurfaceMesh::VertexProperty drawablePositions
-            = surface->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
         auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
 
         if (partsExpanded)
@@ -970,8 +980,7 @@ bool ImGuiViewer::toggleStrainColors()
             }
             else
             {
-                std::string name = surface->name();
-                uint userID = atoi(name.substr(4).c_str());
+                int userID = atoi(name.substr(4).c_str());
                 std::srand(userID);
                 drawableTriangles->update_color_buffer(
                     std::vector<easy3d::vec3>(surface->n_vertices(), easy3d::random_color()));
@@ -1217,6 +1226,8 @@ bool ImGuiViewer::decimatePartwise()
         Logger::lout(Logger::ERROR) << "Decimation failed" << std::endl;
         return false;
     }
+
+    updateMaxStrains();
     createDrawableParts();
     updateGlobalStats();
 
@@ -1231,6 +1242,8 @@ bool ImGuiViewer::mergeParts()
         Logger::lout(Logger::ERROR) << "Merging parts failed" << std::endl;
         return false;
     }
+
+    updateMaxStrains();
     if (!createDrawableScene())
         return false;
 
@@ -1295,7 +1308,7 @@ bool ImGuiViewer::createDrawableScene()
 
     auto buildDrawable = [&](size_t index) {
         Part::Ptr partPtr = parts[index];
-        uint partID = partPtr->ID;
+        int partID = partPtr->ID;
 
         if (partPtr->mesh.n_faces() == 0)
             return;
@@ -1350,13 +1363,12 @@ bool ImGuiViewer::createDrawableScene()
                 {
                     auto drawablePositions
                         = drawableMesh->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
-                    float delta = std::min(1.0f, 20.0f * strains(visFrames[i]));
-                    easy3d::vec3 col = easy3d::vec3(1.0f, 1.0f - delta, 1.0f - delta);
+                    easy3d::vec3 col = getStrainColor(strains(visFrames[i]));
                     frameToColorbuffer[visFrames[i]].emplace_back(col);
                     frameToVertexbuffer[visFrames[i]].emplace_back(drawablePositions[drawableVertex]);
                 }
             }
-            easy3d::SurfaceMesh::Face fd = drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
+            drawableMesh->add_triangle(vs[0], vs[1], vs[2]);
         }
 
         auto drawablePositions
@@ -1461,6 +1473,8 @@ bool ImGuiViewer::decimateScene()
         return false;
     }
 
+    updateMaxStrains();
+
     createDrawableScene();
 
     updateGlobalStats();
@@ -1514,16 +1528,58 @@ void ImGuiViewer::drawInfoPanel()
                 ImGui::Text("This affects only visualization, decimation is independent of this!");
                 if (ImGui::Button("OK"))
                 {
-                    float frameSkip = numFrames;
-                    if (nVisFrames > 1)
-                        frameSkip = std::max(1.0f, 1.0f / (nVisFrames - 1) * (numFrames - 1));
+                    if ((int)visFrames.size() != nVisFrames)
+                    {
+                        float frameSkip = numFrames;
+                        if (nVisFrames > 1)
+                            frameSkip = std::max(1.0f, 1.0f / (nVisFrames - 1) * (numFrames - 1));
 
-                    visFrames.clear();
-                    for (float frameF = 0; frameF < numFrames; frameF += frameSkip)
-                        visFrames.emplace_back(std::floor(frameF));
+                        visFrames.clear();
+                        for (float frameF = 0; frameF < numFrames; frameF += frameSkip)
+                            visFrames.emplace_back(std::floor(frameF));
 
-                    currentFrame = 0;
+                        currentFrame = 0;
 
+                        if (stage == 1)
+                            createDrawableParts();
+                        else if (stage == 2)
+                            createDrawableScene();
+                    }
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+            ImGui::Separator();
+            if (ImGui::Button("Configure strain colors"))
+                ImGui::OpenPopup("Configure strain coloring");
+
+            if (ImGui::BeginPopupModal("Configure strain coloring"))
+            {
+                ImGui::Text("Set the upper bound for color mapping of strain values");
+                ImGui::SliderFloat("", &maxStrain, 0.001f, maxStrainGlobal);
+                ImGui::Text("%.3f is the global maximum strain value", maxStrainGlobal);
+                ImGui::Text("Color of upper bound (strains = %.3f):.", maxStrain);
+                ImGui::SliderFloat("HueUpper", &maxColorHSV.h, 0.0f, 1.0f);
+                // ImGui::SameLine();
+                ImGui::SliderFloat("SatUpper", &maxColorHSV.s, 0.0f, 1.0f);
+                ImVec4 maxColorRGB;
+                ImGui::ColorConvertHSVtoRGB(maxColorHSV.h, maxColorHSV.s, maxColorHSV.v, maxColorRGB.x, maxColorRGB.y, maxColorRGB.z);
+                // ImGui::SameLine();
+                ImGui::ColorButton("ColUpper", maxColorRGB);
+                ImGui::Text("Color of lower bound (strains = 0):");
+                ImGui::SliderFloat("HueLower", &minColorHSV.h, 0.0f, 1.0f);
+                // ImGui::SameLine();
+                ImGui::SliderFloat("SatLower", &minColorHSV.s, 0.0f, 1.0f);
+                ImVec4 minColorRGB;
+                ImGui::ColorConvertHSVtoRGB(minColorHSV.h, minColorHSV.s, minColorHSV.v, minColorRGB.x, minColorRGB.y, minColorRGB.z);
+                // ImGui::SameLine();
+                ImGui::ColorButton("ColLower", minColorRGB);
+                ImGui::Text("Strains above upper bound are clamped");
+                ImGui::Text("Lower bound: %.3f, %.3f, %.3f", minColorHSV.h, minColorHSV.s, minColorHSV.v);
+                ImGui::Text("Upper bound: %.3f, %.3f, %.3f", maxColorHSV.h, maxColorHSV.s, maxColorHSV.v);
+                ImGui::Text("Colors between bounds are linearly interpolated using HSV, depending on face strains");
+                if (ImGui::Button("OK"))
+                {
                     if (stage == 1)
                         createDrawableParts();
                     else if (stage == 2)
@@ -1536,7 +1592,7 @@ void ImGuiViewer::drawInfoPanel()
         }
         if (visFrames.size() > 0)
         {
-            ImGui::Text("Current frame: %i", visFrames[currentFrame]);
+            ImGui::Text("Current frame: %u", visFrames[currentFrame]);
         }
         else
         {
@@ -1573,31 +1629,27 @@ void ImGuiViewer::drawInfoPanel()
 
         ImGui::Separator();
 
-        ImGui::Text("Global stats: ");
-        ImGui::Text("#Frames: %i (#frames visualized: %i)", numFrames, visFrames.size());
-        ImGui::Text("#Faces: %i", numTriangles);
-        ImGui::Text("#Vertices: %i", numVertices);
+        if (stage > 0 && ImGui::CollapsingHeader("Global scene stats"))
+        {
+            ImGui::Text("#Frames: %i (#frames visualized: %lu)", numFrames, visFrames.size());
+            ImGui::Text("#MeshFaces: %i", numTriangles);
+            ImGui::Text("#MeshVertices: %i", numVertices);
+            ImGui::Text("#MeshEdges: %i", numEdges);
+            ImGui::Text("#MeshComplexEdges: %i", numComplexEdges);
+            ImGui::Text("#MeshBoundaryEdges: %i", numBoundaryEdges);
+            ImGui::Text("#FENodes: %i", numNodes);
+            ImGui::Text("#1DFEs: %i", num1DFE);
+            ImGui::Text("#2DFEs (includes extracted 3D surfaces): %i", num2DFE);
+            ImGui::Text("Max plastic strain in current frame: %.3f", frame2maxPlasticStrain[visFrames[currentFrame]]);
+            ImGui::Text("Max plastic strain over all frames: %.3f", maxStrainGlobal);
+        }
 
         ImGui::Separator();
-        if (current_model())
+        if (current_model() && ImGui::CollapsingHeader("Current part stats"))
         {
             const std::string& name = "Current model: " + easy3d::file_system::simple_name(current_model()->name());
             ImGui::Text("%s", name.c_str());
-            if (dynamic_cast<easy3d::PointCloud*>(current_model()))
-            {
-                easy3d::PointCloud* cloud = dynamic_cast<easy3d::PointCloud*>(current_model());
-                ImGui::Text("Type: point cloud");
-                ImGui::Text("#Vertices: %i", cloud->n_vertices());
-            }
-            else if (dynamic_cast<easy3d::SurfaceMesh*>(current_model()))
-            {
-                easy3d::SurfaceMesh* mesh = dynamic_cast<easy3d::SurfaceMesh*>(current_model());
-                ImGui::Text("Type: surface mesh");
-                ImGui::Text("#Faces: %i", mesh->n_faces());
-                ImGui::Text("#Vertices: %i", mesh->n_vertices());
-                ImGui::Text("#Edges: %i", mesh->n_edges());
-            }
-            else if (dynamic_cast<easy3d::Graph*>(current_model()))
+            if (dynamic_cast<easy3d::Graph*>(current_model()))
             {
                 if (current_model()->name() == "epicenter")
                 {
@@ -1605,7 +1657,28 @@ void ImGuiViewer::drawInfoPanel()
                     ImGui::TextWrapped("Decimation error is scaled up for elements inside the sphere, and is scaled "
                                        "down for elements outside the sphere.");
                     ImGui::TextWrapped("This means elements inside the sphere are preserved in more detail");
+                    ImGui::TextWrapped("Remove calculated epicenters from decimation by deleting this model (DEL).");
                 }
+            }
+            else if (dynamic_cast<easy3d::SurfaceMesh*>(current_model()))
+            {
+                easy3d::SurfaceMesh* mesh = dynamic_cast<easy3d::SurfaceMesh*>(current_model());
+                partid_t userID = -1;
+                if (current_model()->name().substr(0, 4) == "part")
+                    userID = atoi(current_model()->name().substr(4).c_str());
+                if (pIs2DPart[userID])
+                    ImGui::Text("2D surface part");
+                else
+                    ImGui::Text("Volumetric part surface");
+                ImGui::Text("#MeshFaces: %i", mesh->n_faces());
+                ImGui::Text("#MeshVertices: %i", mesh->n_vertices());
+                ImGui::Text("#MeshEdges: %i", mesh->n_edges());
+                ImGui::Text("#MeshComplexEdges: %i", pNumComplexEdges[userID]);
+                ImGui::Text("#MeshBoundaryEdges: %i", pNumBoundaryEdges[userID]);
+                ImGui::Text("#FENodes: %i", pNumNodes[userID]);
+                ImGui::Text("#2DFEs (includes extracted 3D surfaces): %i", pNum2DFE[userID]);
+                ImGui::Text("Max plastic strain in current frame: %.3f",
+                            frame2pMaxPlasticStrain[visFrames[currentFrame]][userID]);
             }
         }
         ImGui::End();
@@ -1749,7 +1822,7 @@ void ImGuiViewer::drawDecimationPanel()
         if (deciParts.useNormalDeviation && deciParts.maxNormalDeviation < 360)
             ImGui::Text("Max NDM error: %f", deciParts.maxNormalDeviation);
         else
-            ImGui::Text("NDM error unbound", deciParts.maxNormalDeviation);
+            ImGui::Text("NDM error unbound");
         if (deciParts.useBoundaryDeviation)
             ImGui::Text("Max boundary angle deviation: %f", deciParts.maxBoundaryDeviation);
         else
@@ -1763,7 +1836,7 @@ void ImGuiViewer::drawDecimationPanel()
         if (ImGui::CollapsingHeader("Quadric error metric settings"))
         {
             ImGui::Indent();
-            ImGui::Text("QEM is always used as the base metric", &deciParts.useQuadric);
+            ImGui::Text("QEM is always used as the base metric");
             if (deciParts.useQuadric)
             {
                 // ImGui::Checkbox("Use QEM for error bound exclusion only", &deciParts.quadricExcludeOnly);
@@ -1832,32 +1905,199 @@ void ImGuiViewer::drawDecimationPanel()
     }
 }
 
+bool ImGuiViewer::updateMaxStrains()
+{
+    frame2maxPlasticStrain.clear();
+    frame2pMaxPlasticStrain.clear();
+    maxStrainGlobal = 0.0f;
+
+    if (numFrames == 0)
+        return false;
+
+    frame2maxPlasticStrain.resize(numFrames);
+    frame2pMaxPlasticStrain.resize(numFrames);
+    for (auto partPtr : parts)
+    {
+        for (auto elem : partPtr->elements2D)
+        {
+            for (int i = 0; i < numFrames; i++)
+            {
+                frame2maxPlasticStrain[i] = std::max(frame2maxPlasticStrain[i], elem->plasticStrains(i));
+                frame2pMaxPlasticStrain[i][partPtr->userID]
+                    = std::max(frame2pMaxPlasticStrain[i][partPtr->userID], elem->plasticStrains(i));
+            }
+        }
+        for (auto elem : partPtr->surfaceElements)
+        {
+            for (int i = 0; i < numFrames; i++)
+            {
+                frame2maxPlasticStrain[i] = std::max(frame2maxPlasticStrain[i], elem->plasticStrains(i));
+                frame2pMaxPlasticStrain[i][partPtr->userID]
+                    = std::max(frame2pMaxPlasticStrain[i][partPtr->userID], elem->plasticStrains(i));
+            }
+        }
+    }
+    for (int i = 0; i < numFrames; i++)
+    {
+        maxStrainGlobal = std::max(maxStrainGlobal, frame2maxPlasticStrain[i]);
+    }
+    return true;
+}
+
 bool ImGuiViewer::updateGlobalStats()
 {
+    numParts1D = 0;
+    numParts2D = 0;
+    numParts3D = 0;
+    for (auto partPtr : parts)
+    {
+        if (!partPtr->elements1D.empty())
+            numParts1D++;
+        else if (!partPtr->elements2D.empty())
+            numParts2D++;
+        else if (!partPtr->elements3D.empty() || !partPtr->elements3D.empty())
+            numParts3D++;
+    }
+
     numTriangles = 0;
     numVertices = 0;
+    numEdges = 0;
+    numComplexEdges = 0;
+    numBoundaryEdges = 0;
+    num1DFE = 0;
+    num2DFE = 0;
+    numNodes = 0;
+    pNumComplexEdges.clear();
+    pNumBoundaryEdges.clear();
+    pNum2DFE.clear();
+    pNumNodes.clear();
+    pIs2DPart.clear();
+
+    std::string name = current_model() ? current_model()->name() : "";
     if (stage <= 0)
     {
         numFrames = 0;
         visFrames.clear();
-        return false;
     }
     else if (stage == 1)
     {
         for (auto partPtr : parts)
         {
-            numTriangles += partPtr->mesh.n_faces();
-            numVertices += partPtr->mesh.n_vertices();
+            const CMesh& mesh = partPtr->mesh;
+            numTriangles += mesh.n_faces();
+            numVertices += mesh.n_vertices();
+            numEdges += mesh.n_edges();
+            float complexEdges = 0.0f;
+            int boundaryEdges = 0;
+            for (auto e : mesh.edges())
+            {
+                HEHandle he1 = mesh.halfedge_handle(e, 0);
+                auto dupes1 = MeshAnalyzer::dupes(mesh, he1);
+                HEHandle he2 = mesh.halfedge_handle(e, 0);
+                auto dupes2 = MeshAnalyzer::dupes(mesh, he2);
+                if (dupes1.size() > 1)
+                    complexEdges += 1.0f / dupes1.size();
+                if (dupes2.size() > 1)
+                    complexEdges += 1.0f / dupes2.size();
+                if (dupes1.size() == 1 && dupes2.size() == 1 && mesh.is_boundary(e))
+                    boundaryEdges++;
+            }
+            numComplexEdges += (int)complexEdges;
+            numBoundaryEdges += boundaryEdges;
+            num1DFE += partPtr->elements1D.size();
+            std::set<Node::Ptr> nodes;
+            for (auto v : mesh.vertices())
+            {
+                nodes.emplace(mesh.data(v).node);
+            }
+            numNodes += nodes.size();
+            std::set<Element2D::Ptr> elem2D;
+            for (auto f : mesh.faces())
+            {
+                elem2D.emplace(mesh.data(f).element);
+            }
+            num2DFE += elem2D.size();
+            pNumComplexEdges[partPtr->userID] += (int)complexEdges;
+            pNumBoundaryEdges[partPtr->userID] += boundaryEdges;
+            pNum2DFE[partPtr->userID] += elem2D.size();
+            pNumNodes[partPtr->userID] += nodes.size();
         }
-        return true;
     }
     else if (stage == 2)
     {
-        numTriangles += scene->mesh.n_faces();
-        numVertices += scene->mesh.n_vertices();
-        return true;
+        std::map<int, int> partID2UserID;
+        std::map<int, float> userID2pComplexEdges;
+        for (auto part : parts)
+            partID2UserID[part->ID] = part->userID;
+
+        const CMesh& mesh = scene->mesh;
+        numTriangles += mesh.n_faces();
+        numVertices += mesh.n_vertices();
+        numEdges += mesh.n_edges();
+        float complexEdges = 0.0f;
+        int boundaryEdges = 0;
+        for (auto e : mesh.edges())
+        {
+            HEHandle he1 = mesh.halfedge_handle(e, 0);
+            auto dupes1 = MeshAnalyzer::dupes(mesh, he1);
+            HEHandle he2 = mesh.halfedge_handle(e, 0);
+            auto dupes2 = MeshAnalyzer::dupes(mesh, he2);
+            if (dupes1.size() > 1)
+                complexEdges += 1.0f / dupes1.size();
+            if (dupes2.size() > 1)
+                complexEdges += 1.0f / dupes1.size();
+            if (dupes1.size() == 1 && dupes2.size() == 1 && mesh.is_boundary(e))
+                boundaryEdges++;
+            partid_t userID = -1;
+            if (mesh.face_handle(he1).is_valid())
+                userID = partID2UserID[mesh.data(mesh.face_handle(he1)).element->partID];
+            else
+                userID = partID2UserID[mesh.data(mesh.face_handle(he2)).element->partID];
+
+            if (mesh.data(mesh.from_vertex_handle(he1)).node->referencingParts > 1
+                && mesh.data(mesh.to_vertex_handle(he1)).node->referencingParts > 1)
+            {
+                pNumBoundaryEdges[userID]++;
+            }
+            else
+            {
+                if (dupes1.size() > 1)
+                    userID2pComplexEdges[userID] += 1.0f / dupes1.size();
+                if (dupes2.size() > 1)
+                    userID2pComplexEdges[userID] += 1.0f / dupes2.size();
+                if (dupes1.size() == 1 && dupes2.size() == 1 && mesh.is_boundary(e))
+                    pNumBoundaryEdges[userID]++;
+            }
+        }
+        numComplexEdges += (int)complexEdges;
+        numBoundaryEdges += boundaryEdges;
+        std::set<Node::Ptr> nodes;
+        std::map<int, std::set<Node::Ptr>> userID2pNodes;
+        for (auto v : mesh.vertices())
+        {
+            userID2pNodes[partID2UserID[mesh.data(*mesh.cvf_begin(v)).element->partID]].emplace(mesh.data(v).node);
+            nodes.emplace(mesh.data(v).node);
+        }
+        numNodes += nodes.size();
+        for (auto kv : userID2pNodes)
+            pNumNodes[kv.first] += kv.second.size();
+        std::set<Element2D::Ptr> elem2D;
+        std::map<int, std::set<Element2D::Ptr>> userID2pElem2D;
+        for (auto f : mesh.faces())
+        {
+            userID2pElem2D[partID2UserID[mesh.data(f).element->partID]].emplace(mesh.data(f).element);
+            elem2D.emplace(mesh.data(f).element);
+        }
+        num2DFE += elem2D.size();
+        for (auto kv : userID2pElem2D)
+            pNum2DFE[kv.first] += kv.second.size();
+        for (auto part : parts)
+        {
+            num1DFE += part->elements1D.size();
+        }
     }
-    return false;
+
+    return true;
 }
 
 bool ImGuiViewer::exportCurrentPart()
@@ -1887,7 +2127,6 @@ bool ImGuiViewer::exportCurrentPart()
     if (dynamic_cast<const easy3d::SurfaceMesh*>(m))
     {
         const easy3d::SurfaceMesh* mesh = dynamic_cast<const easy3d::SurfaceMesh*>(m);
-        const std::string name = mesh->name();
         const std::string& ext = easy3d::file_system::extension(file_name, true);
         if (ext == "c2m")
         {
@@ -1897,7 +2136,8 @@ bool ImGuiViewer::exportCurrentPart()
                 {
                     if (part->userID == userID)
                     {
-                        Scene::Ptr dummyScene = MeshBuilder::merge(std::vector<Part::Ptr>({part}), false);
+                        std::vector<Part::Ptr> dummyParts({part});
+                        Scene::Ptr dummyScene = MeshBuilder::merge(dummyParts, false);
                         C2MWriter::write(file_name, dummyScene, true);
                         return true;
                     }
@@ -1906,7 +2146,7 @@ bool ImGuiViewer::exportCurrentPart()
             }
             else if (stage == 2)
             {
-                partid_t partID;
+                partid_t partID = -1;
                 for (Part::Ptr part : parts)
                 {
                     if (part->userID == userID)
@@ -1943,7 +2183,8 @@ bool ImGuiViewer::exportCurrentPart()
                     FHandle partFace = partMesh.add_face(vs);
                     partMesh.data(partFace).element = sceneMesh.data(f).element;
                 }
-                Scene::Ptr dummyScene = MeshBuilder::merge(std::vector<Part::Ptr>({part}), false);
+                std::vector<Part::Ptr> dummyParts({part});
+                Scene::Ptr dummyScene = MeshBuilder::merge(dummyParts, false);
                 C2MWriter::write(file_name, dummyScene, true);
                 return true;
             }
@@ -1990,7 +2231,7 @@ bool ImGuiViewer::exportScene()
         const CMesh& mesh = scene->mesh;
         easy3d::SurfaceMesh drawableMesh;
         drawableMesh.set_name("scene");
-        for (uint i = 0; i < numFrames; i++)
+        for (int i = 0; i < numFrames; i++)
         {
             drawableMesh.add_face_property<float>("f:strain_frame" + std::to_string(i));
             drawableMesh.add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
@@ -2003,7 +2244,7 @@ bool ImGuiViewer::exportScene()
             easy3d::SurfaceMesh::Vertex vd = vertexToDrawableVertex[v.idx()]
                 = drawableMesh.add_vertex(easy3d::vec3(position[0], position[1], position[2]));
             const MatX3& positions = mesh.data(v).node->positions;
-            for (uint i = 0; i < numFrames; i++)
+            for (int i = 0; i < numFrames; i++)
             {
                 auto drawablePositions
                     = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
@@ -2021,7 +2262,7 @@ bool ImGuiViewer::exportScene()
             }
             easy3d::SurfaceMesh::Face fd = drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
             auto strains = mesh.data(f).element->plasticStrains;
-            for (uint i = 0; i < numFrames; i++)
+            for (int i = 0; i < numFrames; i++)
             {
                 auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" + std::to_string(i));
                 faceStrains[fd] = strains(i);
@@ -2090,7 +2331,6 @@ bool ImGuiViewer::createDrawableEpicenters()
     }
 
     std::vector<uint> indices;
-    auto normal = epicenterSphere->get_vertex_property<easy3d::vec3>("v:normal");
     for (int t = 0; t < stacks; t++) // stacks are ELEVATION so they count theta
     {
         for (int p = 0; p < slices; p++) // slices are ORANGE SLICES so the count azimuth

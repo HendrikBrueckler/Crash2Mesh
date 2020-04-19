@@ -2,6 +2,7 @@
 #define C2M_TYPES_HPP
 
 #include <OpenMesh/Core/Geometry/VectorT.hh>
+#include <OpenMesh/Core/Utils/vector_traits.hh>
 #include <OpenMesh/Core/Geometry/QuadricT.hh>
 
 #include <Eigen/Dense>

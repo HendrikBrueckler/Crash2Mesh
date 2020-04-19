@@ -19,6 +19,20 @@ struct ImGuiContext;
 
 namespace c2m {
 
+struct rgb
+{
+    float r; // in [0, 1]
+    float g; // in [0, 1]
+    float b; // in [0, 1]
+};
+
+struct hsv
+{
+    float h; // in [0, 360]
+    float s; // in [0, 1]
+    float v; // in [0, 1]
+};
+
     class ImGuiViewer : public AnimationViewer
 	{
 	public:
@@ -60,7 +74,7 @@ namespace c2m {
 		bool callback_event_scroll(double dx, double dy) override;
 
 		bool mouse_press_event(int x, int y, int button, int modifiers) override;
-		
+
         void draw_menu_file();
         void draw_menu_view();
 
@@ -86,7 +100,7 @@ namespace c2m {
         // Global variables for all the windows
         float	alpha_;
         bool	movable_;
-		
+
 		float   menu_height_;
 
 	protected:
@@ -122,7 +136,7 @@ namespace c2m {
 		bool toggleExpandParts();
 
 		bool mergeParts();
-		
+
 		bool createDrawableScene();
 
 		bool decimatePartwise();
@@ -140,12 +154,19 @@ namespace c2m {
 
 		bool exportCurrentPart();
 		bool exportScene();
-		
+
+		easy3d::vec3 getStrainColor(float strain);
+
+		hsv minColorHSV{90.0f/360.0f, 0.1f, 1.0f};
+		hsv maxColorHSV{0.0f, 1.0, 1.0f};
+
 		bool fullReload = false;
 
 		bool show_overlay = true;
-		
+
 		bool targetCam = false;
+
+		float maxStrain = 1.0f;
 
     	std::vector<Part::Ptr> parts;
 		std::string fileName;
@@ -174,7 +195,7 @@ namespace c2m {
 		bool animating = false;
 		int currentFrame = 0;
 		int nVisFrames = 1;
-		std::vector<size_t> visFrames;
+		std::vector<uint> visFrames;
 
 		std::map<easy3d::Model*, std::vector<std::vector<easy3d::vec3>>> modelToFrameToVertexbuffer;
 		std::map<easy3d::Model*, std::vector<std::vector<easy3d::vec3>>> modelToFrameToColorbuffer;
@@ -182,9 +203,34 @@ namespace c2m {
 		// global stats
 		int numFrames = 0;
 
+		float maxStrainGlobal = 0.0f;
+
+		bool updateMaxStrains();
+		std::vector<float> frame2maxPlasticStrain;
+		std::vector<std::map<int, float>> frame2pMaxPlasticStrain;
 		bool updateGlobalStats();
+		bool updateCurrentPartStats();
+
+		// Global
 		int numTriangles = 0;
 		int numVertices = 0;
+		int numEdges = 0;
+		int numComplexEdges = 0;
+		int numBoundaryEdges = 0;
+		int num1DFE = 0;
+		int num2DFE = 0;
+		int numNodes = 0;
+		int numParts1D = 0;
+		int numParts2D = 0;
+		int numParts3D = 0;
+
+
+		// Per part
+		std::map<int, int> pNumComplexEdges;
+		std::map<int, int> pNumBoundaryEdges;
+		std::map<int, int> pNum2DFE;
+		std::map<int, int> pNumNodes;
+		std::map<int, bool> pIs2DPart;
 
 	private:
     	std::mutex mut;

@@ -481,7 +481,7 @@ void MeshBuilder::assembleMeshFromTriangles(CMesh& mesh,
     relink(mesh);
 }
 
-void MeshBuilder::despike(CMesh& mesh)
+void MeshBuilder::despike(CMesh& /*mesh*/)
 {
     // TODO do this properly
 }

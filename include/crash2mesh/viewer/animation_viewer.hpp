@@ -9,7 +9,7 @@ namespace c2m
 class AnimationViewer : public easy3d::Viewer
 {
   public:
-    AnimationViewer::AnimationViewer(const std::string& title /* = "Easy3D ImGui Viewer" */,
+    AnimationViewer(const std::string& title /* = "Easy3D ImGui Viewer" */,
                                      int samples /* = 4 */,
                                      int gl_major /* = 3 */,
                                      int gl_minor /* = 2 */,
