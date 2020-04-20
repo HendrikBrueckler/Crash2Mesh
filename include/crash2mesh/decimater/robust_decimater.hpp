@@ -69,8 +69,8 @@ class RobustDecimater : virtual public OpenMesh::Decimater::BaseDecimaterT<CMesh
 
     float collapse_priority(const CollapseInfo& _ci);
 
-    /// Post-process a collapse
-    void postprocess_collapse(CollapseInfo& _ci);
+    /// Pre-process a collapse (move vertex for optimal collapse)
+    void preprocess_collapse(CollapseInfo& _ci);
 
     // reference to mesh
     Mesh& mesh_;

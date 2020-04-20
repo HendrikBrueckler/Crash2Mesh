@@ -71,23 +71,25 @@ float ModBoundary::collapse_priority(const CollapseInfo& _ci)
             {
                 float leftAngle = acos((nodes[2]->positions.row(frame) - nodes[0]->positions.row(frame))
                                        * (nodes[1]->positions.row(frame) - nodes[0]->positions.row(frame)).transpose());
-                float rightAngle = acos((nodes[2]->positions.row(frame) - nodes[0]->positions.row(frame))
-                                       * (nodes[2]->positions.row(frame) - nodes[1]->positions.row(frame)).transpose());
-                if (std::max(leftAngle, rightAngle) * dist2epicenter_f(remainingPos.row(frame), frame)
-                    > max_boundary_angle_)
+                float rightAngle
+                    = acos((nodes[2]->positions.row(frame) - nodes[0]->positions.row(frame))
+                           * (nodes[2]->positions.row(frame) - nodes[1]->positions.row(frame)).transpose());
+                if (std::max(leftAngle, rightAngle) > max_boundary_angle_)
                     return float(Base::ILLEGAL_COLLAPSE);
             }
             else
             {
-                float leftAngle1 = acos((remainingPos.row(frame) - nodes[0]->positions.row(frame))
-                                       * (nodes[1]->positions.row(frame) - nodes[0]->positions.row(frame)).transpose());
-                float leftAngle2 = acos((remainingPos.row(frame) - nodes[3]->positions.row(frame))
-                                       * (nodes[2]->positions.row(frame) - nodes[3]->positions.row(frame)).transpose());
+                float leftAngle1
+                    = acos((remainingPos.row(frame) - nodes[0]->positions.row(frame))
+                           * (nodes[1]->positions.row(frame) - nodes[0]->positions.row(frame)).transpose());
+                float leftAngle2
+                    = acos((remainingPos.row(frame) - nodes[3]->positions.row(frame))
+                           * (nodes[2]->positions.row(frame) - nodes[3]->positions.row(frame)).transpose());
                 float rightAngle1 = acos((remainingPos.row(frame) - nodes[0]->positions.row(frame))
-                                       * (remainingPos.row(frame) - nodes[1]->positions.row(frame)).transpose());
+                                         * (remainingPos.row(frame) - nodes[1]->positions.row(frame)).transpose());
                 float rightAngle2 = acos((remainingPos.row(frame) - nodes[3]->positions.row(frame))
-                                       * (remainingPos.row(frame) - nodes[2]->positions.row(frame)).transpose());
-                if (std::max(std::max(leftAngle1, rightAngle1), std::max(leftAngle2, rightAngle2)) * dist2epicenter_f(remainingPos.row(frame), frame)
+                                         * (remainingPos.row(frame) - nodes[2]->positions.row(frame)).transpose());
+                if (std::max(std::max(leftAngle1, rightAngle1), std::max(leftAngle2, rightAngle2))
                     > max_boundary_angle_)
                     return float(Base::ILLEGAL_COLLAPSE);
             }

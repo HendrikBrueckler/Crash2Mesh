@@ -77,11 +77,10 @@ void ModNormal::initialize()
 
 float ModNormal::collapse_priority(const CollapseInfo& _ci)
 {
-    float max_angle(0.0f);
+    float priority(0.0f);
     Mesh::FaceHandle fh, fhl, fhr;
     Mesh::ConstVertexFaceIter vf_it;
     Mesh::FaceVertexCCWIter fv_it;
-
 
     std::vector<uint> frames(frame_seq());
     std::vector<NormalCone> nc;
@@ -137,22 +136,23 @@ float ModNormal::collapse_priority(const CollapseInfo& _ci)
                 if (fh == fhr)
                     nc[i].merge(mesh_.data(_ci.fr).normalCones[i]);
 
+                // Legality
+                if (nc[i].angle() * 2.0f > max_normal_deviation_)
+                {
+                    return float(Base::ILLEGAL_COLLAPSE);
+                }
+                // Priority
                 Vec3 pos = (positions0->row(frame).transpose() + positions1->row(frame).transpose() + positions2->row(frame).transpose()) / 3.0f;
                 float dist2epifactor = dist2epicenter_f(pos, frame);
-
-                // Priority
-                if (nc[i].angle() * dist2epifactor > max_angle)
+                if (nc[i].angle() * dist2epifactor * 2.0f > priority)
                 {
-                    max_angle = nc[i].angle() * dist2epifactor;
-                    // Legality
-                    if (max_angle > 0.5 * max_normal_deviation_)
-                        return float(Base::ILLEGAL_COLLAPSE);
+                    priority = nc[i].angle() * dist2epifactor * 2.0f;
                 }
             }
         }
     }
 
-    return max_angle;
+    return priority;
 }
 
 void ModNormal::set_error_tolerance_factor(double _factor)
@@ -172,35 +172,45 @@ void ModNormal::set_error_tolerance_factor(double _factor)
 
 void ModNormal::postprocess_collapse(const CollapseInfo& _ci)
 {
-    Mesh::ConstVertexFaceIter vf_it(mesh_, _ci.v0);
-    Mesh::FaceHandle fh, fhl, fhr;
+    Mesh::ConstVertexFaceIter vf_it(mesh_, _ci.v1);
+    Mesh::FaceHandle fh, fhl1, fhl2, fhr1, fhr2;
 
-    if (_ci.v0vl.is_valid())
-        fhl = mesh_.face_handle(_ci.v0vl);
-    if (_ci.vrv0.is_valid())
-        fhr = mesh_.face_handle(_ci.vrv0);
+    OpenMesh::HPropHandleT<MatX3> collapseTargets;
+    bool optimalPos = mesh_.get_property_handle(collapseTargets, "collapseTargets");
 
+    if (_ci.vlv1.is_valid()) {
+      if (optimalPos)
+        fhl1 = mesh_.face_handle(_ci.vlv1);
+      fhl2 = mesh_.face_handle(mesh_.opposite_halfedge_handle(_ci.vlv1));
+    }
+
+    if (_ci.v1vr.is_valid()) {
+      if (optimalPos)
+        fhr1 = mesh_.face_handle(_ci.v1vr);
+      fhr2 = mesh_.face_handle(mesh_.opposite_halfedge_handle(_ci.v1vr));
+    }
+
+    std::vector<uint> frames(frame_seq());
     for (; vf_it.is_valid(); ++vf_it)
     {
         fh = *vf_it;
-        if (fh == _ci.fl || fh == _ci.fr)
-            continue;
 
         std::vector<NormalCone>& ncs = mesh_.data(fh).normalCones;
         Mesh::FaceVertexCCWIter fv_it = mesh_.fv_ccwbegin(fh);
         const MatX3& positions0 = mesh_.data(*(fv_it++)).node->positions;
         const MatX3& positions1 = mesh_.data(*(fv_it++)).node->positions;
         const MatX3& positions2 = mesh_.data(*fv_it).node->positions;
-        for (uint frame = 0; frame < num_frames(); frame++)
+        for (size_t i = 0; i < frames.size(); i++)
         {
+            uint frame = frames[i];
             OMVec3 n = face_normal(positions0.row(frame).transpose(),
                                    positions1.row(frame).transpose(),
                                    positions2.row(frame).transpose());
-            ncs[frame].merge(NormalCone(n));
-            if (fh == fhl)
-                ncs[frame].merge(mesh_.data(_ci.fl).normalCones[frame]);
-            if (fh == fhr)
-                ncs[frame].merge(mesh_.data(_ci.fl).normalCones[frame]);
+            ncs[i].merge(NormalCone(n));
+            if (fh == fhl1 || fh == fhl2)
+                ncs[i].merge(mesh_.data(_ci.fl).normalCones[i]);
+            if (fh == fhr1 || fh == fhr2)
+                ncs[i].merge(mesh_.data(_ci.fr).normalCones[i]);
         }
     }
 }

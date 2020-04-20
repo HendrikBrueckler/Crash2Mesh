@@ -210,23 +210,16 @@ float RobustDecimater::collapse_priority(const CollapseInfo& _ci)
         const vector<Quadric>& quadricsRemaining = mesh_.data(_ci.v1).quadrics;
 
         MatX3& collapseTargets = mesh_.property(optimalCollapseTargets_, _ci.v0v1);
-        if (collapseTargets.size() == 0)
+        collapseTargets = mesh_.data(_ci.v1).node->positions;
+        if (!mesh_.status(_ci.v1).locked() && !mesh_.data(_ci.v0).duplicate.is_valid()
+            && !mesh_.data(_ci.v1).duplicate.is_valid())
         {
-            collapseTargets = mesh_.data(_ci.v1).node->positions;
-        }
-        if (collapseTargets.size() == 0)
-        {
-            throw std::logic_error("HOW CAN THIS HAPPEN");
-        }
-        for (size_t i = 0; i < quadricsRemoved.size(); i++)
-        {
-            Quadric q = quadricsRemaining[i] + quadricsRemoved[i];
-            Vec3 optPos = collapseTargets.row(i).transpose();
-            if (!mesh_.status(_ci.v1).locked() && !mesh_.data(_ci.v0).duplicate.is_valid()
-                && !mesh_.data(_ci.v1).duplicate.is_valid())
+            for (size_t i = 0; i < quadricsRemoved.size(); i++)
             {
-                ModQuadric::optimal_position(q, optPos);
-                collapseTargets.row(i) = optPos.transpose();
+                Quadric q = quadricsRemaining[i] + quadricsRemoved[i];
+                Vec3 optPos = collapseTargets.row(i).transpose();
+                    ModQuadric::optimal_position(q, optPos);
+                    collapseTargets.row(i) = optPos.transpose();
             }
         }
     }
@@ -234,7 +227,7 @@ float RobustDecimater::collapse_priority(const CollapseInfo& _ci)
 }
 
 /// Post-process a collapse
-void RobustDecimater::postprocess_collapse(CollapseInfo& _ci)
+void RobustDecimater::preprocess_collapse(CollapseInfo& _ci)
 {
     if (optimize_position_)
     {
@@ -245,12 +238,9 @@ void RobustDecimater::postprocess_collapse(CollapseInfo& _ci)
         {
             throw std::logic_error("Impossible, there must be a programming error here");
         }
-        if (optimize_position_)
-        {
-            mesh_.data(_ci.v1).node->positions = collapseTargets;
-        }
+        mesh_.data(_ci.v1).node->positions = collapseTargets;
     }
-    Base::postprocess_collapse(_ci);
+    Base::preprocess_collapse(_ci);
 }
 
 void RobustDecimater::heap_vertex(VHandle _vh)
@@ -296,9 +286,9 @@ void RobustDecimater::heap_vertex(VHandle _vh)
             if (prio < 0.0)
             {
                 sumPrio = Module::ILLEGAL_COLLAPSE;
-                break;
             }
-            sumPrio += prio;
+            if (sumPrio != Module::ILLEGAL_COLLAPSE)
+                sumPrio += prio;
         }
 
         if (sumPrio >= 0.0 && sumPrio < best_prio)
@@ -401,6 +391,7 @@ size_t RobustDecimater::decimate_to_faces(size_t _nv, size_t _nf)
 
         // store support (= combined one ring of all v0Dupes)
         support.clear();
+        
         for (const VHandle& v0Dupe : v0Dupes)
         {
             assert(!mesh_.status(v0Dupe).deleted());
@@ -415,6 +406,25 @@ size_t RobustDecimater::decimate_to_faces(size_t _nv, size_t _nf)
                     support.insert(*vv_it);
             }
         }
+
+        if (optimize_position_)
+        {
+            for (const VHandle& v1Dupe : v1Dupes)
+            {
+                assert(!mesh_.status(v1Dupe).deleted());
+                vv_it = mesh_.vv_iter(v1Dupe);
+                for (; vv_it.is_valid(); ++vv_it)
+                {
+                    bool insert = true;
+                    for (const VHandle& notIncluded : v1Dupes)
+                        if (*vv_it == notIncluded)
+                            insert = false;
+                    if (insert)
+                        support.insert(*vv_it);
+                }
+            }
+        }
+
 
         for (CollapseInfo& ciDupe : ciDupes)
         {

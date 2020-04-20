@@ -1766,6 +1766,15 @@ void ImGuiViewer::drawDecimationPanel()
                     exportCurrentPart();
                     ImGui::CloseCurrentPopup();
                 }
+                if (ImGui::Button("Export scene"))
+                {
+                    if (partsExpanded)
+                    {
+                        toggleExpandParts();
+                    }
+                    exportScene();
+                    ImGui::CloseCurrentPopup();
+                }
             }
             if (stage == 1)
             {
@@ -1790,16 +1799,6 @@ void ImGuiViewer::drawDecimationPanel()
             }
             if (stage == 2)
             {
-                ImGui::Separator();
-                if (ImGui::Button("Export scene"))
-                {
-                    if (partsExpanded)
-                    {
-                        toggleExpandParts();
-                    }
-                    exportScene();
-                    ImGui::CloseCurrentPopup();
-                }
                 ImGui::Separator();
                 ImGui::InputInt("Target #vertices", &targetVertices, 10000, 100000);
                 ImGui::InputInt("Target #faces", &targetFaces, 10000, 100000);
@@ -2012,7 +2011,7 @@ bool ImGuiViewer::updateGlobalStats()
             {
                 HEHandle he1 = mesh.halfedge_handle(e, 0);
                 auto dupes1 = MeshAnalyzer::dupes(mesh, he1);
-                HEHandle he2 = mesh.halfedge_handle(e, 0);
+                HEHandle he2 = mesh.halfedge_handle(e, 1);
                 auto dupes2 = MeshAnalyzer::dupes(mesh, he2);
                 if (dupes1.size() > 1)
                     complexEdges += 1.0f / dupes1.size();
@@ -2048,7 +2047,11 @@ bool ImGuiViewer::updateGlobalStats()
         std::map<int, int> partID2UserID;
         std::map<int, float> userID2pComplexEdges;
         for (auto part : parts)
+        {
+            pIs2DPart[part->userID] = part->elements3D.empty() && part->surfaceElements.empty();
+            num1DFE += part->elements1D.size();
             partID2UserID[part->ID] = part->userID;
+        }
 
         const CMesh& mesh = scene->mesh;
         numTriangles += mesh.n_faces();
@@ -2060,7 +2063,7 @@ bool ImGuiViewer::updateGlobalStats()
         {
             HEHandle he1 = mesh.halfedge_handle(e, 0);
             auto dupes1 = MeshAnalyzer::dupes(mesh, he1);
-            HEHandle he2 = mesh.halfedge_handle(e, 0);
+            HEHandle he2 = mesh.halfedge_handle(e, 1);
             auto dupes2 = MeshAnalyzer::dupes(mesh, he2);
             if (dupes1.size() > 1)
                 complexEdges += 1.0f / dupes1.size();
@@ -2111,10 +2114,6 @@ bool ImGuiViewer::updateGlobalStats()
         num2DFE += elem2D.size();
         for (auto kv : userID2pElem2D)
             pNum2DFE[kv.first] += kv.second.size();
-        for (auto part : parts)
-        {
-            num1DFE += part->elements1D.size();
-        }
     }
 
     return true;
@@ -2133,11 +2132,12 @@ bool ImGuiViewer::exportCurrentPart()
 
     const std::string& title = "Please choose a file name";
     const std::vector<std::string>& filters
-        = {"Single frame mesh (*.ply)", "*.ply", "Crash2Mesh file (*.c2m)", "*.c2m"};
+        = {"One mesh for each frame (*.obj)", "*.obj", 
+           "Crash2Mesh file (*.c2m)", "*.c2m"};
 
-    std::string default_file_name = m->name();
+    std::string default_file_name = easy3d::file_system::base_name(fileName) + "_part" + std::to_string(userID);
     if (easy3d::file_system::extension(default_file_name).empty()) // no extension?
-        default_file_name += ".ply";                               // default to ply
+        default_file_name += ".obj";                               // default to obj
 
     const bool warn_overwrite = true;
     const std::string& file_name = easy3d::dialog::save(title, default_file_name, filters, warn_overwrite);
@@ -2213,8 +2213,147 @@ bool ImGuiViewer::exportCurrentPart()
                 return false;
             }
         }
-        else if (ext == "ply")
-            return easy3d::SurfaceMeshIO::save(file_name, mesh);
+        else if (ext == "obj")
+        {
+            if (stage == 1)
+            {
+                partid_t partID = -1;
+                Part::Ptr part;
+                for (Part::Ptr partPtr : parts)
+                {
+                    if (partPtr->userID == userID)
+                    {
+                        partID = partPtr->ID;
+                        part = partPtr;
+                        break;
+                    }
+                }
+                if (!part)
+                    return false;
+
+                const CMesh& mesh = part->mesh;
+                easy3d::SurfaceMesh drawableMesh;
+                drawableMesh.set_name("part " + std::to_string(userID));
+                for (int i = 0; i < numFrames; i++)
+                {
+                    // drawableMesh.add_face_property<float>("f:strain_frame" + std::to_string(i));
+                    drawableMesh.add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+                }
+
+                vector<easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex(mesh.n_vertices());
+                for (VHandle v : mesh.vertices())
+                {
+                    OMVec3 position = mesh.point(v);
+                    easy3d::SurfaceMesh::Vertex vd = vertexToDrawableVertex[v.idx()]
+                        = drawableMesh.add_vertex(easy3d::vec3(position[0], position[1], position[2]));
+                    const MatX3& positions = mesh.data(v).node->positions;
+                    for (int i = 0; i < numFrames; i++)
+                    {
+                        auto drawablePositions
+                            = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+                        easy3d::vec3 pos = easy3d::vec3(positions.coeff(i, 0), positions.coeff(i, 1), positions.coeff(i, 2));
+                        drawablePositions[vd] = pos;
+                    }
+                }
+                for (FHandle f : mesh.faces())
+                {
+                    vector<easy3d::SurfaceMesh::Vertex> vs;
+                    for (VHandle v : mesh.fv_range(f))
+                    {
+                        vs.emplace_back(vertexToDrawableVertex[v.idx()]);
+                    }
+                    /*easy3d::SurfaceMesh::Face fd = */drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
+                    // auto strains = mesh.data(f).element->plasticStrains;
+                    // for (int i = 0; i < numFrames; i++)
+                    // {
+                    //     auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" + std::to_string(i));
+                    //     faceStrains[fd] = strains(i);
+                    // }
+                }
+                for (int i = 0; i < numFrames; i++)
+                {
+                    auto drawablePositions
+                        = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+                    auto pos = drawableMesh.get_vertex_property<easy3d::vec3>("v:point");
+                    pos.vector() = drawablePositions.vector();
+                    std::stringstream extStr;
+                    extStr << "_" << std::setfill('0') << std::setw(3) << i << ".obj";
+                    easy3d::SurfaceMeshIO::save(easy3d::file_system::name_less_extension(file_name) + extStr.str() , &drawableMesh);
+                }
+            }
+            else if (stage == 2)
+            {
+                partid_t partID = -1;
+                Part::Ptr part;
+                for (Part::Ptr partPtr : parts)
+                {
+                    if (partPtr->userID == userID)
+                    {
+                        partID = partPtr->ID;
+                        part = partPtr;
+                        break;
+                    }
+                }
+                if (!part)
+                    return false;
+
+                const CMesh& mesh = scene->mesh;
+                easy3d::SurfaceMesh drawableMesh;
+                drawableMesh.set_name("part " + std::to_string(userID));
+                for (int i = 0; i < numFrames; i++)
+                {
+                    // drawableMesh.add_face_property<float>("f:strain_frame" + std::to_string(i));
+                    drawableMesh.add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+                }
+
+                std::map<int, easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex;
+                for (VHandle v : mesh.vertices())
+                {
+                    FHandle f = *mesh.cvf_begin(v);
+                    if (mesh.data(f).element->partID != partID)
+                        continue;
+                    OMVec3 position = mesh.point(v);
+                    easy3d::SurfaceMesh::Vertex vd = vertexToDrawableVertex[v.idx()]
+                        = drawableMesh.add_vertex(easy3d::vec3(position[0], position[1], position[2]));
+                    const MatX3& positions = mesh.data(v).node->positions;
+                    for (int i = 0; i < numFrames; i++)
+                    {
+                        auto drawablePositions
+                            = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+                        easy3d::vec3 pos = easy3d::vec3(positions.coeff(i, 0), positions.coeff(i, 1), positions.coeff(i, 2));
+                        drawablePositions[vd] = pos;
+                    }
+                }
+                for (FHandle f : mesh.faces())
+                {
+                    if (mesh.data(f).element->partID != partID)
+                        continue;
+                    vector<easy3d::SurfaceMesh::Vertex> vs;
+                    for (VHandle v : mesh.fv_range(f))
+                    {
+                        vs.emplace_back(vertexToDrawableVertex[v.idx()]);
+                    }
+                    /*easy3d::SurfaceMesh::Face fd = */drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
+                    // auto strains = mesh.data(f).element->plasticStrains;
+                    // for (int i = 0; i < numFrames; i++)
+                    // {
+                    //     auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" + std::to_string(i));
+                    //     faceStrains[fd] = strains(i);
+                    // }
+                }
+                for (int i = 0; i < numFrames; i++)
+                {
+                    auto drawablePositions
+                        = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+                    auto pos = drawableMesh.get_vertex_property<easy3d::vec3>("v:point");
+                    pos.vector() = drawablePositions.vector();
+                    std::stringstream extStr;
+                    extStr << "_" << std::setfill('0') << std::setw(3) << i << ".obj";
+                    easy3d::SurfaceMeshIO::save(easy3d::file_system::name_less_extension(file_name) + extStr.str() , &drawableMesh);
+                }
+            }
+            return true;
+        }
         else
             return false;
     }
@@ -2224,36 +2363,92 @@ bool ImGuiViewer::exportCurrentPart()
 
 bool ImGuiViewer::exportScene()
 {
-    if (stage != 2)
-        return false;
-
     const std::string& title = "Please choose a file name";
     const std::vector<std::string>& filters
-        = {"Crash2Mesh file (*.c2m)", "*.c2m", "Single frame mesh with attributes (*.ply)", "*.ply"};
+        = {"Crash2Mesh file (*.c2m)", "*.c2m", 
+        //    "Single frame mesh (*.obj)", "*.obj",
+           "One mesh for each frame (*.obj)", "*.obj"};
 
     std::string default_file_name = easy3d::file_system::base_name(fileName);
-    if (easy3d::file_system::extension(default_file_name).empty()) // no extension?
-        default_file_name += ".c2m";                               // default to c2m
 
     const bool warn_overwrite = true;
     const std::string& file_name = easy3d::dialog::save(title, default_file_name, filters, warn_overwrite);
     if (file_name.empty())
         return false;
 
+    Scene::Ptr exportScene;
+    if (stage == 2)
+        exportScene = scene;
+    else
+        exportScene = MeshBuilder::merge(parts, false);
+        
+    if (!exportScene)
+        return false;
+
     const std::string& ext = easy3d::file_system::extension(file_name, true);
     if (ext == "c2m")
     {
-        C2MWriter::write(file_name, scene, true);
+        C2MWriter::write(file_name, exportScene, true);
         return true;
     }
-    else if (ext == "ply")
+    // else if (ext == "obj")
+    // {
+    //     const CMesh& mesh = exportScene->mesh;
+    //     easy3d::SurfaceMesh drawableMesh;
+    //     drawableMesh.set_name("exportScene");
+    //     for (int i = 0; i < numFrames; i++)
+    //     {
+    //         drawableMesh.add_face_property<float>("f:strain_frame" + std::to_string(i));
+    //         drawableMesh.add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+    //     }
+
+    //     vector<easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex(mesh.n_vertices());
+    //     for (VHandle v : mesh.vertices())
+    //     {
+    //         OMVec3 position = mesh.point(v);
+    //         easy3d::SurfaceMesh::Vertex vd = vertexToDrawableVertex[v.idx()]
+    //             = drawableMesh.add_vertex(easy3d::vec3(position[0], position[1], position[2]));
+    //         const MatX3& positions = mesh.data(v).node->positions;
+    //         for (int i = 0; i < numFrames; i++)
+    //         {
+    //             auto drawablePositions
+    //                 = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+    //             easy3d::vec3 pos = easy3d::vec3(positions.coeff(i, 0), positions.coeff(i, 1), positions.coeff(i, 2));
+    //             drawablePositions[vd] = pos;
+    //         }
+    //     }
+
+    //     for (FHandle f : mesh.faces())
+    //     {
+    //         vector<easy3d::SurfaceMesh::Vertex> vs;
+    //         for (VHandle v : mesh.fv_range(f))
+    //         {
+    //             vs.emplace_back(vertexToDrawableVertex[v.idx()]);
+    //         }
+    //         easy3d::SurfaceMesh::Face fd = drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
+    //         auto strains = mesh.data(f).element->plasticStrains;
+    //         for (int i = 0; i < numFrames; i++)
+    //         {
+    //             auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" + std::to_string(i));
+    //             faceStrains[fd] = strains(i);
+    //         }
+    //     }
+
+    //     auto drawablePositions
+    //         = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
+    //     auto pos = drawableMesh.get_vertex_property<easy3d::vec3>("v:point");
+    //     pos.vector() = drawablePositions.vector();
+
+    //     return easy3d::SurfaceMeshIO::save(file_name, &drawableMesh);
+    // }
+    else if (ext == "obj")
     {
-        const CMesh& mesh = scene->mesh;
+        const CMesh& mesh = exportScene->mesh;
         easy3d::SurfaceMesh drawableMesh;
         drawableMesh.set_name("scene");
         for (int i = 0; i < numFrames; i++)
         {
-            drawableMesh.add_face_property<float>("f:strain_frame" + std::to_string(i));
+            // drawableMesh.add_face_property<float>("f:strain_frame" + std::to_string(i));
             drawableMesh.add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
         }
 
@@ -2272,7 +2467,6 @@ bool ImGuiViewer::exportScene()
                 drawablePositions[vd] = pos;
             }
         }
-
         for (FHandle f : mesh.faces())
         {
             vector<easy3d::SurfaceMesh::Vertex> vs;
@@ -2280,21 +2474,25 @@ bool ImGuiViewer::exportScene()
             {
                 vs.emplace_back(vertexToDrawableVertex[v.idx()]);
             }
-            easy3d::SurfaceMesh::Face fd = drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
-            auto strains = mesh.data(f).element->plasticStrains;
-            for (int i = 0; i < numFrames; i++)
-            {
-                auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" + std::to_string(i));
-                faceStrains[fd] = strains(i);
-            }
+            /*easy3d::SurfaceMesh::Face fd = */drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
+            // auto strains = mesh.data(f).element->plasticStrains;
+            // for (int i = 0; i < numFrames; i++)
+            // {
+            //     auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" + std::to_string(i));
+            //     faceStrains[fd] = strains(i);
+            // }
         }
-
-        auto drawablePositions
-            = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
-        auto pos = drawableMesh.get_vertex_property<easy3d::vec3>("v:point");
-        pos.vector() = drawablePositions.vector();
-
-        return easy3d::SurfaceMeshIO::save(file_name, &drawableMesh);
+        for (int i = 0; i < numFrames; i++)
+        {
+            auto drawablePositions
+                = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+            auto pos = drawableMesh.get_vertex_property<easy3d::vec3>("v:point");
+            pos.vector() = drawablePositions.vector();
+            std::stringstream extStr;
+            extStr << "_" << std::setfill('0') << std::setw(3) << i << ".obj";
+            easy3d::SurfaceMeshIO::save(easy3d::file_system::name_less_extension(file_name) + extStr.str() , &drawableMesh);
+        }
+        return true;
     }
     else
         return false;

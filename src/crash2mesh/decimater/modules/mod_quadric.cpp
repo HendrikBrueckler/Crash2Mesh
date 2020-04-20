@@ -290,7 +290,7 @@ float ModQuadric::collapse_priority(const CollapseInfo& _ci)
     if (optimize_position_ && collapseTargets.size() == 0)
         throw std::logic_error("Uninitialized collapse target!");
 
-    float error = 0;
+    float error = 0.0f;
     const MatX3& positions = mesh_.data(_ci.v1).node->positions;
     vector<uint> frames(frame_seq());
 
@@ -307,12 +307,12 @@ float ModQuadric::collapse_priority(const CollapseInfo& _ci)
 #ifdef C2M_PROB_QUADRICS
         Vec4 pointRemaining(optPos[0], optPos[1], optPos[2], 1);
         float err = pointRemaining.transpose() * (q * pointRemaining);
-        error = std::max(error, err * dist2epicenter_f(pointRemaining, frame));
 #else
         OMVec3 pointRemaining = OMVec3(optPos[0], optPos[1], optPos[2]);
-        error = std::max(error, q(pointRemaining) * dist2epicenter_f(pointRemaining, frame));
+        float err = q(pointRemaining);
 #endif
-        if (error > max_err_)
+        error = std::max(error, err * dist2epicenter_f(pointRemaining, frame));
+        if (err > max_err_)
             return Base::ILLEGAL_COLLAPSE;
     }
 
