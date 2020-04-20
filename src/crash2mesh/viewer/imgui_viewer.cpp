@@ -1649,6 +1649,10 @@ void ImGuiViewer::drawInfoPanel()
         if (stage > 0 && ImGui::CollapsingHeader("Global scene stats"))
         {
             ImGui::Text("#Frames: %i (#frames visualized: %lu)", numFrames, visFrames.size());
+            ImGui::Text("#parts %u", (int)parts.size());
+            ImGui::Text("#1Dparts %i", numParts1D);
+            ImGui::Text("#2Dparts %i", numParts2D);
+            ImGui::Text("#3Dparts %i", numParts3D);
             ImGui::Text("#MeshFaces: %i", numTriangles);
             ImGui::Text("#MeshVertices: %i", numVertices);
             ImGui::Text("#MeshEdges: %i", numEdges);
@@ -1973,7 +1977,7 @@ bool ImGuiViewer::updateGlobalStats()
             numParts1D++;
         else if (!partPtr->elements2D.empty())
             numParts2D++;
-        else if (!partPtr->elements3D.empty() || !partPtr->elements3D.empty())
+        else if (!partPtr->elements3D.empty() || !partPtr->surfaceElements.empty())
             numParts3D++;
     }
 
