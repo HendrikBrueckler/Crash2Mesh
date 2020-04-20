@@ -1649,7 +1649,7 @@ void ImGuiViewer::drawInfoPanel()
         if (stage > 0 && ImGui::CollapsingHeader("Global scene stats"))
         {
             ImGui::Text("#Frames: %i (#frames visualized: %lu)", numFrames, visFrames.size());
-            ImGui::Text("#parts %u", (int)parts.size());
+            ImGui::Text("#parts %i", (int)parts.size());
             ImGui::Text("#1Dparts %i", numParts1D);
             ImGui::Text("#2Dparts %i", numParts2D);
             ImGui::Text("#3Dparts %i", numParts3D);
