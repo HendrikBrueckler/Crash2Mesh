@@ -55,6 +55,7 @@ class Part : public Collector
     const partid_t ID;    ///< A part's identifier
     const entid_t userID; ///< The user-specified part-id
     CMesh mesh;
+    MatX3 centers;
 
     /**
      * @brief Construct a new Collector given its part identifier and contained atomic elements

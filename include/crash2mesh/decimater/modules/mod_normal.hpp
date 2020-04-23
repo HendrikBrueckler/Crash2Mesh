@@ -71,6 +71,10 @@ class ModNormal : virtual public ModBase
      */
     void postprocess_collapse(const CollapseInfo& _ci) override;
 
+    void set_quadric_optimize_position(bool _optimize_position)
+    {
+      optimize_position_ = _optimize_position;
+    }
   protected:
     /**
      * @brief Get the normal spanned by the 3 face points assuming CCW front-face
@@ -79,6 +83,7 @@ class ModNormal : virtual public ModBase
 
   private:
     float max_normal_deviation_;
+    bool optimize_position_;
 };
 
 } // namespace c2m

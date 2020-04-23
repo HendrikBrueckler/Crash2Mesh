@@ -202,7 +202,7 @@ void ModQuadric::initialize(void)
         }
         else
         {
-            if (mesh_.data(v).quadrics.size() != (optimize_position_ ? num_frames() : frame_seq().size()))
+            if (mesh_.data(v).quadrics.size() != num_frames() && mesh_.data(v).quadrics.size() != frame_seq().size())
             {
                 throw std::logic_error("Unexpected number of quadrices per vertex (!= number of frames).");
             }
@@ -297,7 +297,7 @@ float ModQuadric::collapse_priority(const CollapseInfo& _ci)
     for (size_t i = 0; i < frames.size(); i++)
     {
         uint frame = frames[i];
-        Quadric q = quadricsRemaining[(optimize_position_ ? frame : i)] + quadricsRemoved[(optimize_position_ ? frame : i)];
+        Quadric q = quadricsRemaining[(quadricsRemaining.size() == num_frames() ? frame : i)] + quadricsRemoved[(quadricsRemaining.size() == num_frames() ? frame : i)];
         Vec3 optPos = positions.row(frame).transpose();
         if (optimize_position_ && !mesh_.status(_ci.v1).locked() && !mesh_.data(_ci.v0).duplicate.is_valid()
             && !mesh_.data(_ci.v1).duplicate.is_valid())

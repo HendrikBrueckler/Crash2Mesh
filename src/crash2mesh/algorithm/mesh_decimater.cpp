@@ -107,7 +107,7 @@ bool MeshDecimater::decimateParts(std::vector<Part::Ptr>& parts) const
 #endif
         bool logged = log(mesh, true, false, partptr->ID, partptr->userID);
         bool rendered = render(mesh, true, false);
-        decimate(mesh, 0, 0, partptr->userID);
+        decimate(mesh, 0, 0, partptr->userID, true);
 #if defined(C2M_PARALLEL) && defined(__cpp_lib_parallel_algorithm)
         mutVars.lock();
 #endif
@@ -190,6 +190,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t /
         decimater.module(hModFWQuadricNormal).set_feature_quadrics(featureQuadrics);
         // Normal stuff
         decimater.module(hModFWQuadricNormal).set_max_normal_deviation(maxNormalDeviation);
+        decimater.module(hModFWQuadricNormal).set_quadric_optimize_position(quadricPositionOptimization);
         decimater.module(hModFWQuadricNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
     }
     else

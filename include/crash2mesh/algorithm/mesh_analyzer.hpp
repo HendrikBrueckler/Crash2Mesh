@@ -69,6 +69,8 @@ class MeshAnalyzer
      */
     static MeshInfo getInfo(const CMesh& mesh);
 
+    static void calcPartCenters(std::vector<Part::Ptr>& parts);
+
     /**
      * @brief Opens a window rendering the passed mesh's triangles
      *

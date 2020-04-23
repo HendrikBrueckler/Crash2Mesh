@@ -533,4 +533,30 @@ std::vector<HEHandle> MeshAnalyzer::dupes(const CMesh& mesh, const HEHandle& heh
     return heDupes;
 }
 
+void MeshAnalyzer::calcPartCenters(std::vector<Part::Ptr>& parts)
+{
+    for (auto part: parts)
+    {
+        const CMesh& mesh = part->mesh;
+        if (mesh.n_vertices() == 0)
+            continue;
+
+        part->centers = MatX3::Zero(mesh.data(*mesh.vertices_begin()).node->positions.rows(), 3);
+        float sumOfAreas = 0.0f;
+        for (FHandle f: mesh.faces())
+        {
+            MatX3 centroid(MatX3::Zero(mesh.data(*mesh.vertices_begin()).node->positions.rows(), 3));
+            for (VHandle v: mesh.fv_range(f))
+            {
+                centroid += mesh.data(v).node->positions;
+            }
+            float area = mesh.calc_face_area(f);
+            part->centers += 1.0f/3.0f * centroid * area;
+            sumOfAreas += area;
+        }
+        part->centers /= sumOfAreas;
+    }
+}
+
+
 } // namespace c2m

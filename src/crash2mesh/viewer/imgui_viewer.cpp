@@ -711,6 +711,7 @@ bool ImGuiViewer::openFile(const std::string& fileName_)
     fullReload = false;
 
     buildParts();
+    MeshAnalyzer::calcPartCenters(parts);
 
     fit_screen();
     return true;
@@ -1037,25 +1038,28 @@ bool ImGuiViewer::updateFrame()
 
         if (partsExpanded)
         {
-            easy3d::vec3 center(0.0f, 0.0f, 0.0f);
-            float sumAreas = 0.0f;
-            for (auto f : surface->faces())
+            partid_t userID = -1;
+            if (model->name().substr(0, 4) == "part")
+                userID = atoi(model->name().substr(4).c_str());
+
+            Part::Ptr part;
+            for (auto partPtr : parts)
             {
-                auto he = surface->halfedge(f);
-                auto v1 = surface->to_vertex(he);
-                he = surface->next_halfedge(he);
-                auto v2 = surface->to_vertex(he);
-                he = surface->next_halfedge(he);
-                auto v3 = surface->to_vertex(he);
-                float area = easy3d::geom::triangle_area(pos[v1], pos[v2], pos[v3]);
-                center += (pos[v1] + pos[v2] + pos[v3]) / 3.0f * area;
-                sumAreas += area;
+                if (partPtr->userID == userID)
+                {
+                    part = partPtr;
+                    break;
             }
-            center /= sumAreas;
+            }
+            if (part)
+            {
+                Vec3 c = part->centers.row(visFrames[currentFrame]).transpose();
+                easy3d::vec3 center(c(0), c(1), c(2));
             for (auto v : surface->vertices())
             {
                 pos[v] += (1.3f) * center;
             }
+        }
         }
 
         for (auto drawableTriangles : surface->triangles_drawables())
@@ -1157,32 +1161,37 @@ bool ImGuiViewer::toggleExpandParts()
         easy3d::SurfaceMesh* surface = dynamic_cast<easy3d::SurfaceMesh*>(model);
         if (surface)
         {
-            easy3d::vec3 center(0.0f, 0.0f, 0.0f);
-            auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
-            float sumAreas = 0.0f;
-            for (auto f : surface->faces())
+            partid_t userID = -1;
+            if (surface->name().substr(0, 4) == "part")
+                userID = atoi(surface->name().substr(4).c_str());
+
+            Part::Ptr part;
+            for (auto partPtr : parts)
             {
-                auto he = surface->halfedge(f);
-                auto v1 = surface->to_vertex(he);
-                he = surface->next_halfedge(he);
-                auto v2 = surface->to_vertex(he);
-                he = surface->next_halfedge(he);
-                auto v3 = surface->to_vertex(he);
-                float area = easy3d::geom::triangle_area(pos[v1], pos[v2], pos[v3]);
-                center += (pos[v1] + pos[v2] + pos[v3]) / 3.0f * area;
-                sumAreas += area;
+                if (partPtr->userID == userID)
+                {
+                    part = partPtr;
+                    break;
+                }
             }
-            center /= sumAreas;
+            auto pos = surface->get_vertex_property<easy3d::vec3>("v:point");
+
+            if (part)
+            {
+                Vec3 c = part->centers.row(visFrames[currentFrame]).transpose();
+                easy3d::vec3 center(c(0), c(1), c(2));
+
             for (auto v : surface->vertices())
             {
                 if (partsExpanded)
                 {
-                    pos[v] -= (1.3f / 2.3f) * center;
+                        pos[v] -= 1.3f * center;
                 }
                 else
                 {
                     pos[v] += 1.3f * center;
                 }
+            }
             }
             vector<easy3d::vec3> points;
             if (strainColors)
@@ -1346,10 +1355,10 @@ bool ImGuiViewer::createDrawableScene()
         vector<easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex(mesh.n_vertices());
         for (VHandle v : mesh.vertices())
         {
-            OMVec3 position = mesh.point(v);
             FHandle f = *mesh.cvf_begin(v);
             if (mesh.data(f).element->partID != partID)
                 continue;
+            OMVec3 position = mesh.point(v);
             vertexToDrawableVertex[v.idx()]
                 = drawableMesh->add_vertex(easy3d::vec3(position[0], position[1], position[2]));
             const MatX3& positions = mesh.data(v).node->positions;
@@ -1375,10 +1384,10 @@ bool ImGuiViewer::createDrawableScene()
 
         for (FHandle f : mesh.faces())
         {
-            auto strains = mesh.data(f).element->plasticStrains;
-            vector<easy3d::SurfaceMesh::Vertex> vs;
             if (mesh.data(f).element->partID != partID)
                 continue;
+            vector<easy3d::SurfaceMesh::Vertex> vs;
+            auto& strains = mesh.data(f).element->plasticStrains;
             for (VHandle v : mesh.fv_range(f))
             {
                 auto drawableVertex = vertexToDrawableVertex[v.idx()];
@@ -1567,6 +1576,10 @@ void ImGuiViewer::drawInfoPanel()
                 ImGui::EndPopup();
             }
             ImGui::Separator();
+            // if (ImGui::Button("Update global stats"))
+            // {
+            //     updateGlobalStats();
+            // }
             if (ImGui::Button("Configure strain colors"))
                 ImGui::OpenPopup("Configure strain coloring");
 
@@ -1763,19 +1776,19 @@ void ImGuiViewer::drawDecimationPanel()
                 ImGui::Separator();
                 if (ImGui::Button("Export selected part") && current_model())
                 {
-                    if (partsExpanded)
-                    {
-                        toggleExpandParts();
-                    }
+                    // if (partsExpanded)
+                    // {
+                    //     toggleExpandParts();
+                    // }
                     exportCurrentPart();
                     ImGui::CloseCurrentPopup();
                 }
                 if (ImGui::Button("Export scene"))
                 {
-                    if (partsExpanded)
-                    {
-                        toggleExpandParts();
-                    }
+                    // if (partsExpanded)
+                    // {
+                    //     toggleExpandParts();
+                    // }
                     exportScene();
                     ImGui::CloseCurrentPopup();
                 }
@@ -2150,7 +2163,7 @@ bool ImGuiViewer::exportCurrentPart()
 
     if (dynamic_cast<const easy3d::SurfaceMesh*>(m))
     {
-        const easy3d::SurfaceMesh* mesh = dynamic_cast<const easy3d::SurfaceMesh*>(m);
+        // const easy3d::SurfaceMesh* mesh = dynamic_cast<const easy3d::SurfaceMesh*>(m);
         const std::string& ext = easy3d::file_system::extension(file_name, true);
         if (ext == "c2m")
         {
@@ -2221,13 +2234,13 @@ bool ImGuiViewer::exportCurrentPart()
         {
             if (stage == 1)
             {
-                partid_t partID = -1;
+                // partid_t partID = -1;
                 Part::Ptr part;
                 for (Part::Ptr partPtr : parts)
                 {
                     if (partPtr->userID == userID)
                     {
-                        partID = partPtr->ID;
+                        // partID = partPtr->ID;
                         part = partPtr;
                         break;
                     }
@@ -2255,8 +2268,8 @@ bool ImGuiViewer::exportCurrentPart()
                     {
                         auto drawablePositions
                             = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
-                        easy3d::vec3 pos = easy3d::vec3(positions.coeff(i, 0), positions.coeff(i, 1), positions.coeff(i, 2));
-                        drawablePositions[vd] = pos;
+                        Vec3 p = positions.row(i).transpose();
+                        drawablePositions[vd] = easy3d::vec3(p(0), p(1), p(2));
                     }
                 }
                 for (FHandle f : mesh.faces())
@@ -2324,8 +2337,8 @@ bool ImGuiViewer::exportCurrentPart()
                     {
                         auto drawablePositions
                             = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
-                        easy3d::vec3 pos = easy3d::vec3(positions.coeff(i, 0), positions.coeff(i, 1), positions.coeff(i, 2));
-                        drawablePositions[vd] = pos;
+                        Vec3 p = positions.row(i).transpose();
+                        drawablePositions[vd] = easy3d::vec3(p(0), p(1), p(2));
                     }
                 }
                 for (FHandle f : mesh.faces())
@@ -2447,6 +2460,11 @@ bool ImGuiViewer::exportScene()
     // }
     else if (ext == "obj")
     {
+        std::map<partid_t, Part::Ptr> partID2Part;
+        for (auto part: parts)
+        {
+            partID2Part[part->ID] = part;
+        }
         const CMesh& mesh = exportScene->mesh;
         easy3d::SurfaceMesh drawableMesh;
         drawableMesh.set_name("scene");
@@ -2459,6 +2477,9 @@ bool ImGuiViewer::exportScene()
         vector<easy3d::SurfaceMesh::Vertex> vertexToDrawableVertex(mesh.n_vertices());
         for (VHandle v : mesh.vertices())
         {
+            FHandle f = *mesh.cvf_begin(v);
+            Part::Ptr part = partID2Part[mesh.data(f).element->partID];
+
             OMVec3 position = mesh.point(v);
             easy3d::SurfaceMesh::Vertex vd = vertexToDrawableVertex[v.idx()]
                 = drawableMesh.add_vertex(easy3d::vec3(position[0], position[1], position[2]));
@@ -2467,8 +2488,10 @@ bool ImGuiViewer::exportScene()
             {
                 auto drawablePositions
                     = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
-                easy3d::vec3 pos = easy3d::vec3(positions.coeff(i, 0), positions.coeff(i, 1), positions.coeff(i, 2));
-                drawablePositions[vd] = pos;
+                Vec3 p = positions.row(i).transpose();
+                if (partsExpanded)
+                    p +=  1.3f * part->centers.row(i).transpose();
+                drawablePositions[vd] = easy3d::vec3(p(0), p(1), p(2));
             }
         }
         for (FHandle f : mesh.faces())

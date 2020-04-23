@@ -10,6 +10,7 @@ namespace c2m
 ModNormal::ModNormal(CMesh& _mesh, float _max_dev) : ModBase(_mesh, true)
 {
     set_max_normal_deviation(_max_dev);
+    set_quadric_optimize_position(false);
 }
 
 /// Destructor
@@ -34,7 +35,7 @@ void ModNormal::initialize()
         }
         else
         {
-            if (mesh_.data(f).normalCones.size() != frame_seq().size())
+            if (mesh_.data(f).normalCones.size() != num_frames() && mesh_.data(f).normalCones.size() != frame_seq().size())
             {
                 throw std::logic_error("Unexpected number of normalCones per vertex (!= number of frames).");
             }
@@ -58,9 +59,9 @@ void ModNormal::initialize()
         const MatX3& positions2 = mesh_.data(*fv_it).node->positions;
         std::vector<NormalCone> normalCones;
         std::vector<uint> frames(frame_seq());
-        for (size_t i = 0; i < frames.size(); i++)
+        for (size_t i = 0; i < (optimize_position_ ? num_frames() : frames.size()); i++)
         {
-            uint frame = frames[i];
+            uint frame = (optimize_position_ ? i: frames[i]);
             Vec3 p0(positions0.row(frame).transpose());
             Vec3 p1(positions1.row(frame).transpose());
             Vec3 p2(positions2.row(frame).transpose());
@@ -130,23 +131,23 @@ float ModNormal::collapse_priority(const CollapseInfo& _ci)
                 OMVec3 n = face_normal(positions0->row(frame).transpose(),
                                     positions1->row(frame).transpose(),
                                     positions2->row(frame).transpose());
-                nc[i].merge(NormalCone(n));
+                nc[nc.size() == num_frames() ? frame : i].merge(NormalCone(n));
                 if (fh == fhl)
-                    nc[i].merge(mesh_.data(_ci.fl).normalCones[i]);
+                    nc[nc.size() == num_frames() ? frame : i].merge(mesh_.data(_ci.fl).normalCones[nc.size() == num_frames() ? frame : i]);
                 if (fh == fhr)
-                    nc[i].merge(mesh_.data(_ci.fr).normalCones[i]);
+                    nc[nc.size() == num_frames() ? frame : i].merge(mesh_.data(_ci.fr).normalCones[nc.size() == num_frames() ? frame : i]);
 
                 // Legality
-                if (nc[i].angle() * 2.0f > max_normal_deviation_)
+                if (nc[nc.size() == num_frames() ? frame : i].angle() * 2.0f > max_normal_deviation_)
                 {
                     return float(Base::ILLEGAL_COLLAPSE);
                 }
                 // Priority
                 Vec3 pos = (positions0->row(frame).transpose() + positions1->row(frame).transpose() + positions2->row(frame).transpose()) / 3.0f;
                 float dist2epifactor = dist2epicenter_f(pos, frame);
-                if (nc[i].angle() * dist2epifactor * 2.0f > priority)
+                if (nc[nc.size() == num_frames() ? frame : i].angle() * dist2epifactor * 2.0f > priority)
                 {
-                    priority = nc[i].angle() * dist2epifactor * 2.0f;
+                    priority = nc[nc.size() == num_frames() ? frame : i].angle() * dist2epifactor * 2.0f;
                 }
             }
         }
@@ -200,9 +201,9 @@ void ModNormal::postprocess_collapse(const CollapseInfo& _ci)
         const MatX3& positions0 = mesh_.data(*(fv_it++)).node->positions;
         const MatX3& positions1 = mesh_.data(*(fv_it++)).node->positions;
         const MatX3& positions2 = mesh_.data(*fv_it).node->positions;
-        for (size_t i = 0; i < frames.size(); i++)
+        for (size_t i = 0; i < (ncs.size() == num_frames() ? num_frames() : frames.size()); i++)
         {
-            uint frame = frames[i];
+            uint frame = (ncs.size() == num_frames() ? i: frames[i]);
             OMVec3 n = face_normal(positions0.row(frame).transpose(),
                                    positions1.row(frame).transpose(),
                                    positions2.row(frame).transpose());
