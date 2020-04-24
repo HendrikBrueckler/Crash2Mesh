@@ -182,6 +182,7 @@ void MeshDecimater::decimate(CMesh& mesh, uint nFaces, uint nVertices, entid_t /
             throw std::logic_error("quadric and normal frames have to be the same when combining metrics!");
         decimater.module(hModFWQuadricNormal).set_num_frames(framesQuadric);
         decimater.module(hModFWQuadricNormal).set_epicenter_vars(epicenters, meanDistsFromEpicenters);
+        decimater.module(hModFWQuadricNormal).set_relative_weights(combineQuadricWeight, combineNormalWeight);
         // Quadric stuff
         decimater.module(hModFWQuadricNormal).set_max_err(maxQuadricError, false);
         decimater.module(hModFWQuadricNormal).set_area_weighting(quadricAreaWeighting);

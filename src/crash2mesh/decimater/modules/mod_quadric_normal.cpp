@@ -49,18 +49,31 @@ float ModQuadricNormal::collapse_priority(const CollapseInfo& _ci)
     if (priorityNormal == Base::ILLEGAL_COLLAPSE)
         return Base::ILLEGAL_COLLAPSE;
 
+    // if (ModQuadric::area_weighting())
+    // {
+    //     // 1/1000 th of bbox volume quadric error should be as important as 2° normal deviation
+    //     float prioQ = priorityQuadric / bbox_vol * 1000.0f;
+    //     float prioN = priorityNormal /  M_PI * 180.0f * 0.5f;
+    //     return prioQ + prioN;
+    // }
+    // else
+    // {
+    //     // 1/1000 th of bbox diagonal quadric error should be as important as 2° normal deviation
+    //     float prioQ = priorityQuadric / bbox_diag * 1000.0f;
+    //     float prioN = priorityNormal /  M_PI * 180.0f * 0.5f;
+    //     return prioQ + prioN;
+    // }    
     if (ModQuadric::area_weighting())
     {
-        // 1/1000 th of bbox volume quadric error should be as important as 2° normal deviation
-        float prioQ = priorityQuadric / bbox_vol * 1000.0f;
-        float prioN = priorityNormal /  M_PI * 180.0f * 0.5f;
+        // Assume 20mm * 20mm patches 
+        float prioQ = priorityQuadric / 400.0;
+        float prioN = priorityNormal /  M_PI * 180.0f * factor_normal;
         return prioQ + prioN;
     }
     else
     {
-        // 1/1000 th of bbox diagonal quadric error should be as important as 2° normal deviation
-        float prioQ = priorityQuadric / bbox_diag * 1000.0f;
-        float prioN = priorityNormal /  M_PI * 180.0f * 0.5f;
+        float prioQ = priorityQuadric;
+        float prioN = priorityNormal /  M_PI * 180.0f * factor_normal;
         return prioQ + prioN;
     }
 }

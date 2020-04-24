@@ -23,6 +23,7 @@
 #include <easy3d/util/dialogs.h>
 
 #include <3rd_party/imgui/imgui.h>
+#include <3rd_party/imgui/imgui_internal.h>
 #include <3rd_party/imgui/impl/imgui_impl_glfw.h>
 #include <3rd_party/imgui/impl/imgui_impl_opengl3.h>
 #include <3rd_party/imgui/misc/fonts/imgui_fonts_droid_sans.h>
@@ -62,6 +63,7 @@ ImGuiViewer::ImGuiViewer(const std::string& title /* = "Easy3D ImGui Viewer" */,
     deciParts.quadricExcludeOnly = false;
     deciParts.framesNormalDeviation = deciParts.framesQuadric;
     deciParts.maxNormalDeviation = 5;
+    deciParts.normalExcludeOnly = false;
     deciParts.combineQuadricNormal = true;
     deciParts.useBoundaryDeviation = true;
     deciParts.framesBoundaryDeviation = 5;
@@ -285,6 +287,11 @@ bool ImGuiViewer::key_press_event(int key, int modifiers)
     {
         if (current_model())
             removeCurrentPartAndModel();
+    }
+    else if (key == GLFW_KEY_DELETE && modifiers == GLFW_MOD_SHIFT)
+    {
+        if (current_model())
+            removeAllElse();
     }
     else
     {
@@ -570,9 +577,48 @@ bool ImGuiViewer::removeCurrentPartAndModel()
         deciScene.meanDistsFromEpicenters.resize(0, 0);
     }
     delete_model(current_model());
+    updateGlobalStats();
 
     model_idx_ = -1;
 
+    return true;
+}
+
+bool ImGuiViewer::removeAllElse()
+{
+    easy3d::Model* curr = current_model();
+    if (!curr)
+        return false;
+
+    auto models = models_;
+    for (auto model : models)
+    {
+        if (model != curr)
+        {
+            if (model->name().substr(0, 4) == "part")
+            {
+                int userID = atoi(model->name().substr(4).c_str());
+                if (stage == 1)
+                {
+                    for (auto partptr : parts)
+                    {
+                        if (partptr->userID == userID)
+                        {
+                            partptr->mesh.clear();
+                            // TODO remove
+                            partptr->elements1D.clear();
+                            partptr->elements2D.clear();
+                            partptr->elements3D.clear();
+                            partptr->surfaceElements.clear();
+                        }
+                    }
+                }
+            }
+            delete_model(model);
+        }
+    }
+    model_idx_ = 0;
+    updateGlobalStats();
     return true;
 }
 
@@ -784,6 +830,9 @@ bool ImGuiViewer::createDrawableParts()
         drawablesTriangles[index]->set_lighting_two_sides(true);
         drawablesTriangles[index]->set_smooth_shading(false);
         drawablesTriangles[index]->set_per_vertex_color(true);
+        easy3d::Material m;
+        m.specular = easy3d::vec3(0.0f, 0.0f, 0.0f);
+        drawablesTriangles[index]->set_material(m);
     }
 
     auto buildDrawable = [&](size_t index) {
@@ -1049,17 +1098,17 @@ bool ImGuiViewer::updateFrame()
                 {
                     part = partPtr;
                     break;
-            }
+                }
             }
             if (part)
             {
                 Vec3 c = part->centers.row(visFrames[currentFrame]).transpose();
                 easy3d::vec3 center(c(0), c(1), c(2));
-            for (auto v : surface->vertices())
-            {
-                pos[v] += (1.3f) * center;
+                for (auto v : surface->vertices())
+                {
+                    pos[v] += (1.3f) * center;
+                }
             }
-        }
         }
 
         for (auto drawableTriangles : surface->triangles_drawables())
@@ -1181,17 +1230,17 @@ bool ImGuiViewer::toggleExpandParts()
                 Vec3 c = part->centers.row(visFrames[currentFrame]).transpose();
                 easy3d::vec3 center(c(0), c(1), c(2));
 
-            for (auto v : surface->vertices())
-            {
-                if (partsExpanded)
+                for (auto v : surface->vertices())
                 {
+                    if (partsExpanded)
+                    {
                         pos[v] -= 1.3f * center;
+                    }
+                    else
+                    {
+                        pos[v] += 1.3f * center;
+                    }
                 }
-                else
-                {
-                    pos[v] += 1.3f * center;
-                }
-            }
             }
             vector<easy3d::vec3> points;
             if (strainColors)
@@ -1335,6 +1384,9 @@ bool ImGuiViewer::createDrawableScene()
         drawablesTriangles[index]->set_lighting_two_sides(true);
         drawablesTriangles[index]->set_smooth_shading(false);
         drawablesTriangles[index]->set_per_vertex_color(true);
+        easy3d::Material m;
+        m.specular = easy3d::vec3(0.0f, 0.0f, 0.0f);
+        drawablesTriangles[index]->set_material(m);
     }
 
     const CMesh& mesh = scene->mesh;
@@ -1536,183 +1588,199 @@ void ImGuiViewer::drawInfoPanel()
                          | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing
                          | ImGuiWindowFlags_NoNav))
     {
-        ImGui::Text("Info");
-        ImGui::Separator();
-
-        if (stage > 0)
+        if (ImGui::CollapsingHeader("Mesh/Info"))
         {
-            if (ImGui::Button("Show animation frames"))
-                ImGui::OpenPopup("Choose animation frames");
+            ImGui::Separator();
 
-            if (ImGui::BeginPopupModal("Choose animation frames"))
+            if (stage == 0)
             {
-                ImGui::Text("How many of the total %i frames should be visualized?", numFrames);
-                ImGui::SliderInt("", &nVisFrames, 1, numFrames);
-                ImGui::Text("Frames are linearly spaced over the whole frame range.");
-                ImGui::Text("Visualizing more than ~10-20 frames NOT recommended for big models!");
-                ImGui::Text("More frames = more memory consumption and longer loading times!");
-                ImGui::Text("This affects only visualization, decimation is independent of this!");
-                if (ImGui::Button("OK"))
+                if (ImGui::Button("Load a file to start"))
+                    openDialog();
+            }
+            else
+            {
+                ImGui::Text("Current mesh file: %s", easy3d::file_system::base_name(fileName).c_str());
+                if (ImGui::Button("Load a different file (close current)"))
+                    openDialog();
+                ImGui::Separator();
+                if (ImGui::Button("Show animation frames"))
+                    ImGui::OpenPopup("Choose animation frames");
+
+                if (ImGui::BeginPopupModal("Choose animation frames"))
                 {
-                    if ((int)visFrames.size() != nVisFrames)
+                    ImGui::Text("How many of the total %i frames should be visualized?", numFrames);
+                    ImGui::SliderInt("", &nVisFrames, 1, numFrames);
+                    ImGui::Text("Frames are linearly spaced over the whole frame range.");
+                    ImGui::Text("Visualizing more than ~10-20 frames NOT recommended for big models!");
+                    ImGui::Text("More frames = more memory consumption and longer loading times!");
+                    ImGui::Text("This affects only visualization, decimation is independent of this!");
+                    if (ImGui::Button("OK"))
                     {
-                        float frameSkip = numFrames;
-                        if (nVisFrames > 1)
-                            frameSkip = std::max(1.0f, 1.0f / (nVisFrames - 1) * (numFrames - 1));
+                        if ((int)visFrames.size() != nVisFrames)
+                        {
+                            float frameSkip = numFrames;
+                            if (nVisFrames > 1)
+                                frameSkip = std::max(1.0f, 1.0f / (nVisFrames - 1) * (numFrames - 1));
 
-                        visFrames.clear();
-                        for (float frameF = 0; frameF < numFrames; frameF += frameSkip)
-                            visFrames.emplace_back(std::floor(frameF));
+                            visFrames.clear();
+                            for (float frameF = 0; frameF < numFrames; frameF += frameSkip)
+                                visFrames.emplace_back(std::floor(frameF));
 
-                        currentFrame = 0;
+                            currentFrame = 0;
 
+                            if (stage == 1)
+                                createDrawableParts();
+                            else if (stage == 2)
+                                createDrawableScene();
+                        }
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::EndPopup();
+                }
+                ImGui::Separator();
+                // if (ImGui::Button("Update global stats"))
+                // {
+                //     updateGlobalStats();
+                // }
+                if (ImGui::Button("Configure strain colors"))
+                    ImGui::OpenPopup("Configure strain coloring");
+
+                if (ImGui::BeginPopupModal("Configure strain coloring"))
+                {
+                    ImGui::Text("Set the upper bound for color mapping of strain values");
+                    ImGui::SliderFloat("", &maxStrain, 0.001f, maxStrainGlobal);
+                    ImGui::Text("%.3f is the global maximum strain value", maxStrainGlobal);
+                    ImGui::Text("Color of upper bound (strains = %.3f):.", maxStrain);
+                    ImGui::SliderFloat("HueUpper", &maxColorHSV.h, 0.0f, 1.0f);
+                    // ImGui::SameLine();
+                    ImGui::SliderFloat("SatUpper", &maxColorHSV.s, 0.0f, 1.0f);
+                    ImVec4 maxColorRGB;
+                    ImGui::ColorConvertHSVtoRGB(
+                        maxColorHSV.h, maxColorHSV.s, maxColorHSV.v, maxColorRGB.x, maxColorRGB.y, maxColorRGB.z);
+                    // ImGui::SameLine();
+                    ImGui::ColorButton("ColUpper", maxColorRGB);
+                    ImGui::Text("Color of lower bound (strains = 0):");
+                    ImGui::SliderFloat("HueLower", &minColorHSV.h, 0.0f, 1.0f);
+                    // ImGui::SameLine();
+                    ImGui::SliderFloat("SatLower", &minColorHSV.s, 0.0f, 1.0f);
+                    ImVec4 minColorRGB;
+                    ImGui::ColorConvertHSVtoRGB(
+                        minColorHSV.h, minColorHSV.s, minColorHSV.v, minColorRGB.x, minColorRGB.y, minColorRGB.z);
+                    // ImGui::SameLine();
+                    ImGui::ColorButton("ColLower", minColorRGB);
+                    ImGui::Text("Strains above upper bound are clamped");
+                    ImGui::Text("Lower bound: %.3f, %.3f, %.3f", minColorHSV.h, minColorHSV.s, minColorHSV.v);
+                    ImGui::Text("Upper bound: %.3f, %.3f, %.3f", maxColorHSV.h, maxColorHSV.s, maxColorHSV.v);
+                    ImGui::Text("Colors between bounds are linearly interpolated using HSV, depending on face strains");
+                    if (ImGui::Button("OK"))
+                    {
                         if (stage == 1)
                             createDrawableParts();
                         else if (stage == 2)
                             createDrawableScene();
+                        ImGui::CloseCurrentPopup();
                     }
-                    ImGui::CloseCurrentPopup();
+                    ImGui::EndPopup();
                 }
-                ImGui::EndPopup();
-            }
-            ImGui::Separator();
-            // if (ImGui::Button("Update global stats"))
-            // {
-            //     updateGlobalStats();
-            // }
-            if (ImGui::Button("Configure strain colors"))
-                ImGui::OpenPopup("Configure strain coloring");
-
-            if (ImGui::BeginPopupModal("Configure strain coloring"))
-            {
-                ImGui::Text("Set the upper bound for color mapping of strain values");
-                ImGui::SliderFloat("", &maxStrain, 0.001f, maxStrainGlobal);
-                ImGui::Text("%.3f is the global maximum strain value", maxStrainGlobal);
-                ImGui::Text("Color of upper bound (strains = %.3f):.", maxStrain);
-                ImGui::SliderFloat("HueUpper", &maxColorHSV.h, 0.0f, 1.0f);
-                // ImGui::SameLine();
-                ImGui::SliderFloat("SatUpper", &maxColorHSV.s, 0.0f, 1.0f);
-                ImVec4 maxColorRGB;
-                ImGui::ColorConvertHSVtoRGB(maxColorHSV.h, maxColorHSV.s, maxColorHSV.v, maxColorRGB.x, maxColorRGB.y, maxColorRGB.z);
-                // ImGui::SameLine();
-                ImGui::ColorButton("ColUpper", maxColorRGB);
-                ImGui::Text("Color of lower bound (strains = 0):");
-                ImGui::SliderFloat("HueLower", &minColorHSV.h, 0.0f, 1.0f);
-                // ImGui::SameLine();
-                ImGui::SliderFloat("SatLower", &minColorHSV.s, 0.0f, 1.0f);
-                ImVec4 minColorRGB;
-                ImGui::ColorConvertHSVtoRGB(minColorHSV.h, minColorHSV.s, minColorHSV.v, minColorRGB.x, minColorRGB.y, minColorRGB.z);
-                // ImGui::SameLine();
-                ImGui::ColorButton("ColLower", minColorRGB);
-                ImGui::Text("Strains above upper bound are clamped");
-                ImGui::Text("Lower bound: %.3f, %.3f, %.3f", minColorHSV.h, minColorHSV.s, minColorHSV.v);
-                ImGui::Text("Upper bound: %.3f, %.3f, %.3f", maxColorHSV.h, maxColorHSV.s, maxColorHSV.v);
-                ImGui::Text("Colors between bounds are linearly interpolated using HSV, depending on face strains");
-                if (ImGui::Button("OK"))
+                ImGui::Separator();
+                if (visFrames.size() > 0)
                 {
-                    if (stage == 1)
-                        createDrawableParts();
-                    else if (stage == 2)
-                        createDrawableScene();
-                    ImGui::CloseCurrentPopup();
+                    ImGui::Text("Current frame: %u", visFrames[currentFrame]);
                 }
-                ImGui::EndPopup();
-            }
-            ImGui::Separator();
-        }
-        if (visFrames.size() > 0)
-        {
-            ImGui::Text("Current frame: %u", visFrames[currentFrame]);
-        }
-        else
-        {
-            ImGui::Text("Current frame: none");
-        }
-        if (visFrames.size() > 1)
-        {
-            int preFrame = currentFrame;
-            ImGui::SliderInt("Choose animation frame", &currentFrame, 0, visFrames.size() - 1);
-            if (preFrame != currentFrame && !animating)
-                updateFrame();
-        }
-        if (stage > 0)
-        {
-            if (visFrames.size() > 1)
-            {
-                if (ImGui::Button("Toggle animation"))
-                {
-                    animating = !animating;
-                }
-            }
-            if (ImGui::Button("Toggle strain/part coloring"))
-            {
-                toggleStrainColors();
-            }
-            if (ImGui::Button("Toggle part expansion"))
-            {
-                toggleExpandParts();
-            }
-        }
-        ImGui::Separator();
-        ImGui::Text("Frame rate: %.1f", ImGui::GetIO().Framerate);
-        ImGui::Text("GPU time (ms): %4.1f", gpu_time_);
-
-        ImGui::Separator();
-
-        if (stage > 0 && ImGui::CollapsingHeader("Global scene stats"))
-        {
-            ImGui::Text("#Frames: %i (#frames visualized: %lu)", numFrames, visFrames.size());
-            ImGui::Text("#parts %i", (int)parts.size());
-            ImGui::Text("#1Dparts %i", numParts1D);
-            ImGui::Text("#2Dparts %i", numParts2D);
-            ImGui::Text("#3Dparts %i", numParts3D);
-            ImGui::Text("#MeshFaces: %i", numTriangles);
-            ImGui::Text("#MeshVertices: %i", numVertices);
-            ImGui::Text("#MeshEdges: %i", numEdges);
-            ImGui::Text("#MeshComplexEdges: %i", numComplexEdges);
-            ImGui::Text("#MeshBoundaryEdges: %i", numBoundaryEdges);
-            ImGui::Text("#FENodes: %i", numNodes);
-            ImGui::Text("#1DFEs: %i", num1DFE);
-            ImGui::Text("#2DFEs (includes extracted 3D surfaces): %i", num2DFE);
-            ImGui::Text("Max plastic strain in current frame: %.3f", frame2maxPlasticStrain[visFrames[currentFrame]]);
-            ImGui::Text("Max plastic strain over all frames: %.3f", maxStrainGlobal);
-        }
-
-        ImGui::Separator();
-        if (current_model() && ImGui::CollapsingHeader("Current part stats"))
-        {
-            const std::string& name = "Current model: " + easy3d::file_system::simple_name(current_model()->name());
-            ImGui::Text("%s", name.c_str());
-            if (dynamic_cast<easy3d::Graph*>(current_model()))
-            {
-                if (current_model()->name() == "epicenter")
-                {
-                    ImGui::Text("Type: epicenter visualization");
-                    ImGui::TextWrapped("Decimation error is scaled up for elements inside the sphere, and is scaled "
-                                       "down for elements outside the sphere.");
-                    ImGui::TextWrapped("This means elements inside the sphere are preserved in more detail");
-                    ImGui::TextWrapped("Remove calculated epicenters from decimation by deleting this model (DEL).");
-                }
-            }
-            else if (dynamic_cast<easy3d::SurfaceMesh*>(current_model()))
-            {
-                easy3d::SurfaceMesh* mesh = dynamic_cast<easy3d::SurfaceMesh*>(current_model());
-                partid_t userID = -1;
-                if (current_model()->name().substr(0, 4) == "part")
-                    userID = atoi(current_model()->name().substr(4).c_str());
-                if (pIs2DPart[userID])
-                    ImGui::Text("2D surface part");
                 else
-                    ImGui::Text("Volumetric part surface");
-                ImGui::Text("#MeshFaces: %i", mesh->n_faces());
-                ImGui::Text("#MeshVertices: %i", mesh->n_vertices());
-                ImGui::Text("#MeshEdges: %i", mesh->n_edges());
-                ImGui::Text("#MeshComplexEdges: %i", pNumComplexEdges[userID]);
-                ImGui::Text("#MeshBoundaryEdges: %i", pNumBoundaryEdges[userID]);
-                ImGui::Text("#FENodes: %i", pNumNodes[userID]);
-                ImGui::Text("#2DFEs (includes extracted 3D surfaces): %i", pNum2DFE[userID]);
+                {
+                    ImGui::Text("Current frame: none");
+                }
+                if (visFrames.size() > 1)
+                {
+                    int preFrame = currentFrame;
+                    ImGui::SliderInt("Choose animation frame", &currentFrame, 0, visFrames.size() - 1);
+                    if (preFrame != currentFrame && !animating)
+                        updateFrame();
+                    if (ImGui::Button("Toggle animation"))
+                    {
+                        animating = !animating;
+                    }
+                }
+                if (ImGui::Button("Toggle strain/part coloring"))
+                {
+                    toggleStrainColors();
+                }
+                if (ImGui::Button("Toggle part expansion"))
+                {
+                    toggleExpandParts();
+                }
+            }
+            // ImGui::Separator();
+            // ImGui::Text("Frame rate: %.1f", ImGui::GetIO().Framerate);
+            // ImGui::Text("GPU time (ms): %4.1f", gpu_time_);
+
+            ImGui::Separator();
+
+            if (stage > 0 && ImGui::CollapsingHeader("Global scene stats"))
+            {
+                ImGui::Text("#Frames: %i (#frames visualized: %lu)", numFrames, visFrames.size());
+                ImGui::Text("#parts %i", (int)parts.size());
+                ImGui::Text("#1Dparts %i", numParts1D);
+                ImGui::Text("#2Dparts %i", numParts2D);
+                ImGui::Text("#3Dparts %i", numParts3D);
+                ImGui::Text("#MeshFaces: %i", numTriangles);
+                ImGui::Text("#MeshVertices: %i", numVertices);
+                ImGui::Text("#MeshEdges: %i", numEdges);
+                ImGui::Text("#MeshComplexEdges: %i", numComplexEdges);
+                ImGui::Text("#MeshBoundaryEdges: %i", numBoundaryEdges);
+                ImGui::Text("#FENodes: %i", numNodes);
+                ImGui::Text("#1DFEs: %i", num1DFE);
+                ImGui::Text("#2DFEs (includes extracted 3D surfaces): %i", num2DFE);
                 ImGui::Text("Max plastic strain in current frame: %.3f",
-                            frame2pMaxPlasticStrain[visFrames[currentFrame]][userID]);
+                            frame2maxPlasticStrain[visFrames[currentFrame]]);
+                ImGui::Text("Max plastic strain over all frames: %.3f", maxStrainGlobal);
+            }
+
+            ImGui::Separator();
+            if (current_model() && ImGui::CollapsingHeader("Current part stats"))
+            {
+                const std::string& name = "Current model: " + easy3d::file_system::simple_name(current_model()->name());
+                ImGui::Text("%s", name.c_str());
+                if (dynamic_cast<easy3d::Graph*>(current_model()))
+                {
+                    if (current_model()->name() == "epicenter")
+                    {
+                        ImGui::Text("Type: epicenter visualization");
+                        ImGui::TextWrapped(
+                            "Decimation error is scaled up for elements inside the sphere, and is scaled "
+                            "down for elements outside the sphere.");
+                        ImGui::TextWrapped("This means elements inside the sphere are preserved in more detail");
+                        ImGui::TextWrapped(
+                            "Remove calculated epicenters from decimation by deleting this model (DEL).");
+                    }
+                }
+                else if (dynamic_cast<easy3d::SurfaceMesh*>(current_model()))
+                {
+                    easy3d::SurfaceMesh* mesh = dynamic_cast<easy3d::SurfaceMesh*>(current_model());
+                    partid_t userID = -1;
+                    if (current_model()->name().substr(0, 4) == "part")
+                        userID = atoi(current_model()->name().substr(4).c_str());
+                    if (pIs2DPart[userID])
+                        ImGui::Text("2D surface part");
+                    else
+                        ImGui::Text("Volumetric part surface");
+                    ImGui::Text("#MeshFaces: %i", mesh->n_faces());
+                    ImGui::Text("#MeshVertices: %i", mesh->n_vertices());
+                    ImGui::Text("#MeshEdges: %i", mesh->n_edges());
+                    ImGui::Text("#MeshComplexEdges: %i", pNumComplexEdges[userID]);
+                    ImGui::Text("#MeshBoundaryEdges: %i", pNumBoundaryEdges[userID]);
+                    ImGui::Text("#FENodes: %i", pNumNodes[userID]);
+                    ImGui::Text("#2DFEs (includes extracted 3D surfaces): %i", pNum2DFE[userID]);
+                    ImGui::Text("Max plastic strain in current frame: %.3f",
+                                frame2pMaxPlasticStrain[visFrames[currentFrame]][userID]);
+                    float maxStrain = 0.0f;
+                    for (size_t i = 0; i < frame2maxPlasticStrain.size(); i++)
+                    {
+                        maxStrain = std::max(maxStrain, frame2pMaxPlasticStrain[i][userID]);
+                    }
+                    ImGui::Text("Max plastic strain over all frames: %.3f", maxStrain);
+                }
             }
         }
         ImGui::End();
@@ -1730,36 +1798,21 @@ void ImGuiViewer::drawDecimationPanel()
                          | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing
                          | ImGuiWindowFlags_NoNav))
     {
-        ImGui::Separator();
-        if (stage == 1)
+        if (ImGui::CollapsingHeader("Decimation"))
         {
-            ImGui::Text("PART-WISE STAGE");
-        }
-        else if (stage == 2)
-        {
-            ImGui::Text("GLOBAL SCENE STAGE");
-        }
-        if (stage == 0)
-        {
-            if (ImGui::Button("Load a file to start"))
-                openDialog();
-        }
-        else
-        {
-            if (ImGui::Button("Actions"))
-                ImGui::OpenPopup("Choose action");
-        }
-
-        if (ImGui::BeginPopup("Choose action", ImGuiWindowFlags_AlwaysAutoResize))
-        {
-            if (stage == 0 || stage == 1 || stage == 2)
+            ImGui::Separator();
+            if (stage == 1)
             {
-                if (ImGui::Button("Load a different file"))
-                    openDialog();
+                ImGui::Text("PART-WISE STAGE");
             }
-            if (stage == 1 || stage == 2)
+            else if (stage == 2)
             {
-                ImGui::Separator();
+                ImGui::Text("GLOBAL SCENE STAGE");
+            }
+            ImGui::Separator();
+            if (stage != 0 && ImGui::CollapsingHeader("Actions"))
+            {
+                ImGui::Indent();
                 if (ImGui::Button("Reload original model"))
                 {
                     stage = 0;
@@ -1781,7 +1834,6 @@ void ImGuiViewer::drawDecimationPanel()
                     //     toggleExpandParts();
                     // }
                     exportCurrentPart();
-                    ImGui::CloseCurrentPopup();
                 }
                 if (ImGui::Button("Export scene"))
                 {
@@ -1790,152 +1842,176 @@ void ImGuiViewer::drawDecimationPanel()
                     //     toggleExpandParts();
                     // }
                     exportScene();
-                    ImGui::CloseCurrentPopup();
                 }
+                if (stage == 1)
+                {
+                    ImGui::Separator();
+                    if (ImGui::Button("Calculate epicenters (will then be used for error scaling)"))
+                    {
+                        calcEpicenters();
+                    }
+                    ImGui::Separator();
+                    if (ImGui::Button("Decimate part-wise"))
+                    {
+                        decimatePartwise();
+                    }
+                    ImGui::Separator();
+                    if (ImGui::Button("Merge part meshes to scene"))
+                    {
+                        mergeParts();
+                    }
+                }
+                if (stage == 2)
+                {
+                    ImGui::Separator();
+                    ImGui::InputInt("Target #vertices", &targetVertices, 10000, 100000);
+                    ImGui::InputInt("Target #faces", &targetFaces, 10000, 100000);
+                    ImGui::Text("0 = as far as possible within error bounds");
+                    if (ImGui::Button("Decimate globally"))
+                    {
+                        decimateScene();
+                    }
+                }
+                ImGui::Unindent();
             }
-            if (stage == 1)
-            {
-                ImGui::Separator();
-                if (ImGui::Button("Calculate epicenters (will then be used for error scaling)"))
-                {
-                    calcEpicenters();
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::Separator();
-                if (ImGui::Button("Decimate part-wise"))
-                {
-                    decimatePartwise();
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::Separator();
-                if (ImGui::Button("Merge part meshes to scene"))
-                {
-                    mergeParts();
-                    ImGui::CloseCurrentPopup();
-                }
-            }
-            if (stage == 2)
-            {
-                ImGui::Separator();
-                ImGui::InputInt("Target #vertices", &targetVertices, 10000, 100000);
-                ImGui::InputInt("Target #faces", &targetFaces, 10000, 100000);
-                ImGui::Text("0 = as far as possible within error bounds");
-                if (ImGui::Button("Decimate globally"))
-                {
-                    decimateScene();
-                    ImGui::CloseCurrentPopup();
-                }
-            }
-            ImGui::EndPopup();
-        }
 
-        ImGui::Separator();
-        ImGui::Text("Decimation Settings");
-        ImGui::Text("Current guiding function:");
-        ImGui::Indent();
-        if (deciParts.useQuadric && !deciParts.quadricExcludeOnly && !deciParts.combineQuadricNormal)
-        {
-            ImGui::Text("QEM (Quadric error metric):");
-        }
-        else if (deciParts.useNormalDeviation && !deciParts.normalExcludeOnly && !deciParts.combineQuadricNormal)
-        {
-            ImGui::Text("NDM (Normal deviation metric):");
-        }
-        else if (deciParts.combineQuadricNormal)
-        {
-            ImGui::Text("QEM (Quadric error metric) + NDM (Normal deviation metric):");
-        }
-        ImGui::Unindent();
-        ImGui::Text("Exclusion error bounds:");
-        ImGui::Indent();
-        if (deciParts.useQuadric && deciParts.maxQuadricError < 1e9)
-            ImGui::Text("Max QEM error: %f", deciParts.maxQuadricError);
-        else
-            ImGui::Text("QEM error unbound");
-        if (deciParts.useNormalDeviation && deciParts.maxNormalDeviation < 360)
-            ImGui::Text("Max NDM error: %f", deciParts.maxNormalDeviation);
-        else
-            ImGui::Text("NDM error unbound");
-        if (deciParts.useBoundaryDeviation)
-            ImGui::Text("Max boundary angle deviation: %f", deciParts.maxBoundaryDeviation);
-        else
-            ImGui::Text("boundary angle deviation unbound");
-        if (deciParts.useAspectRatio)
-            ImGui::Text("Max triangle aspect ratio: %f", deciParts.maxAspectRatio);
-        else
-            ImGui::Text("Triangle aspect ratio unbound");
-        ImGui::Unindent();
-        ImGui::Separator();
-        if (ImGui::CollapsingHeader("Quadric error metric settings"))
-        {
+            ImGui::Separator();
+            ImGui::Text("Decimation Settings");
+            ImGui::Text("Current guiding function:");
             ImGui::Indent();
-            ImGui::Text("QEM is always used as the base metric");
-            if (deciParts.useQuadric)
+            if (deciParts.useQuadric && !deciParts.quadricExcludeOnly && !deciParts.combineQuadricNormal)
             {
-                // ImGui::Checkbox("Use QEM for error bound exclusion only", &deciParts.quadricExcludeOnly);
-                int auxFramesQuadric = deciParts.framesQuadric;
-                ImGui::SliderInt("How many frames should QEM consider: ", &auxFramesQuadric, 1, numFrames);
-                deciParts.framesQuadric = auxFramesQuadric;
-                deciParts.maxQuadricError = std::max(deciParts.maxQuadricError, 0.0f);
-                ImGui::InputFloat("Exclude collapses with QEM error greater than: ",
-                                  &deciParts.maxQuadricError,
-                                  100.0f,
-                                  1000.0f,
-                                  "%.3f");
-                if (ImGui::Button("Make QEM error unbound"))
-                {
-                    deciParts.maxQuadricError = FLT_MAX;
-                }
-                ImGui::Checkbox("Use quadrics to preserve boundary shape", &deciParts.boundaryQuadrics);
-                ImGui::Checkbox("Use quadrics to preserve plastic strain distribution", &deciParts.featureQuadrics);
-                ImGui::Checkbox("Weight quadrics by triangle area", &deciParts.quadricAreaWeighting);
-                ImGui::Checkbox("Optimize vertex position using QEM during decimation",
-                                &deciParts.quadricPositionOptimization);
+                ImGui::Text("QEM (Quadric error metric):");
+            }
+            else if (deciParts.useNormalDeviation && !deciParts.normalExcludeOnly && !deciParts.combineQuadricNormal)
+            {
+                ImGui::Text("NDM (Normal deviation metric):");
+            }
+            else if (deciParts.combineQuadricNormal)
+            {
+                ImGui::Text("QEM (Quadric error metric) + NDM (Normal deviation metric):");
             }
             ImGui::Unindent();
-        }
-        if (ImGui::CollapsingHeader("Normal deviation metric settings"))
-        {
+            ImGui::Text("Exclusion error bounds:");
             ImGui::Indent();
-            if (deciParts.useQuadric)
-            {
-                ImGui::Checkbox("Use normal deviation metric for decimation", &deciParts.useNormalDeviation);
-            }
+            if (deciParts.useQuadric && deciParts.maxQuadricError < 1e9)
+                ImGui::Text("Max QEM error: %f", deciParts.maxQuadricError);
             else
-            {
-                ImGui::Text("Using normal deviation metric");
-                deciParts.useNormalDeviation = true;
-                deciParts.combineQuadricNormal = false;
-            }
-            if (deciParts.useNormalDeviation)
-            {
-                ImGui::Checkbox("Use NDM for error bound exclusion only", &deciParts.normalExcludeOnly);
-                deciParts.combineQuadricNormal = !deciParts.normalExcludeOnly;
-                ImGui::Checkbox("Use NDM as guiding function in combination with QEM", &deciParts.combineQuadricNormal);
-                deciParts.normalExcludeOnly = !deciParts.combineQuadricNormal;
-                int auxFramesNormal
-                    = deciParts.combineQuadricNormal ? deciParts.framesQuadric : deciParts.framesNormalDeviation;
-                int minNormalFrames = deciParts.combineQuadricNormal ? deciParts.framesQuadric : 1;
-                int maxNormalFrames = deciParts.combineQuadricNormal ? deciParts.framesQuadric : numFrames;
-                ImGui::SliderInt(
-                    "How many frames should NDM consider: ", &auxFramesNormal, minNormalFrames, maxNormalFrames);
-                deciParts.framesNormalDeviation = auxFramesNormal;
-                ImGui::SliderFloat(
-                    "Exclude collapses with NDM angle error greater than: ", &deciParts.maxNormalDeviation, 1, 360);
-                if (ImGui::Button("Make NDM error unbound"))
-                {
-                    deciParts.maxNormalDeviation = 360;
-                }
-            }
+                ImGui::Text("QEM error unbound");
+            if (deciParts.useNormalDeviation && deciParts.maxNormalDeviation < 360.0f)
+                ImGui::Text("Max NDM error: %f", deciParts.maxNormalDeviation);
+            else
+                ImGui::Text("NDM error unbound");
+            if (deciParts.useBoundaryDeviation && deciParts.maxBoundaryDeviation < 180.0f)
+                ImGui::Text("Max boundary angle deviation: %f", deciParts.maxBoundaryDeviation);
+            else
+                ImGui::Text("Boundary angles unbound");
+            if (deciParts.useAspectRatio)
+                ImGui::Text("Max triangle aspect ratio: %f", deciParts.maxAspectRatio);
+            else
+                ImGui::Text("Triangle aspect ratio unbound");
             ImGui::Unindent();
+            ImGui::Separator();
+            if (ImGui::CollapsingHeader("Quadric error metric settings"))
+            {
+                ImGui::Indent();
+                ImGui::Text("QEM is always used as the base metric");
+                if (deciParts.useQuadric)
+                {
+                    // ImGui::Checkbox("Use QEM for error bound exclusion only", &deciParts.quadricExcludeOnly);
+                    int auxFramesQuadric = deciParts.framesQuadric;
+                    ImGui::SliderInt("#frames for QEM", &auxFramesQuadric, 1, numFrames);
+                    deciParts.framesQuadric = auxFramesQuadric;
+                    deciParts.maxQuadricError = std::max(deciParts.maxQuadricError, 0.0f);
+                    ImGui::InputFloat("Max allowed QEM error: ", &deciParts.maxQuadricError, 100.0f, 1000.0f, "%.3f");
+                    if (ImGui::Button("Make QEM error unbound"))
+                    {
+                        deciParts.maxQuadricError = FLT_MAX;
+                    }
+                    ImGui::Checkbox("Use quadrics to preserve boundary shape", &deciParts.boundaryQuadrics);
+                    ImGui::Checkbox("Use quadrics to preserve plastic strain distribution", &deciParts.featureQuadrics);
+                    ImGui::Checkbox("Weight quadrics by triangle area", &deciParts.quadricAreaWeighting);
+                    ImGui::Checkbox("Optimize vertex position using QEM (= optimal edge collapse)",
+                                    &deciParts.quadricPositionOptimization);
+                }
+                ImGui::Unindent();
+            }
+            if (ImGui::CollapsingHeader("Normal deviation metric settings"))
+            {
+                ImGui::Indent();
+                if (deciParts.useQuadric)
+                {
+                    ImGui::Checkbox("Use normal deviation metric for decimation", &deciParts.useNormalDeviation);
+                }
+                else
+                {
+                    ImGui::Text("Using normal deviation metric");
+                    deciParts.useNormalDeviation = true;
+                    deciParts.combineQuadricNormal = false;
+                }
+                if (deciParts.useNormalDeviation)
+                {
+                    ImGui::Checkbox("Use NDM as guiding function together with QEM", &deciParts.combineQuadricNormal);
+                    deciParts.normalExcludeOnly = !deciParts.combineQuadricNormal;
+                    if (!deciParts.combineQuadricNormal)
+                    {
+                        ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+                        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+                    }
+                    ImGui::Text("A QEM error of ");
+                    ImGui::SameLine();
+                    ImGui::InputFloat("mm^2", &deciParts.combineNormalWeight, 0.1f, 1.0f, "%.3f");
+                    ImGui::Text("should match NDM error of");
+                    ImGui::SameLine();
+                    ImGui::InputFloat("degrees", &deciParts.combineQuadricWeight, 0.1f, 1000.0f, "%.3f");
+                    deciParts.combineQuadricWeight = std::clamp(deciParts.combineQuadricWeight, 0.1f, 1000.0f);
+                    deciParts.combineNormalWeight = std::clamp(deciParts.combineNormalWeight, 0.1f, 1000.0f);
+                    if (!deciParts.combineQuadricNormal)
+                    {
+                        ImGui::PopItemFlag();
+                        ImGui::PopStyleVar();
+                    }
+                    int auxFramesNormal
+                        = deciParts.combineQuadricNormal ? deciParts.framesQuadric : deciParts.framesNormalDeviation;
+                    int minNormalFrames = deciParts.combineQuadricNormal ? deciParts.framesQuadric : 1;
+                    int maxNormalFrames = deciParts.combineQuadricNormal ? deciParts.framesQuadric : numFrames;
+                    ImGui::SliderInt("#frames for NDM: ", &auxFramesNormal, minNormalFrames, maxNormalFrames);
+                    deciParts.framesNormalDeviation = auxFramesNormal;
+                    ImGui::SliderFloat("Max normal deviation: ", &deciParts.maxNormalDeviation, 1, 360);
+                    if (ImGui::Button("Make NDM error unbound"))
+                    {
+                        deciParts.maxNormalDeviation = 360;
+                    }
+                }
+                ImGui::Unindent();
+            }
+            ImGui::Checkbox("Max boundary angle change", &deciParts.useBoundaryDeviation);
+            ImGui::SameLine();
+            if (!deciParts.useBoundaryDeviation)
+            {
+                ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+                ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+            }
+            ImGui::SliderFloat(" degrees", &deciParts.maxBoundaryDeviation, 1, 180.0f);
+            if (!deciParts.useBoundaryDeviation)
+            {
+                ImGui::PopItemFlag();
+                ImGui::PopStyleVar();
+            }
+            ImGui::Checkbox("Max triangle aspect ratio", &deciParts.useAspectRatio);
+            ImGui::SameLine();
+            if (!deciParts.useAspectRatio)
+            {
+                ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+                ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+            }
+            ImGui::SliderFloat("", &deciParts.maxAspectRatio, 2, 100);
+            if (!deciParts.useAspectRatio)
+            {
+                ImGui::PopItemFlag();
+                ImGui::PopStyleVar();
+            }
         }
-        ImGui::Checkbox("Exclude collapses altering boundary path angles by more than ",
-                        &deciParts.useBoundaryDeviation);
-        ImGui::SameLine();
-        ImGui::SliderFloat(" degrees", &deciParts.maxBoundaryDeviation, 1, 360);
-        ImGui::Checkbox("Limit triangle aspect ratios to less than than...", &deciParts.useAspectRatio);
-        ImGui::SameLine();
-        ImGui::SliderFloat("", &deciParts.maxAspectRatio, 2, 100);
         ImGui::End();
     }
 }
@@ -2149,8 +2225,7 @@ bool ImGuiViewer::exportCurrentPart()
 
     const std::string& title = "Please choose a file name";
     const std::vector<std::string>& filters
-        = {"One mesh for each frame (*.obj)", "*.obj", 
-           "Crash2Mesh file (*.c2m)", "*.c2m"};
+        = {"One mesh for each frame (*.obj)", "*.obj", "Crash2Mesh file (*.c2m)", "*.c2m"};
 
     std::string default_file_name = easy3d::file_system::base_name(fileName) + "_part" + std::to_string(userID);
     if (easy3d::file_system::extension(default_file_name).empty()) // no extension?
@@ -2279,12 +2354,12 @@ bool ImGuiViewer::exportCurrentPart()
                     {
                         vs.emplace_back(vertexToDrawableVertex[v.idx()]);
                     }
-                    /*easy3d::SurfaceMesh::Face fd = */drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
+                    /*easy3d::SurfaceMesh::Face fd = */ drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
                     // auto strains = mesh.data(f).element->plasticStrains;
                     // for (int i = 0; i < numFrames; i++)
                     // {
-                    //     auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" + std::to_string(i));
-                    //     faceStrains[fd] = strains(i);
+                    //     auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" +
+                    //     std::to_string(i)); faceStrains[fd] = strains(i);
                     // }
                 }
                 for (int i = 0; i < numFrames; i++)
@@ -2295,7 +2370,8 @@ bool ImGuiViewer::exportCurrentPart()
                     pos.vector() = drawablePositions.vector();
                     std::stringstream extStr;
                     extStr << "_" << std::setfill('0') << std::setw(3) << i << ".obj";
-                    easy3d::SurfaceMeshIO::save(easy3d::file_system::name_less_extension(file_name) + extStr.str() , &drawableMesh);
+                    easy3d::SurfaceMeshIO::save(easy3d::file_system::name_less_extension(file_name) + extStr.str(),
+                                                &drawableMesh);
                 }
             }
             else if (stage == 2)
@@ -2350,12 +2426,12 @@ bool ImGuiViewer::exportCurrentPart()
                     {
                         vs.emplace_back(vertexToDrawableVertex[v.idx()]);
                     }
-                    /*easy3d::SurfaceMesh::Face fd = */drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
+                    /*easy3d::SurfaceMesh::Face fd = */ drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
                     // auto strains = mesh.data(f).element->plasticStrains;
                     // for (int i = 0; i < numFrames; i++)
                     // {
-                    //     auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" + std::to_string(i));
-                    //     faceStrains[fd] = strains(i);
+                    //     auto faceStrains = drawableMesh.get_face_property<float>("f:strain_frame" +
+                    //     std::to_string(i)); faceStrains[fd] = strains(i);
                     // }
                 }
                 for (int i = 0; i < numFrames; i++)
@@ -2366,7 +2442,8 @@ bool ImGuiViewer::exportCurrentPart()
                     pos.vector() = drawablePositions.vector();
                     std::stringstream extStr;
                     extStr << "_" << std::setfill('0') << std::setw(3) << i << ".obj";
-                    easy3d::SurfaceMeshIO::save(easy3d::file_system::name_less_extension(file_name) + extStr.str() , &drawableMesh);
+                    easy3d::SurfaceMeshIO::save(easy3d::file_system::name_less_extension(file_name) + extStr.str(),
+                                                &drawableMesh);
                 }
             }
             return true;
@@ -2381,10 +2458,11 @@ bool ImGuiViewer::exportCurrentPart()
 bool ImGuiViewer::exportScene()
 {
     const std::string& title = "Please choose a file name";
-    const std::vector<std::string>& filters
-        = {"Crash2Mesh file (*.c2m)", "*.c2m", 
-        //    "Single frame mesh (*.obj)", "*.obj",
-           "One mesh for each frame (*.obj)", "*.obj"};
+    const std::vector<std::string>& filters = {"Crash2Mesh file (*.c2m)",
+                                               "*.c2m",
+                                               //    "Single frame mesh (*.obj)", "*.obj",
+                                               "One mesh for each frame (*.obj)",
+                                               "*.obj"};
 
     std::string default_file_name = easy3d::file_system::base_name(fileName);
 
@@ -2398,7 +2476,7 @@ bool ImGuiViewer::exportScene()
         exportScene = scene;
     else
         exportScene = MeshBuilder::merge(parts, false);
-        
+
     if (!exportScene)
         return false;
 
@@ -2452,7 +2530,8 @@ bool ImGuiViewer::exportScene()
     //     }
 
     //     auto drawablePositions
-    //         = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
+    //         = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" +
+    //         std::to_string(visFrames[currentFrame]));
     //     auto pos = drawableMesh.get_vertex_property<easy3d::vec3>("v:point");
     //     pos.vector() = drawablePositions.vector();
 
@@ -2461,7 +2540,7 @@ bool ImGuiViewer::exportScene()
     else if (ext == "obj")
     {
         std::map<partid_t, Part::Ptr> partID2Part;
-        for (auto part: parts)
+        for (auto part : parts)
         {
             partID2Part[part->ID] = part;
         }
@@ -2490,7 +2569,7 @@ bool ImGuiViewer::exportScene()
                     = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
                 Vec3 p = positions.row(i).transpose();
                 if (partsExpanded)
-                    p +=  1.3f * part->centers.row(i).transpose();
+                    p += 1.3f * part->centers.row(i).transpose();
                 drawablePositions[vd] = easy3d::vec3(p(0), p(1), p(2));
             }
         }
@@ -2501,7 +2580,7 @@ bool ImGuiViewer::exportScene()
             {
                 vs.emplace_back(vertexToDrawableVertex[v.idx()]);
             }
-            /*easy3d::SurfaceMesh::Face fd = */drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
+            /*easy3d::SurfaceMesh::Face fd = */ drawableMesh.add_triangle(vs[0], vs[1], vs[2]);
             // auto strains = mesh.data(f).element->plasticStrains;
             // for (int i = 0; i < numFrames; i++)
             // {
@@ -2511,13 +2590,13 @@ bool ImGuiViewer::exportScene()
         }
         for (int i = 0; i < numFrames; i++)
         {
-            auto drawablePositions
-                = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
+            auto drawablePositions = drawableMesh.get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
             auto pos = drawableMesh.get_vertex_property<easy3d::vec3>("v:point");
             pos.vector() = drawablePositions.vector();
             std::stringstream extStr;
             extStr << "_" << std::setfill('0') << std::setw(3) << i << ".obj";
-            easy3d::SurfaceMeshIO::save(easy3d::file_system::name_less_extension(file_name) + extStr.str() , &drawableMesh);
+            easy3d::SurfaceMeshIO::save(easy3d::file_system::name_less_extension(file_name) + extStr.str(),
+                                        &drawableMesh);
         }
         return true;
     }

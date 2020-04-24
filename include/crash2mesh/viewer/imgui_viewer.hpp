@@ -114,6 +114,7 @@ struct hsv
 		virtual bool mouse_drag_event(int x, int y, int dx, int dy, int button, int modifiers);
 
 		bool removeCurrentPartAndModel();
+		bool removeAllElse();
 
 		void drawInfoPanel();
 

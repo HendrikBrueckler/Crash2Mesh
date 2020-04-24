@@ -49,7 +49,15 @@ class ModQuadricNormal : public ModQuadric, public ModNormal
      */
     void postprocess_collapse(const CollapseInfo& _ci) override;
 
+
+    void set_relative_weights(float quadric, float normal)
+    {
+      factor_normal = normal / quadric;
+    }
+
   protected:
+
+    float factor_normal;
 
     Vec3 bbox_min;
     Vec3 bbox_max;

@@ -23,8 +23,8 @@ class MeshDecimater
     MeshDecimater()
         : useQuadric(true), useNormalDeviation(true), useBoundaryDeviation(true), useAspectRatio(true),
           quadricExcludeOnly(false), normalExcludeOnly(true),
-          combineQuadricNormal(false), quadricAreaWeighting(false), quadricPositionOptimization(false),
-          quadricPostProcessOptimize(false),
+          combineQuadricNormal(false), combineQuadricWeight(1.0f), combineNormalWeight(3.0f),
+          quadricAreaWeighting(false), quadricPositionOptimization(false), quadricPostProcessOptimize(false),
           boundaryQuadrics(true), featureQuadrics(true), maxQuadricError(2000), maxNormalDeviation(10), maxBoundaryDeviation(10),
           maxAspectRatio(10), framesQuadric(10), framesNormalDeviation(10), framesBoundaryDeviation(3), minVLog(1000),
           minVRender(1000), maxVLog(10000000), maxVRender(500000)
@@ -85,6 +85,8 @@ class MeshDecimater
     bool normalExcludeOnly;  //< Whether to use normals as binary exclusion modules only
 
     bool combineQuadricNormal; //< Whether to combine quadrics and normals to one joint continuous module
+    float combineQuadricWeight; //< In combination of both, how much the quadric metric should be weighted
+    float combineNormalWeight; //< In combination of both, how much the normal deviation metric should be weighted
 
     bool quadricAreaWeighting;        //< Whether to weight quadrics with the face area
     bool quadricPositionOptimization; //< Whether to optimize positions wrt quadrics during decimation
