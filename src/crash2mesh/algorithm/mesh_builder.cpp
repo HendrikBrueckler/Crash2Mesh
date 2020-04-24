@@ -513,7 +513,7 @@ void MeshBuilder::relink(CMesh& mesh)
         }
         mesh.data(duplicates.front()).fixed = false;
     }
-#if 1
+#if 0
     for (VHandle v : mesh.vertices())
     {
         VHandle dupe = mesh.data(v).duplicate;

@@ -563,6 +563,11 @@ bool ImGuiViewer::removeCurrentPartAndModel()
                 if (partptr->userID == userID)
                 {
                     partptr->mesh.clear();
+                            // TODO remove
+                            partptr->elements1D.clear();
+                            partptr->elements2D.clear();
+                            partptr->elements3D.clear();
+                            partptr->surfaceElements.clear();
                 }
             }
         }
@@ -681,7 +686,7 @@ bool ImGuiViewer::updateBoundaryVisibility()
                     drawable->set_default_color(easy3d::setting::surface_mesh_borders_color);
                     drawable->set_per_vertex_color(false);
                     drawable->set_impostor_type(easy3d::LinesDrawable::CYLINDER);
-                    drawable->set_line_width(easy3d::setting::surface_mesh_borders_line_width);
+                    drawable->set_line_width(easy3d::setting::surface_mesh_borders_line_width * 3.0f);
                 }
             }
             if (drawable)
