@@ -2657,7 +2657,7 @@ bool ImGuiViewer::createDrawableEpicenters()
             for (int i = 0; i < numFrames; i++)
             {
                 auto pos
-                    = epicenterSphere->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(numFrames));
+                    = epicenterSphere->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
                 float r = meanDists(i);
                 easy3d::vec3 center(epicenters.coeff(i, 0), epicenters.coeff(i, 1), epicenters.coeff(i, 2));
                 pos[stackToSliceToVertex[t][p]] = center + r * normal;
