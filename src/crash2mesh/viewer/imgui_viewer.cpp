@@ -734,7 +734,7 @@ bool ImGuiViewer::openFile(const std::string& fileName_)
     stage = 0;
 
     fileName = fileName_;
-    erfh5::Reader reader(fileName, 100);
+    erfh5::Reader reader(fileName, 150);
 
     numFrames = std::max(1, (int)reader.getNumStates());
 
@@ -770,6 +770,12 @@ bool ImGuiViewer::openFile(const std::string& fileName_)
 
 bool ImGuiViewer::buildParts()
 {
+    epicenters.resize(0, 3);
+    meanDists.resize(0, 0);
+    deciParts.epicenters.resize(0, 3);
+    deciParts.meanDistsFromEpicenters.resize(0, 0);
+    deciScene.epicenters.resize(0, 3);
+    deciScene.meanDistsFromEpicenters.resize(0, 0);
     if (!MeshBuilder::build(parts, false))
     {
         Logger::lout(Logger::ERROR) << "Mesh building failed!" << std::endl;
@@ -1779,12 +1785,12 @@ void ImGuiViewer::drawInfoPanel()
                     ImGui::Text("#2DFEs (includes extracted 3D surfaces): %i", pNum2DFE[userID]);
                     ImGui::Text("Max plastic strain in current frame: %.3f",
                                 frame2pMaxPlasticStrain[visFrames[currentFrame]][userID]);
-                    float maxStrain = 0.0f;
+                    float partMaxStrain = 0.0f;
                     for (size_t i = 0; i < frame2maxPlasticStrain.size(); i++)
                     {
-                        maxStrain = std::max(maxStrain, frame2pMaxPlasticStrain[i][userID]);
+                        partMaxStrain = std::max(partMaxStrain, frame2pMaxPlasticStrain[i][userID]);
                     }
-                    ImGui::Text("Max plastic strain over all frames: %.3f", maxStrain);
+                    ImGui::Text("Max plastic strain over all frames: %.3f", partMaxStrain);
                 }
             }
         }
@@ -2630,14 +2636,14 @@ bool ImGuiViewer::createDrawableEpicenters()
 
     easy3d::Graph* epicenterSphere = new easy3d::Graph;
     epicenterSphere->set_name("epicenter");
-    for (uint i = 0; i < visFrames.size(); i++)
+    for (int i = 0; i < numFrames; i++)
     {
         // if (meandists(visFrames[i]) > 0.0f)
-        epicenterSphere->add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
+        epicenterSphere->add_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(i));
     }
 
-    int slices = 20;
-    int stacks = 20;
+    int slices = 16;
+    int stacks = 16;
     std::vector<std::vector<easy3d::Graph::Vertex>> stackToSliceToVertex(stacks + 1,
                                                                          std::vector<easy3d::Graph::Vertex>(slices));
     for (int t = 0; t < stacks + 1; t++)
@@ -2648,10 +2654,10 @@ bool ImGuiViewer::createDrawableEpicenters()
             float phi = ((float)(p) / slices) * 2 * M_PI;
             stackToSliceToVertex[t][p] = epicenterSphere->add_vertex(easy3d::vec3(0.0f, 0.0f, 0.0f));
             easy3d::vec3 normal = easy3d::vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
-            for (uint i = 0; i < visFrames.size(); i++)
+            for (int i = 0; i < numFrames; i++)
             {
                 auto pos
-                    = epicenterSphere->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[i]));
+                    = epicenterSphere->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(numFrames));
                 float r = meanDists(i);
                 easy3d::vec3 center(epicenters.coeff(i, 0), epicenters.coeff(i, 1), epicenters.coeff(i, 2));
                 pos[stackToSliceToVertex[t][p]] = center + r * normal;
@@ -2672,6 +2678,9 @@ bool ImGuiViewer::createDrawableEpicenters()
             epicenterSphere->add_edge(vertex1, vertex3);
         }
     }
+    epicenterSphere->add_edge(stackToSliceToVertex[0][0], stackToSliceToVertex[16][0]);
+    epicenterSphere->add_edge(stackToSliceToVertex[8][0], stackToSliceToVertex[8][8]);
+    epicenterSphere->add_edge(stackToSliceToVertex[8][4], stackToSliceToVertex[8][12]);
     auto pos = epicenterSphere->get_vertex_property<easy3d::vec3>("v:point");
     auto currentPos
         = epicenterSphere->get_vertex_property<easy3d::vec3>("v:pos_frame" + std::to_string(visFrames[currentFrame]));
