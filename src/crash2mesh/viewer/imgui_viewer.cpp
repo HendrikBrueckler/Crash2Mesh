@@ -52,6 +52,7 @@ ImGuiViewer::ImGuiViewer(const std::string& title /* = "Easy3D ImGui Viewer" */,
     : AnimationViewer(title, samples, gl_major, gl_minor, full_screen, resizable, depth_bits, stencil_bits),
       alpha_(0.8f), movable_(true)
 {
+    background_color_ = easy3d::vec4(1.0f, 1.0f, 1.0f, 1.0f);
     deciParts.useQuadric = true;
     deciParts.quadricExcludeOnly = false;
     deciParts.framesQuadric = 15;
@@ -2709,6 +2710,7 @@ bool ImGuiViewer::createDrawableEpicenters()
     wireframe->set_default_color(easy3d::vec3(1.0f, 0.0f, 0.0f));
     wireframe->set_per_vertex_color(false);
     wireframe->set_visible(true);
+    wireframe->set_line_width(4.0f);
 
     add_model(epicenterSphere, false);
 
