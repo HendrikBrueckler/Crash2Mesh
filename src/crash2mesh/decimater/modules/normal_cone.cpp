@@ -32,7 +32,8 @@ void NormalCone::merge(const NormalCone& _cone)
             float axisAngle = float(0.5f) * (minAngle + maxAngle);
             if (centerAngle < 0.5f * M_PI)
             {
-                center_normal_ = center_normal_ * (1 - axisAngle / centerAngle) + _cone.center_normal_ * axisAngle / centerAngle;
+                float t = axisAngle / centerAngle;
+                center_normal_ = center_normal_ * (1.0f - t) + _cone.center_normal_ * t;
                 center_normal_ /= center_normal_.norm();
             }
             else
