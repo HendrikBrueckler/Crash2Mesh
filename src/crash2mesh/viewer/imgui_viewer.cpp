@@ -302,7 +302,7 @@ bool ImGuiViewer::key_press_event(int key, int modifiers)
         if (current_model())
             removeAllElse();
     }
-    else if (key == GLFW_KEY_C && modifiers == 0) 
+    else if (key == GLFW_KEY_C && modifiers == 0)
     {
         if (current_model())
             fit_screen(current_model());
@@ -310,18 +310,18 @@ bool ImGuiViewer::key_press_event(int key, int modifiers)
     else if (key == GLFW_KEY_S && modifiers == 0) {
         fit_screen();
     }
-    else if (key == GLFW_KEY_H && modifiers == 0) 
+    else if (key == GLFW_KEY_H && modifiers == 0)
     {
         if (current_model())
             current_model()->set_visible(false);
     }
-    else if (key == GLFW_KEY_H && modifiers == GLFW_MOD_SHIFT) 
+    else if (key == GLFW_KEY_H && modifiers == GLFW_MOD_SHIFT)
     {
         if (current_model())
             for (auto model: models_)
                 model->set_visible(model == current_model());
     }
-    else if (key == GLFW_KEY_H && modifiers == C2M_MOD_CONTROL) 
+    else if (key == GLFW_KEY_H && modifiers == C2M_MOD_CONTROL)
     {
         for (auto model: models_)
             model->set_visible(true);
@@ -727,7 +727,6 @@ bool ImGuiViewer::updateFaceVisibility()
         for (auto drawable : model->triangles_drawables())
             drawable->set_visible(drawFaces);
 
-    std::cout << "drawFaces " << drawFaces << std::endl;
     return true;
 }
 
@@ -770,7 +769,7 @@ bool ImGuiViewer::openFile(const std::string& fileName_)
     if (partsExpanded)
         toggleExpandParts();
 
-    try 
+    try
     {
         erfh5::Reader reader(fileName, 150);
         if (!reader.readParts(parts))

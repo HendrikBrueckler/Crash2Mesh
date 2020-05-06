@@ -22,8 +22,8 @@ file(GLOB_RECURSE SOURCE_LIST "*.cpp")
 add_library(${PROJECT_NAME} ${SOURCE_LIST})
 
 ### Configurable options
-option(C2M_PARALLEL "Whether to use parallel (threadsafe) algorithms where appropriate" OFF)
-option(C2M_PROB_QUADRICS "Whether to use probabilistic instead of standard quadrics" OFF)
+option(C2M_PARALLEL "Whether to use parallel (threadsafe) algorithms where appropriate" ON)
+# option(C2M_PROB_QUADRICS "Whether to use probabilistic instead of standard quadrics" OFF)
 
 set(C2M_DEPENDENCIES
     HighFive
@@ -57,10 +57,10 @@ if(${C2M_PARALLEL})
     # endif()
 endif()
 
-if (${C2M_PROB_QUADRICS})
-    message("Setting up using probabilistic quadrics!")
-    add_compile_definitions(C2M_PROB_QUADRICS)
-endif()
+# if (${C2M_PROB_QUADRICS})
+#     message("Setting up using probabilistic quadrics!")
+#     add_compile_definitions(C2M_PROB_QUADRICS)
+# endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 target_compile_options(${PROJECT_NAME} PRIVATE ${C2M_COMPILE_FLAGS})

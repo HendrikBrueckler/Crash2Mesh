@@ -3,6 +3,8 @@
 /Debug
 /RelWithDebInfo
 /Release
+/build
+/Build
 /bin
 /lib
 /serial
