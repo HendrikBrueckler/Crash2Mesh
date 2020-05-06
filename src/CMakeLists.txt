@@ -41,20 +41,9 @@ set(C2M_DEPENDENCIES
 
 ### Set compile options
 if(${C2M_PARALLEL})
-    # if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    #     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "9.0")
-    #         find_package(TBB)
-    #         if (TBB_FOUND)
-    #         message("Setting up using parallel algorithms!")
-    #         add_compile_definitions(C2M_PARALLEL)
-    #         set(C2M_DEPENDENCIES ${C2M_DEPENDENCIES} TBB::tbb)
-    #         endif()
-    #     endif()
-    # else()
-        message("Setting up using parallel algorithms!")
-        add_compile_definitions(C2M_PARALLEL)
-        add_compile_definitions(_SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING)
-    # endif()
+    message("Setting up using parallel algorithms!")
+    add_compile_definitions(C2M_PARALLEL)
+    add_compile_definitions(_SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING)
 endif()
 
 # if (${C2M_PROB_QUADRICS})
