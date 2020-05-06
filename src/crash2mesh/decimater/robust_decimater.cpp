@@ -247,7 +247,7 @@ void RobustDecimater::heap_vertex(VHandle _vh)
 {
     //   std::clog << "heap_vertex: " << _vh << std::endl;
 
-    float prio, sumPrio, best_prio(FLT_MAX);
+    float prio(0.0f), sumPrio(0.0f), best_prio(FLT_MAX);
     HEHandle heh, collapse_target;
 
     std::vector<VHandle> v0Dupes;

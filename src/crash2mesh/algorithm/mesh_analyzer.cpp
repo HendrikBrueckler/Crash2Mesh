@@ -476,7 +476,6 @@ void MeshAnalyzer::getEpicenter(std::vector<Part::Ptr>& parts, MatX3& epicenters
     }
     for (long frame = numFrames-1; frame >= 0; frame--)
     {
-        std::cout << "frame " << frame << " weights " << sumOfWeights(frame) << std::endl;
         // TODO more sensible value here
         if (sumOfWeights(frame) > 100)
             epicenters.row(frame) /= sumOfWeights(frame);
@@ -486,7 +485,6 @@ void MeshAnalyzer::getEpicenter(std::vector<Part::Ptr>& parts, MatX3& epicenters
             epicenters.row(frame) = epicenters.row(frame - 1) / sumOfWeights(frame - 1);
         else
             epicenters.row(frame) = Vec3::Zero().transpose();
-        std::cout << "epis " << epicenters.coeff(frame,0) << " " << epicenters.coeff(frame, 1) << " " << epicenters.coeff(frame, 2) << std::endl;
     }
     meanDists = VecX::Zero(numFrames);
     long nVertices = 0;

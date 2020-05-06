@@ -453,9 +453,9 @@ Quadric ModQuadric::calc_edge_quadric(HEHandle he, uint frame, const Vec3& p, co
         // preserve feature edges, across which plastic strains differ
         float strain = mesh_.data(mesh_.face_handle(he)).element->plasticStrains(frame);
         float neighbor_strain = mesh_.data(mesh_.face_handle(mesh_.opposite_halfedge_handle(he))).element->plasticStrains(frame);
-        if (abs(neighbor_strain - strain) < 0.005 || !feature_quadrics_)
+        if (abs(neighbor_strain - strain) < 0.01 || !feature_quadrics_)
             return qEdge;
-        weightFactor = abs(neighbor_strain - strain) * 50;
+        weightFactor = abs(neighbor_strain - strain) * 20;
     }
 
     // Plane quadric for plane passing through edge, perpendicular to triangle

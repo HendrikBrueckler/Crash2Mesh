@@ -23,7 +23,7 @@ class MeshDecimater
     MeshDecimater()
         : useQuadric(true), useNormalDeviation(true), useBoundaryDeviation(true), useAspectRatio(true),
           quadricExcludeOnly(false), normalExcludeOnly(true),
-          combineQuadricNormal(false), combineQuadricWeight(1.0f), combineNormalWeight(3.0f),
+          combineQuadricNormal(false), combineQuadricWeight(3.0f), combineNormalWeight(1.0f),
           quadricAreaWeighting(false), quadricPositionOptimization(false), quadricPostProcessOptimize(false),
           boundaryQuadrics(true), featureQuadrics(true), maxQuadricError(2000), maxNormalDeviation(10), maxBoundaryDeviation(10),
           maxAspectRatio(10), framesQuadric(10), framesNormalDeviation(10), framesBoundaryDeviation(3), minVLog(1000),

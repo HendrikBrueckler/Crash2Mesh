@@ -33,6 +33,12 @@
 #include <cmath>
 #include <iostream>
 
+#ifdef __APPLE__
+#define C2M_MOD_CONTROL GLFW_MOD_SUPER
+#else
+#define C2M_MOD_CONTROL GLFW_MOD_CONTROL
+#endif
+
 namespace c2m
 {
 using std::map;
@@ -56,7 +62,7 @@ ImGuiViewer::ImGuiViewer(const std::string& title /* = "Easy3D ImGui Viewer" */,
     deciParts.useQuadric = true;
     deciParts.quadricExcludeOnly = false;
     deciParts.framesQuadric = 15;
-    deciParts.maxQuadricError = 10;
+    deciParts.maxQuadricError = 5;
     deciParts.quadricAreaWeighting = false;
     deciParts.quadricPositionOptimization = false;
     deciParts.quadricPostProcessOptimize = false;
@@ -66,10 +72,12 @@ ImGuiViewer::ImGuiViewer(const std::string& title /* = "Easy3D ImGui Viewer" */,
     deciParts.maxNormalDeviation = 5;
     deciParts.normalExcludeOnly = false;
     deciParts.combineQuadricNormal = true;
-    deciParts.useBoundaryDeviation = true;
+    deciParts.combineNormalWeight = 1.0;
+    deciParts.combineQuadricWeight = 3.0;
+    deciParts.useBoundaryDeviation = false;
     deciParts.framesBoundaryDeviation = 5;
     deciParts.maxBoundaryDeviation = 5;
-    deciParts.useAspectRatio = true;
+    deciParts.useAspectRatio = false;
     deciParts.maxAspectRatio = 20;
     deciParts.maxVLog = 0;
     deciParts.maxVRender = 0;
@@ -279,7 +287,7 @@ bool ImGuiViewer::key_press_event(int key, int modifiers)
         drawBoundaries = !drawBoundaries;
         updateBoundaryVisibility();
     }
-    else if (key == GLFW_KEY_F8 && modifiers == 0)
+    else if (key == GLFW_KEY_F && modifiers == 0)
     {
         drawFaces = !drawFaces;
         updateFaceVisibility();
@@ -294,9 +302,29 @@ bool ImGuiViewer::key_press_event(int key, int modifiers)
         if (current_model())
             removeAllElse();
     }
-    else
+    else if (key == GLFW_KEY_C && modifiers == 0) 
     {
-        return AnimationViewer::key_press_event(key, modifiers);
+        if (current_model())
+            fit_screen(current_model());
+    }
+    else if (key == GLFW_KEY_S && modifiers == 0) {
+        fit_screen();
+    }
+    else if (key == GLFW_KEY_H && modifiers == 0) 
+    {
+        if (current_model())
+            current_model()->set_visible(false);
+    }
+    else if (key == GLFW_KEY_H && modifiers == GLFW_MOD_SHIFT) 
+    {
+        if (current_model())
+            for (auto model: models_)
+                model->set_visible(model == current_model());
+    }
+    else if (key == GLFW_KEY_H && modifiers == C2M_MOD_CONTROL) 
+    {
+        for (auto model: models_)
+            model->set_visible(true);
     }
     return false;
 }
@@ -344,6 +372,7 @@ bool ImGuiViewer::mouse_press_event(int x, int y, int button, int modifiers)
         {
             for (auto drawable : current_model()->lines_drawables())
             {
+                // drawable->set_visible(true);
                 drawable->set_default_color(easy3d::vec3(1.0, 1.0, 1.0) - drawable->default_color());
             }
         }
@@ -361,6 +390,7 @@ bool ImGuiViewer::mouse_press_event(int x, int y, int button, int modifiers)
             {
                 for (auto drawable : model->lines_drawables())
                 {
+                    // drawable->set_visible(false);
                     drawable->set_default_color(easy3d::vec3(1.0, 1.0, 1.0) - drawable->default_color());
                 }
             }
@@ -418,20 +448,6 @@ void ImGuiViewer::post_draw()
 {
     if (show_overlay)
         draw_overlay(&show_overlay);
-
-    static bool show_about = false;
-    if (show_about)
-    {
-        ImGui::SetNextWindowPos(ImVec2(width() * 0.5f, height() * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        ImGui::Begin("Crash2Mesh ImGui Viewer", &show_about, ImGuiWindowFlags_NoResize);
-        ImGui::Text("Adapted from Easy3D ImGui Viewer by:");
-        ImGui::Separator();
-        ImGui::Text("\n"
-                    "Liangliang Nan\n"
-                    "liangliang.nan@gmail.com\n"
-                    "https://3d.bk.tudelft.nl/liangliang/\n");
-        ImGui::End();
-    }
 
     static bool show_manual = false;
     if (show_manual)
@@ -509,42 +525,42 @@ void ImGuiViewer::draw_menu_file()
 
 void ImGuiViewer::draw_menu_view()
 {
-    if (ImGui::BeginMenu("View"))
-    {
-        if (ImGui::MenuItem("Snapshot", nullptr))
-            snapshot();
+    // if (ImGui::BeginMenu("View"))
+    // {
+    //     if (ImGui::MenuItem("Snapshot", nullptr))
+    //         snapshot();
 
-        ImGui::Separator();
-        if (ImGui::BeginMenu("Options"))
-        {
-            ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.50f);
+    //     ImGui::Separator();
+    //     if (ImGui::BeginMenu("Options"))
+    //     {
+    //         ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.50f);
 
-            static int style_idx = 1;
-            if (ImGui::Combo("Style", &style_idx, "Classic\0Dark\0Light\0"))
-            {
-                switch (style_idx)
-                {
-                case 0:
-                    ImGui::StyleColorsClassic();
-                    break;
-                case 1:
-                    ImGui::StyleColorsDark();
-                    break;
-                case 2:
-                    ImGui::StyleColorsLight();
-                    break;
-                }
-            }
+    //         static int style_idx = 1;
+    //         if (ImGui::Combo("Style", &style_idx, "Classic\0Dark\0Light\0"))
+    //         {
+    //             switch (style_idx)
+    //             {
+    //             case 0:
+    //                 ImGui::StyleColorsClassic();
+    //                 break;
+    //             case 1:
+    //                 ImGui::StyleColorsDark();
+    //                 break;
+    //             case 2:
+    //                 ImGui::StyleColorsLight();
+    //                 break;
+    //             }
+    //         }
 
-            ImGui::Checkbox("Panel Movable", &movable_);
-            ImGui::ColorEdit3("Background Color", (float*)background_color_, ImGuiColorEditFlags_NoInputs);
-            ImGui::DragFloat("Transparency", &alpha_, 0.005f, 0.0f, 1.0f, "%.1f");
-            ImGui::PopItemWidth();
-            ImGui::EndMenu();
-        }
+    //         ImGui::Checkbox("Panel Movable", &movable_);
+    //         ImGui::ColorEdit3("Background Color", (float*)background_color_, ImGuiColorEditFlags_NoInputs);
+    //         ImGui::DragFloat("Transparency", &alpha_, 0.005f, 0.0f, 1.0f, "%.1f");
+    //         ImGui::PopItemWidth();
+    //         ImGui::EndMenu();
+    //     }
 
-        ImGui::EndMenu();
-    }
+    //     ImGui::EndMenu();
+    // }
 }
 
 bool ImGuiViewer::removeCurrentPartAndModel()
@@ -564,11 +580,11 @@ bool ImGuiViewer::removeCurrentPartAndModel()
                 if (partptr->userID == userID)
                 {
                     partptr->mesh.clear();
-                            // TODO remove
-                            partptr->elements1D.clear();
-                            partptr->elements2D.clear();
-                            partptr->elements3D.clear();
-                            partptr->surfaceElements.clear();
+                    // TODO remove
+                    // partptr->elements1D.clear();
+                    // partptr->elements2D.clear();
+                    // partptr->elements3D.clear();
+                    // partptr->surfaceElements.clear();
                 }
             }
         }
@@ -612,10 +628,10 @@ bool ImGuiViewer::removeAllElse()
                         {
                             partptr->mesh.clear();
                             // TODO remove
-                            partptr->elements1D.clear();
-                            partptr->elements2D.clear();
-                            partptr->elements3D.clear();
-                            partptr->surfaceElements.clear();
+                            // partptr->elements1D.clear();
+                            // partptr->elements2D.clear();
+                            // partptr->elements3D.clear();
+                            // partptr->surfaceElements.clear();
                         }
                     }
                 }
@@ -687,7 +703,7 @@ bool ImGuiViewer::updateBoundaryVisibility()
                     drawable->set_default_color(easy3d::setting::surface_mesh_borders_color);
                     drawable->set_per_vertex_color(false);
                     drawable->set_impostor_type(easy3d::LinesDrawable::CYLINDER);
-                    drawable->set_line_width(easy3d::setting::surface_mesh_borders_line_width * 3.0f);
+                    drawable->set_line_width(easy3d::setting::surface_mesh_borders_line_width * 2.0f);
                 }
             }
             if (drawable)
@@ -710,6 +726,8 @@ bool ImGuiViewer::updateFaceVisibility()
     for (auto model : models_)
         for (auto drawable : model->triangles_drawables())
             drawable->set_visible(drawFaces);
+
+    std::cout << "drawFaces " << drawFaces << std::endl;
     return true;
 }
 
@@ -732,26 +750,44 @@ bool ImGuiViewer::openFile(const std::string& fileName_)
     if (fileName_ == "")
         return false;
 
+
     stage = 0;
 
     fileName = fileName_;
-    erfh5::Reader reader(fileName, 150);
-
-    numFrames = std::max(1, (int)reader.getNumStates());
 
     nVisFrames = 1;
     visFrames = {0};
     currentFrame = 0;
 
+    for (auto model : models_)
+        delete model;
+    models_.clear();
     modelToFrameToVertexbuffer.clear();
     modelToFrameToColorbuffer.clear();
     parts.clear();
     scene.reset();
 
-    if (!reader.readParts(parts))
+    if (partsExpanded)
+        toggleExpandParts();
+
+    try 
+    {
+        erfh5::Reader reader(fileName, 150);
+        if (!reader.readParts(parts))
+        {
+            Logger::lout(Logger::ERROR) << "Could not read file" << std::endl;
+            fileName = "";
+            parts.clear();
+            return false;
+        }
+        numFrames = std::max(1, (int)reader.getNumStates());
+    }
+    catch (const std::exception& e)
     {
         Logger::lout(Logger::ERROR) << "Could not read file" << std::endl;
         fileName = "";
+        parts.clear();
+        numFrames = 0;
         return false;
     }
     if (!SurfaceExtractor::extract(parts, true))
@@ -1204,6 +1240,9 @@ bool ImGuiViewer::calcEpicenters()
     deciParts.epicenters = deciScene.epicenters = epicenters;
     deciParts.meanDistsFromEpicenters = deciScene.meanDistsFromEpicenters = meanDists;
 
+    if (partsExpanded)
+        toggleExpandParts();
+
     createDrawableEpicenters();
 
     return true;
@@ -1330,7 +1369,7 @@ bool ImGuiViewer::decimatePartwise()
 
 bool ImGuiViewer::mergeParts()
 {
-    scene = MeshBuilder::merge(parts, false);
+    scene = MeshBuilder::merge(parts, true);
     if (!scene)
     {
         Logger::lout(Logger::ERROR) << "Merging parts failed" << std::endl;
@@ -1602,6 +1641,30 @@ void ImGuiViewer::drawInfoPanel()
     {
         if (ImGui::CollapsingHeader("Mesh/Info"))
         {
+            if (ImGui::Button("Show Hotkeys"))
+                ImGui::OpenPopup("Hotkeys");
+
+            if (ImGui::BeginPopup("Hotkeys"))
+            {
+                ImGui::Text("Left Mouse Button: select/deselect parts");
+                ImGui::Text("SHIFT + Left Mouse Button: Zoom in on part");
+                ImGui::Text("SHIFT + Right Mouse Button: Zoom out");
+                ImGui::Text("Right Mouse Button: rotate camera (drag and drop)");
+                ImGui::Text("Middle Mouse Button: shift camera position (drag and drop)");
+                ImGui::Text("W: toggle wireframe visibility");
+                ImGui::Text("B: toggle boundary edge highlighting");
+                ImGui::Text("F: toggle surface visibility");
+                ImGui::Text("C: center camera on selected part");
+                ImGui::Text("S: center camera on whole scene");
+                ImGui::Text("H: hide selected part");
+                ImGui::Text("SHIFT + H: hide all parts but the selected one");
+                ImGui::Text("CTRL + H: show all hidden parts again");
+                ImGui::Text("DEL: Delete selected part (only before scene assembly)");
+                ImGui::Text("SHIFT + DEL: Delete all parts but the selected one");
+
+                ImGui::EndPopup();
+            }
+
             ImGui::Separator();
 
             if (stage == 0)
