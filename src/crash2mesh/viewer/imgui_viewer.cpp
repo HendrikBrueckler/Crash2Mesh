@@ -442,6 +442,7 @@ void ImGuiViewer::draw_overlay(bool* /*visible*/)
 {
     drawInfoPanel();
     drawDecimationPanel();
+    drawProcessing();
 }
 
 void ImGuiViewer::post_draw()
@@ -739,7 +740,11 @@ bool ImGuiViewer::openDialog()
     const std::vector<std::string> fileNames = easy3d::dialog::open(title, defaultPath, filters, false);
 
     if (!fileNames.empty())
-        return openFile(fileNames[0]);
+    {
+        currentAction = Action::LOADFILE;
+        fileName = fileNames[0];
+        return true;
+    }
     else
         return false;
 }
@@ -1702,10 +1707,7 @@ void ImGuiViewer::drawInfoPanel()
 
                             currentFrame = 0;
 
-                            if (stage == 1)
-                                createDrawableParts();
-                            else if (stage == 2)
-                                createDrawableScene();
+                            currentAction = Action::REDRAW;
                         }
                         ImGui::CloseCurrentPopup();
                     }
@@ -1748,10 +1750,7 @@ void ImGuiViewer::drawInfoPanel()
                     ImGui::Text("Colors between bounds are linearly interpolated using HSV, depending on face strains");
                     if (ImGui::Button("OK"))
                     {
-                        if (stage == 1)
-                            createDrawableParts();
-                        else if (stage == 2)
-                            createDrawableScene();
+                        currentAction = Action::REDRAW;
                         ImGui::CloseCurrentPopup();
                     }
                     ImGui::EndPopup();
@@ -1889,15 +1888,7 @@ void ImGuiViewer::drawDecimationPanel()
                 ImGui::Indent();
                 if (ImGui::Button("Reload original model"))
                 {
-                    stage = 0;
-                    if (fullReload)
-                    {
-                        openFile(fileName);
-                    }
-                    else
-                    {
-                        buildParts();
-                    }
+                    currentAction = Action::RELOADFILE;
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::Separator();
@@ -1907,7 +1898,8 @@ void ImGuiViewer::drawDecimationPanel()
                     // {
                     //     toggleExpandParts();
                     // }
-                    exportCurrentPart();
+                    // currentAction = Action::EXPORTPART;
+                    exportCurrentPartDialog();
                 }
                 if (ImGui::Button("Export scene"))
                 {
@@ -1915,24 +1907,28 @@ void ImGuiViewer::drawDecimationPanel()
                     // {
                     //     toggleExpandParts();
                     // }
-                    exportScene();
+                    currentAction = Action::EXPORTSCENE;
+                    exportSceneDialog();
                 }
                 if (stage == 1)
                 {
                     ImGui::Separator();
                     if (ImGui::Button("Calculate epicenters (will then be used for error scaling)"))
                     {
-                        calcEpicenters();
+                        currentAction = Action::CALCEPICENTERS;
+                        // calcEpicenters();
                     }
                     ImGui::Separator();
                     if (ImGui::Button("Decimate part-wise"))
                     {
-                        decimatePartwise();
+                        currentAction = Action::DECIMATEPARTS;
+                        // decimatePartwise();
                     }
                     ImGui::Separator();
                     if (ImGui::Button("Merge part meshes to scene"))
                     {
-                        mergeParts();
+                        currentAction = Action::MERGESCENE;
+                        // mergeParts();
                     }
                 }
                 if (stage == 2)
@@ -1943,7 +1939,8 @@ void ImGuiViewer::drawDecimationPanel()
                     ImGui::Text("0 = as far as possible within error bounds");
                     if (ImGui::Button("Decimate globally"))
                     {
-                        decimateScene();
+                        currentAction = Action::DECIMATESCENE;
+                        // decimateScene();
                     }
                 }
                 ImGui::Unindent();
@@ -2089,6 +2086,77 @@ void ImGuiViewer::drawDecimationPanel()
         ImGui::End();
     }
 }
+
+void ImGuiViewer::drawProcessing()
+{
+    if (currentAction == Action::NONE)
+        return;
+
+    ImGui::OpenPopup("PROCESSING...");
+    if (ImGui::BeginPopupModal("PROCESSING..."))
+    {
+        ImGui::Text("This might take some time...");
+
+        if (performInFrames <= 0)
+        {
+            switch (currentAction)
+            {
+                case Action::CALCEPICENTERS:
+                    calcEpicenters();
+                    break;
+                case Action::DECIMATEPARTS:
+                    decimatePartwise();
+                    break;
+                case Action::MERGESCENE:
+                    mergeParts();
+                    break;
+                case Action::DECIMATESCENE:
+                    decimateScene();
+                    break;
+                case Action::LOADFILE:
+                    openFile(fileName);
+                    break;
+                case Action::RELOADFILE:
+                    stage = 0;
+                    if (fullReload)
+                    {
+                        openFile(fileName);
+                    }
+                    else
+                    {
+                        buildParts();
+                    }
+                    break;
+                case Action::REDRAW:
+                    if (stage == 1)
+                        createDrawableParts();
+                    else if (stage == 2)
+                        createDrawableScene();
+                    break;
+                case Action::EXPORTPART:
+                    exportCurrentPart();
+                    break;
+                case Action::EXPORTSCENE:
+                    exportScene();
+                    break;
+                case Action::NONE:
+                default:
+                    break;
+
+            }
+            currentAction = Action::NONE;
+		    performInFrames = 5;
+        }
+        else
+        {
+            performInFrames--;
+        }
+
+
+        ImGui::EndPopup();
+    }
+}
+
 
 bool ImGuiViewer::updateMaxStrains()
 {
@@ -2286,7 +2354,7 @@ bool ImGuiViewer::updateGlobalStats()
     return true;
 }
 
-bool ImGuiViewer::exportCurrentPart()
+bool ImGuiViewer::exportCurrentPartDialog()
 {
     const easy3d::Model* m = current_model();
     if (!m)
@@ -2310,6 +2378,23 @@ bool ImGuiViewer::exportCurrentPart()
     if (file_name.empty())
         return false;
 
+    exportPartFilename = file_name;
+    currentAction = Action::EXPORTPART;
+    return true;
+}
+
+bool ImGuiViewer::exportCurrentPart()
+{
+    const easy3d::Model* m = current_model();
+    if (!m)
+        return false;
+
+    std::string name = m->name();
+    if (name.substr(0, 4) != "part")
+        return false;
+    entid_t userID = atoi(name.substr(4).c_str());
+
+    const std::string& file_name = exportPartFilename;
     if (dynamic_cast<const easy3d::SurfaceMesh*>(m))
     {
         // const easy3d::SurfaceMesh* mesh = dynamic_cast<const easy3d::SurfaceMesh*>(m);
@@ -2529,7 +2614,7 @@ bool ImGuiViewer::exportCurrentPart()
         return false;
 }
 
-bool ImGuiViewer::exportScene()
+bool ImGuiViewer::exportSceneDialog()
 {
     const std::string& title = "Please choose a file name";
     const std::vector<std::string>& filters = {"Crash2Mesh file (*.c2m)",
@@ -2545,26 +2630,34 @@ bool ImGuiViewer::exportScene()
     if (file_name.empty())
         return false;
 
-    Scene::Ptr exportScene;
-    if (stage == 2)
-        exportScene = scene;
-    else
-        exportScene = MeshBuilder::merge(parts, false);
+    exportSceneFilename = file_name;
+    currentAction = Action::EXPORTSCENE;
+    return true;
+}
 
-    if (!exportScene)
+bool ImGuiViewer::exportScene()
+{
+    Scene::Ptr exportedScene;
+    if (stage == 2)
+        exportedScene = scene;
+    else
+        exportedScene = MeshBuilder::merge(parts, false);
+
+    if (!exportedScene)
         return false;
 
+    const std::string& file_name = exportSceneFilename;
     const std::string& ext = easy3d::file_system::extension(file_name, true);
     if (ext == "c2m")
     {
-        C2MWriter::write(file_name, exportScene, true);
+        C2MWriter::write(file_name, exportedScene, true);
         return true;
     }
     // else if (ext == "obj")
     // {
-    //     const CMesh& mesh = exportScene->mesh;
+    //     const CMesh& mesh = exportedScene->mesh;
     //     easy3d::SurfaceMesh drawableMesh;
-    //     drawableMesh.set_name("exportScene");
+    //     drawableMesh.set_name("exportedScene");
     //     for (int i = 0; i < numFrames; i++)
     //     {
     //         drawableMesh.add_face_property<float>("f:strain_frame" + std::to_string(i));
@@ -2618,7 +2711,7 @@ bool ImGuiViewer::exportScene()
         {
             partID2Part[part->ID] = part;
         }
-        const CMesh& mesh = exportScene->mesh;
+        const CMesh& mesh = exportedScene->mesh;
         easy3d::SurfaceMesh drawableMesh;
         drawableMesh.set_name("scene");
         for (int i = 0; i < numFrames; i++)

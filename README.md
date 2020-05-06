@@ -33,3 +33,5 @@ If something does not work as expected you can check the console logs (if launch
 or the logs in folder `logs` (same directory as binary) to see if there was an error or possible bug.
 Some invalid decimation configurations are not automatically detected yet and will result
 in crashes. This will be fixed as soon as possible.
+File export is a bit finicky. You have to manually add the extension (.obj or .c2m) in the
+popup window in order to actually save the file in the respective format.

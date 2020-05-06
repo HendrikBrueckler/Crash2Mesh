@@ -120,6 +120,8 @@ struct hsv
 
 		void drawDecimationPanel();
 
+		void drawProcessing();
+
 		bool openDialog();
 
 		bool openFile(const std::string& fileName_);
@@ -154,7 +156,9 @@ struct hsv
         bool updateFaceVisibility();
 
 		bool exportCurrentPart();
+		bool exportCurrentPartDialog();
 		bool exportScene();
+		bool exportSceneDialog();
 
 		easy3d::vec3 getStrainColor(float strain);
 
@@ -225,6 +229,24 @@ struct hsv
 		int numParts2D = 0;
 		int numParts3D = 0;
 
+		std::string exportPartFilename;
+		std::string exportSceneFilename;
+
+		enum class Action {
+			NONE,
+			LOADFILE,
+			RELOADFILE,
+			CALCEPICENTERS,
+			REDRAW,
+			DECIMATEPARTS,
+			MERGESCENE,
+			DECIMATESCENE,
+			EXPORTPART,
+			EXPORTSCENE
+		};
+
+		Action currentAction = Action::NONE;
+		int performInFrames = 5;
 
 		// Per part
 		std::map<int, int> pNumComplexEdges;
