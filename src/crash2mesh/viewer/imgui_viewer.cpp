@@ -456,7 +456,7 @@ void ImGuiViewer::post_draw()
         int w, h;
         glfwGetWindowSize(window_, &w, &h);
         ImGui::SetNextWindowPos(ImVec2(w * 0.5f, h * 0.5f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
-        ImGui::Begin("Easy3D Manual", &show_manual, ImGuiWindowFlags_NoResize);
+        ImGui::Begin("Crash2Mesh Manual", &show_manual, ImGuiWindowFlags_NoResize);
         ImGui::Text("%s", usage().c_str());
         ImGui::End();
     }
@@ -491,6 +491,32 @@ void ImGuiViewer::post_draw()
         const float offsetY = 20.0f * dpi_scaling();
         text_renderer_->draw("Crash2Mesh", offsetX, offsetY, font_size, 0);
     }
+}
+
+std::string ImGuiViewer::usage() const {
+    return std::string(
+        " ------------------------------------------------------------------\n"
+        " Crash2Mesh viewer usage:                                          \n"
+        " ------------------------------------------------------------------\n"
+        "  Left Mouse:          Select/deselect parts                       \n"
+        "  Right Mouse:         Rotate camera (drag and drop)               \n"
+        "  Middle Mouse:        Shift camera position (drag and drop)       \n"
+        "  SHIFT + Left Mouse:  Zoom in on part                             \n"
+        "  SHIFT + Right Mouse: Zoom out                                    \n"
+        "  Mouse Wheel:         Zoom in/out                                 \n"
+        " ------------------------------------------------------------------\n"
+        "  W:                   Toggle wireframe visibility                 \n"
+        "  B:                   Toggle boundary edge highlighting           \n"
+        "  F:                   Toggle surface visibility                   \n"
+        "  C:                   Center camera on selected part              \n"
+        "  S:                   Center camera on whole scene                \n"
+        "  H:                   Hide selected part                          \n"
+        "  SHIFT + H:           Hide all parts but the selected one         \n"
+        "  CTRL + H:            Show all hidden parts again                 \n"
+        "  DEL:                 Delete selected part                        \n"
+        "  SHIFT + DEL:         Delete all parts but the selected one       \n"
+        " ------------------------------------------------------------------\n"
+    );
 }
 
 void ImGuiViewer::draw_menu_file()
@@ -1650,21 +1676,7 @@ void ImGuiViewer::drawInfoPanel()
 
             if (ImGui::BeginPopup("Hotkeys"))
             {
-                ImGui::Text("Left Mouse Button: select/deselect parts");
-                ImGui::Text("SHIFT + Left Mouse Button: Zoom in on part");
-                ImGui::Text("SHIFT + Right Mouse Button: Zoom out");
-                ImGui::Text("Right Mouse Button: rotate camera (drag and drop)");
-                ImGui::Text("Middle Mouse Button: shift camera position (drag and drop)");
-                ImGui::Text("W: toggle wireframe visibility");
-                ImGui::Text("B: toggle boundary edge highlighting");
-                ImGui::Text("F: toggle surface visibility");
-                ImGui::Text("C: center camera on selected part");
-                ImGui::Text("S: center camera on whole scene");
-                ImGui::Text("H: hide selected part");
-                ImGui::Text("SHIFT + H: hide all parts but the selected one");
-                ImGui::Text("CTRL + H: show all hidden parts again");
-                ImGui::Text("DEL: Delete selected part (only before scene assembly)");
-                ImGui::Text("SHIFT + DEL: Delete all parts but the selected one");
+                ImGui::Text("%s", usage().c_str());
 
                 ImGui::EndPopup();
             }

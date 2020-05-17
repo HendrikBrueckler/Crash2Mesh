@@ -104,6 +104,8 @@ struct hsv
 		float   menu_height_;
 
 	protected:
+		std::string usage() const;
+		
 		/*
 		 * Additional stuff for decimation
 		 */
