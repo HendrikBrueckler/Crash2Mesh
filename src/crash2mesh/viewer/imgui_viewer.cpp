@@ -1440,7 +1440,7 @@ bool ImGuiViewer::createDrawableScene()
         Part::Ptr partPtr = parts[index];
         const CMesh& mesh = partPtr->mesh;
 
-        if (mesh.n_faces() == 0)
+        if (partPtr->elements2D.empty() && partPtr->surfaceElements.empty())
             continue;
 
         partID2Index[partPtr->ID] = index;
@@ -1476,7 +1476,7 @@ bool ImGuiViewer::createDrawableScene()
         Part::Ptr partPtr = parts[index];
         int partID = partPtr->ID;
 
-        if (partPtr->mesh.n_faces() == 0)
+        if (partPtr->elements2D.empty() && partPtr->surfaceElements.empty())
             return;
 
         easy3d::SurfaceMesh* drawableMesh = drawablesMeshes[index];
